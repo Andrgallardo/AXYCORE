@@ -1,0 +1,750 @@
+/* AxyCore — motor de simulación integrado, 2026-10-02.
+
+ * ESTADO: motor en Apps Script, módulo web integrado desde Inicio de AppSheet.
+
+ * No crea operaciones reales.
+
+ * Tasas expresadas como porcentaje MENSUAL (5 significa 5%).
+
+ * Conversión según fuente del motor existente: diaria /30, semanal /4,
+
+ * quincenal /2, mensual /1. Insoluta: cuota nivelada, como el motor existente.
+
+ * Configuración única sustituible por reglas cargadas de PARAMETROS al integrar.
+
+ * Los límites inferiores son exclusivos salvo el mínimo 1: no quedan huecos
+
+ * entre, por ejemplo, 1,000.00 y 1,001.00 para montos con centavos.
+
+ */
+
+function crearMotorCalculadoraAxyCore() {
+
+  'use strict';
+
+  var CONFIG = {
+
+    DOP: [
+
+      {hasta:30000, tasa:5, gasto:1000},
+
+      {hasta:150000, tasa:4.5, gasto:1500},
+
+      {hasta:null, tasa:4, gastoPorcentaje:3}
+
+    ],
+
+    USD: [
+
+      {hasta:1000, tasa:5, gasto:20},
+
+      {hasta:1500, tasa:5, gasto:25},
+
+      {hasta:2000, tasa:4.5, gasto:35},
+
+      {hasta:3000, tasa:4, gasto:50},
+
+      {hasta:5000, tasa:4, gasto:75},
+
+      {hasta:null, tasa:4, gastoPorcentaje:3}
+
+    ],
+
+    frecuencias: {
+
+      Diaria:{divisor:30,dias:1,unidad:'días'},
+
+      Semanal:{divisor:4,dias:7,unidad:'semanas'},
+
+      Quincenal:{divisor:2,dias:15,unidad:'quincenas'},
+
+      Mensual:{divisor:1,meses:1,unidad:'meses'}
+
+    },
+
+    maxCuotas:10000
+
+  };
+
+  function exigir(ok,mensaje) { if (!ok) throw new Error(mensaje); }
+
+  function enteroDecimal(valor,precision,nombre) {
+
+    exigir(typeof valor==='number'||typeof valor==='string',nombre+' requerido');
+
+    var texto=String(valor).trim();
+
+    exigir(/^\d+(?:\.\d+)?$/.test(texto),nombre+' debe ser un número no negativo');
+
+    var partes=texto.split('.'), decimales=partes[1]||'';
+
+    exigir(decimales.length<=precision,nombre+' excede la precisión admitida');
+
+    return BigInt(partes[0]+decimales.padEnd(precision,'0'));
+
+  }
+
+  function dividirRedondeando(n,d) { return (n+d/BigInt(2))/d; }
+
+  function importe(centavos) {
+
+    exigir(centavos<=BigInt(Number.MAX_SAFE_INTEGER),'Monto fuera del límite de precisión');
+
+    return Number(centavos)/100;
+
+  }
+
+  function fechaISO(texto) {
+
+    exigir(typeof texto==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(texto),'Fecha requerida en formato AAAA-MM-DD');
+    var d=new Date(texto+'T12:00:00Z');
+    exigir(Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===texto,'Fecha inválida');
+
+    return d;
+
+  }
+
+  function vencimiento(fecha,numero,frecuencia) {
+
+    var d=new Date(fecha.getTime());
+
+    if(frecuencia.meses) {
+
+      var dia=d.getUTCDate();
+
+      d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth()+numero*frecuencia.meses);
+
+      var ultimo=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();
+
+      d.setUTCDate(Math.min(dia,ultimo));
+
+    } else d.setUTCDate(d.getUTCDate()+numero*frecuencia.dias);
+
+    exigir(Number.isFinite(d.getTime()),'Fecha de vencimiento fuera de rango');
+
+    return d.toISOString().slice(0,10);
+
+  }
+
+  function regla(moneda,monto,config) {
+
+    var reglas=config[moneda];
+
+    exigir(Array.isArray(reglas)&&reglas.length>0,'Moneda sin configuración');
+
+    var anterior=BigInt(0);
+
+    for(var i=0;i<reglas.length;i++) {
+
+      var r=reglas[i];
+
+      if(r.hasta===null) {
+
+        exigir(i===reglas.length-1,'El rango abierto debe ser el último');
+
+        return r;
+
+      }
+
+      var limite=enteroDecimal(r.hasta,2,'Límite');
+
+      exigir(limite>anterior,'Rangos desordenados o duplicados'); anterior=limite;
+
+      if(monto<=limite) return r;
+
+    }
+
+    throw new Error('Monto sin regla configurada');
+
+  }
+
+  function gastoLegal(p,r) {
+
+    return r.gastoPorcentaje!==undefined
+
+      ?dividirRedondeando(p*enteroDecimal(r.gastoPorcentaje,6,'Porcentaje de gastos'),BigInt(100000000))
+
+      :enteroDecimal(r.gasto,2,'Gasto legal');
+
+  }
+
+  function sugerir(moneda,monto,config) {
+
+    config=config||CONFIG;
+
+    exigir(moneda==='DOP'||moneda==='USD','Seleccione moneda');
+
+    var p=enteroDecimal(monto,2,'Monto');
+
+    exigir(p>=BigInt(100),'Monto mínimo: 1 en la moneda seleccionada'); importe(p);
+
+    var r=regla(moneda,p,config);
+
+    return {tasa:r.tasa,gastosLegales:importe(gastoLegal(p,r))};
+
+  }
+
+  function calcular(datos,config) {
+
+    config=config||CONFIG;
+
+    exigir(datos&&typeof datos==='object','Datos del préstamo requeridos');
+
+    exigir(datos.moneda==='DOP'||datos.moneda==='USD','Seleccione moneda');
+
+    var p=enteroDecimal(datos.monto,2,'Monto');
+
+    exigir(p>=BigInt(100),'Monto mínimo: 1 en la moneda seleccionada'); importe(p);
+    var f=config.frecuencias[datos.frecuencia];
+    exigir(!!f,'Seleccione frecuencia');
+
+    exigir(Number.isSafeInteger(f.divisor)&&f.divisor>0,'Conversión de frecuencia inválida');
+
+    exigir(typeof datos.plazo==='number'&&Number.isSafeInteger(datos.plazo)&&datos.plazo>0,
+
+      'El plazo debe ser un número entero de cuotas mayor que cero');
+
+    exigir(datos.plazo<=config.maxCuotas,'Plazo superior al máximo parametrizado');
+
+    exigir(datos.tipo==='Fija'||datos.tipo==='Insoluta','Seleccione tipo de interés');
+    var modalidadPago=datos.modalidadPago||'Normal';
+    exigir(modalidadPago==='Normal'||modalidadPago==='SoloInteresesInicial','Seleccione modalidad de pago');
+    var cuotasSoloInteres=modalidadPago==='SoloInteresesInicial'?Number(datos.cuotasSoloInteres||0):0;
+    exigir(Number.isSafeInteger(cuotasSoloInteres)&&cuotasSoloInteres>=0,'Las cuotas de solo intereses deben ser un número entero no negativo');
+    exigir(cuotasSoloInteres<datos.plazo,'Las cuotas de solo intereses deben ser menores que el plazo total');
+    var cuotasAmortizacion=datos.plazo-cuotasSoloInteres;
+
+    exigir(datos.gastos==='Descontar'||datos.gastos==='Financiar','Seleccione tratamiento de gastos');
+
+    exigir(typeof datos.usarSugerida==='boolean','Indique si desea utilizar la tasa sugerida');
+
+    var fecha=fechaISO(datos.fecha), r=regla(datos.moneda,p,config);
+
+    var tasa=enteroDecimal(datos.usarSugerida?r.tasa:datos.tasaPersonalizada,6,'Tasa');
+
+    var divisor=BigInt(100000000)*BigInt(f.divisor);
+
+    var gasto=gastoLegal(p,r);
+
+    var financiado=p+(datos.gastos==='Financiar'?gasto:BigInt(0));
+
+    var neto=p-(datos.gastos==='Descontar'?gasto:BigInt(0));
+
+    exigir(neto>BigInt(0),'Los gastos descontados deben ser inferiores al monto solicitado'); importe(financiado);
+
+    var cambio=datos.moneda==='USD'?enteroDecimal(datos.tasaCambio,6,'Tasa de cambio'):null;
+
+    if(cambio!==null) exigir(cambio>BigInt(0),'La tasa de cambio debe ser mayor que cero');
+
+    var balance=financiado, interesTotal=BigInt(0), cuotas=[], n=datos.plazo;
+    var capitalFijo=financiado/BigInt(cuotasAmortizacion);
+    var interesFijo=dividirRedondeando(financiado*tasa,divisor);
+    var nivelada=null;
+    if(datos.tipo==='Insoluta'&&tasa>BigInt(0)) {
+      var periodica=Number(tasa)/Number(divisor);
+      var calculo=Number(financiado)*periodica/(-Math.expm1(-cuotasAmortizacion*Math.log1p(periodica)));
+      exigir(Number.isFinite(calculo)&&calculo<=Number.MAX_SAFE_INTEGER,'Cuota fuera de rango');
+      nivelada=BigInt(Math.round(calculo));
+    }
+    for(var k=1;k<=n;k++) {
+      var soloInteres=k<=cuotasSoloInteres;
+      var interes=datos.tipo==='Fija'?interesFijo:dividirRedondeando(balance*tasa,divisor);
+      var capital=BigInt(0);
+      if(!soloInteres) {
+        capital=(datos.tipo==='Fija'||tasa===BigInt(0))?capitalFijo:nivelada-interes;
+        exigir(capital>=BigInt(0),'La precisión monetaria produce una cuota insuficiente para cubrir el interés');
+        if(k===n||capital>balance) capital=balance;
+      }
+      balance-=capital; interesTotal+=interes;
+      cuotas.push({numero:k,fecha:vencimiento(fecha,k,f),etapa:soloInteres?'Solo intereses':'Amortización',capital:importe(capital),interes:importe(interes),cuota:importe(capital+interes),balance:importe(balance)});
+    }
+
+    exigir(balance===BigInt(0),'El plan no liquida el capital');
+
+    var total=financiado+interesTotal;
+
+    var salida={moneda:datos.moneda,montoSolicitado:importe(p),frecuencia:datos.frecuencia,
+
+      plazo:n,unidadPlazo:f.unidad,numeroCuotas:n,fechaDesembolso:datos.fecha,
+
+      tasaSugerida:r.tasa,tasaAplicada:Number(tasa)/1000000,tasaBase:'Mensual',
+
+      tasaPeriodicaPorcentaje:Number(tasa)/1000000/f.divisor,
+
+      origenTasa:datos.usarSugerida?'Automática':'Personalizada',tipo:datos.tipo,
+      modalidadPago:modalidadPago,cuotasSoloInteres:cuotasSoloInteres,cuotasAmortizacion:cuotasAmortizacion,
+
+      esquema:datos.tipo==='Fija'?'Capital e interés fijos; ajuste final de centavos'
+
+        :'Cuota nivelada con interés sobre balance; ajuste final de centavos',
+
+      gastosLegales:importe(gasto),modalidadGastos:datos.gastos,
+
+      montoFinanciado:importe(financiado),montoNetoRecibir:importe(neto),
+
+      cuotaInicial:cuotas[0].cuota,cuotaFinal:cuotas[n-1].cuota,
+
+      cuotasIguales:cuotas.every(function(c){return c.cuota===cuotas[0].cuota;}),
+
+      totalCapital:importe(financiado),totalIntereses:importe(interesTotal),
+
+      totalGastosLegales:importe(gasto),totalAPagar:importe(total),
+
+      costoTotalIncluyendoGastos:importe(total+(datos.gastos==='Descontar'?gasto:BigInt(0))),cuotas:cuotas};
+
+    if(cambio!==null) {
+      salida.tasaCambio=Number(cambio)/1000000; salida.equivalenteDOP={};
+
+      ['montoSolicitado','gastosLegales','montoFinanciado','montoNetoRecibir','cuotaInicial',
+        'cuotaFinal','totalCapital','totalIntereses','totalGastosLegales','totalAPagar',
+
+        'costoTotalIncluyendoGastos'].forEach(function(campo) {
+
+          salida.equivalenteDOP[campo]=importe(dividirRedondeando(
+
+            enteroDecimal(salida[campo].toFixed(2),2,campo)*cambio,BigInt(1000000)));
+
+        });
+
+      salida.cuotasDOP=cuotas.map(function(c){var v={numero:c.numero,fecha:c.fecha,etapa:c.etapa};
+
+        ['capital','interes','cuota','balance'].forEach(function(campo){
+
+          v[campo]=importe(dividirRedondeando(enteroDecimal(c[campo].toFixed(2),2,campo)*cambio,BigInt(1000000)));
+
+        }); return v;
+
+      });
+
+    }
+
+    return salida;
+
+  }
+
+  function comparar(datos,config) {
+
+    return {fija:calcular(Object.assign({},datos,{tipo:'Fija'}),config),
+
+      insoluta:calcular(Object.assign({},datos,{tipo:'Insoluta'}),config)};
+
+  }
+
+  function calcularConParametros(datos,filas) {
+
+    exigir(Array.isArray(filas),'PARAMETROS no disponible');
+
+    var registros=filas.filter(function(f){return f.ID_PARAMETRO==='CALCULADORA_CONFIG_V1' &&
+
+      (f.ACTIVO===true || /^(true|sí|si|yes|y|1|on)$/i.test(String(f.ACTIVO)));});
+
+    exigir(registros.length===1,'Debe existir una única configuración activa de calculadora');
+
+    return calcular(datos,JSON.parse(registros[0].VALOR_TEXTO));
+
+  }
+
+  return {configuracion:CONFIG,sugerir:sugerir,calcular:calcular,comparar:comparar,calcularConParametros:calcularConParametros};
+
+}
+
+var AxyCalculadora=crearMotorCalculadoraAxyCore();
+
+
+
+function probarCalculadoraAxyCore() {
+
+  var resultados=[];
+
+  function caso(nombre,fn){fn();resultados.push({prueba:nombre,resultado:'PASS'});}
+
+  function igual(a,b){if(a!==b)throw new Error(String(a)+' != '+String(b));}
+
+  function falla(fn){var rechazado=false;try{fn();}catch(e){rechazado=true;}
+
+    if(!rechazado)throw new Error('Se esperaba validación');}
+
+  function datos(extra){return Object.assign({moneda:'DOP',monto:100000,frecuencia:'Mensual',
+
+    plazo:12,fecha:'2026-10-02',usarSugerida:true,tipo:'Fija',gastos:'Descontar'},extra);}
+
+  function verificar(r){
+
+    igual(r.cuotas.length,r.numeroCuotas);igual(r.cuotas[r.cuotas.length-1].balance,0);
+
+    var cap=0,int=0,total=0,prev=Math.round(r.montoFinanciado*100);
+
+    r.cuotas.forEach(function(c){var cp=Math.round(c.capital*100),it=Math.round(c.interes*100);
+
+      igual(Math.round(c.cuota*100),cp+it);igual(Math.round(c.balance*100),prev-cp);
+
+      cap+=cp;int+=it;total+=Math.round(c.cuota*100);prev-=cp;});
+
+    igual(cap,Math.round(r.montoFinanciado*100));igual(int,Math.round(r.totalIntereses*100));
+
+    igual(total,Math.round(r.totalAPagar*100));
+
+  }
+
+  ['Diaria','Semanal','Quincenal','Mensual'].forEach(function(f){
+
+    ['Fija','Insoluta'].forEach(function(t){['Descontar','Financiar'].forEach(function(g){
+
+      caso('DOP '+f+' '+t+' '+g,function(){verificar(AxyCalculadora.calcular(datos({
+        frecuencia:f,plazo:f==='Diaria'?120:12,tipo:t,gastos:g})));});
+
+    });});
+  });
+
+  [[1000,5,20],[1000.01,5,25],[1001,5,25],[1500,5,25],[1500.01,4.5,35],
+
+    [1501,4.5,35],[2000,4.5,35],[2000.01,4,50],[2001,4,50],[3000,4,50],
+
+    [3000.01,4,75],[3001,4,75],[5000,4,75],[5000.01,4,150],[5001,4,150.03]]
+
+    .forEach(function(v){caso('USD límite '+v[0],function(){
+
+      var r=AxyCalculadora.calcular(datos({moneda:'USD',monto:v[0],tasaCambio:63.5}));
+
+      igual(r.tasaAplicada,v[1]);igual(r.gastosLegales,v[2]);verificar(r);
+
+    });});
+
+  [[30000,5,1000],[30000.01,4.5,1500],[30001,4.5,1500],[150000,4.5,1500],
+
+    [150000.01,4,4500],[150001,4,4500.03]].forEach(function(v){
+
+      caso('DOP límite '+v[0],function(){var r=AxyCalculadora.calcular(datos({monto:v[0]}));
+
+        igual(r.tasaAplicada,v[1]);igual(r.gastosLegales,v[2]);verificar(r);});});
+
+  caso('Referencia fija DOP 100000 4.5% mensual 12 cuotas',function(){
+
+    var r=AxyCalculadora.calcular(datos());igual(r.totalIntereses,54000);
+
+    igual(r.totalAPagar,154000);igual(r.montoNetoRecibir,98500);igual(r.cuotaInicial,12833.33);});
+
+  caso('USD 2000 financiado, tasa manual 3%',function(){
+
+    var r=AxyCalculadora.calcular(datos({moneda:'USD',monto:2000,tasaCambio:63.5,
+
+      gastos:'Financiar',usarSugerida:false,tasaPersonalizada:3}));
+
+    igual(r.tasaAplicada,3);igual(r.montoFinanciado,2035);igual(r.montoNetoRecibir,2000);
+
+    igual(r.totalIntereses,732.6);igual(r.totalAPagar,2767.6);
+
+    igual(r.equivalenteDOP.montoFinanciado,129222.5);verificar(r);});
+
+  caso('USD insoluta, semanal, financiado',function(){verificar(AxyCalculadora.calcular(
+
+    datos({moneda:'USD',monto:5001,tasaCambio:63.5,tipo:'Insoluta',frecuencia:'Semanal',gastos:'Financiar'})));});
+
+  caso('Tasa cero y redondeo final',function(){var r=AxyCalculadora.calcular(datos({
+
+    usarSugerida:false,tasaPersonalizada:0,tipo:'Insoluta'}));igual(r.totalIntereses,0);verificar(r);});
+
+  caso('Financiar conserva rango sobre monto original',function(){var r=AxyCalculadora.calcular(
+
+    datos({monto:150000,gastos:'Financiar'}));igual(r.tasaAplicada,4.5);igual(r.gastosLegales,1500);});
+
+  caso('Fechas mensuales fin de mes y año bisiesto',function(){var r=AxyCalculadora.calcular(
+
+    datos({fecha:'2028-01-31',plazo:3}));igual(r.cuotas[0].fecha,'2028-02-29');
+
+    igual(r.cuotas[1].fecha,'2028-03-31');igual(r.cuotas[2].fecha,'2028-04-30');});
+
+  [['Diaria','2026-10-03'],['Semanal','2026-10-09'],['Quincenal','2026-10-17'],
+
+    ['Mensual','2026-11-02']].forEach(function(v){caso('Fecha '+v[0],function(){
+
+      igual(AxyCalculadora.calcular(datos({frecuencia:v[0]})).cuotas[0].fecha,v[1]);});});
+
+  caso('Comparación conserva entradas y disminuye intereses insolutos',function(){var d=datos(),original=JSON.stringify(d);
+
+    var c=AxyCalculadora.comparar(d);igual(JSON.stringify(d),original);
+
+    if(!(c.insoluta.cuotas[0].interes>c.insoluta.cuotas[11].interes&&
+
+      c.insoluta.totalIntereses<c.fija.totalIntereses))throw new Error('Comparación inválida');});
+
+  caso('Configuración PARAMETROS sustituye las reglas sin duplicarlas',function(){
+
+    var config=JSON.parse(JSON.stringify(AxyCalculadora.configuracion));config.DOP[1].tasa=3;
+
+    var filas=[{ID_PARAMETRO:'CALCULADORA_CONFIG_V1',ACTIVO:true,VALOR_TEXTO:JSON.stringify(config)}];
+
+    igual(AxyCalculadora.calcularConParametros(datos(),filas).tasaAplicada,3);
+
+    falla(function(){AxyCalculadora.calcularConParametros(datos(),[]);});
+
+    falla(function(){AxyCalculadora.calcularConParametros(datos(),filas.concat(filas));});
+
+  });
+
+  [{monto:''},{monto:-1},{monto:0},{plazo:0},{plazo:-1},{plazo:1.5},{plazo:null},
+
+    {moneda:''},{frecuencia:''},{fecha:'2026-02-30'},{usarSugerida:null},
+
+    {usarSugerida:false,tasaPersonalizada:-1},{usarSugerida:false,tasaPersonalizada:''},
+
+    {moneda:'USD',tasaCambio:0},{moneda:'USD',tasaCambio:-1},{moneda:'USD',tasaCambio:''},
+    {gastos:''},{tipo:''},{monto:100,gastos:'Descontar'}].forEach(function(v,i){
+
+      caso('Validación '+(i+1),function(){falla(function(){AxyCalculadora.calcular(datos(v));});});});
+
+  ['Fija','Insoluta'].forEach(function(tipoPeriodo){
+    caso('Por período: 12 cuotas, primeras 5 solo intereses · '+tipoPeriodo,function(){
+
+      var r=AxyCalculadora.calcular(datos({plazo:12,tipo:tipoPeriodo,
+
+        modalidadPago:'SoloInteresesInicial',cuotasSoloInteres:5}));
+
+      igual(r.cuotasSoloInteres,5); igual(r.cuotasAmortizacion,7);
+
+      for(var j=0;j<5;j++) { igual(r.cuotas[j].capital,0); igual(r.cuotas[j].balance,r.montoFinanciado); }
+
+      if(!(r.cuotas[5].capital>0)) throw new Error('La cuota 6 debe comenzar a amortizar capital');
+
+      igual(r.cuotas[11].balance,0); verificar(r);
+
+    });
+
+  });
+
+  caso('Por período rechaza una cantidad igual al plazo total',function(){
+
+    falla(function(){AxyCalculadora.calcular(datos({plazo:12,modalidadPago:'SoloInteresesInicial',cuotasSoloInteres:12}));});
+
+  });
+
+  return {estado:'PASS',alcance:'Pruebas locales del motor; integración AppSheet pendiente',
+
+    total:resultados.length,resultados:resultados};
+
+}
+
+
+
+function probarCalculadoraAxyCoreEnServidor() {
+
+  var resultado=probarCalculadoraAxyCore();
+
+  console.log(JSON.stringify({estado:resultado.estado,total:resultado.total,
+
+    alcance:'Motor ejecutado en Apps Script; módulo web integrado desde Inicio'}));
+
+  return resultado;
+
+}
+
+
+
+/** Lee exclusivamente la configuración de simulación usando la conexión existente. */
+
+function obtenerCondicionesCalculadoraAxyCore() {
+
+  var filas=leerTablaAppSheet('PARAMETROS');
+
+  var activas=filas.filter(function(f) {
+
+    return f.ID_PARAMETRO==='CALCULADORA_CONFIG_V1' &&
+
+      esVerdadero(f.ACTIVO);
+
+  });
+
+  if(activas.length!==1) throw new Error('Debe existir una única configuración activa CALCULADORA_CONFIG_V1 en PARAMETROS.');
+
+  var config=JSON.parse(activas[0].VALOR_TEXTO);
+
+  if(!config.DOP || !config.USD || !config.frecuencias) throw new Error('Configuración de calculadora incompleta.');
+
+  return config;
+
+}
+
+function simularPrestamoAxyCore(datos) {
+
+  return AxyCalculadora.comparar(datos,obtenerCondicionesCalculadoraAxyCore());
+
+}
+
+function probarConexionCalculadoraAxyCore() {
+
+  var config=obtenerCondicionesCalculadoraAxyCore();
+
+  var r=AxyCalculadora.calcular({moneda:'USD',monto:2001,frecuencia:'Mensual',plazo:12,
+
+    fecha:'2026-10-02',usarSugerida:true,tipo:'Fija',gastos:'Financiar',tasaCambio:63.5},config);
+
+  if(r.tasaAplicada!==4 || r.gastosLegales!==50 || r.numeroCuotas!==12) throw new Error('La configuración real no coincide con las condiciones autorizadas.');
+
+  console.log(JSON.stringify({estado:'PASS',fuente:'PARAMETROS',moneda:r.moneda,monto:r.montoSolicitado,tasa:r.tasaAplicada,gastos:r.gastosLegales,cuotas:r.numeroCuotas}));
+
+}
+
+
+
+/** Extrae la tasa de VENTA desde la página pública oficial del BCRD. */
+function extraerTasaCambioBCRD(html) {
+
+  if(typeof html!=='string' || !html) throw new Error('Respuesta vacía del BCRD.');
+
+  var texto=html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;|&#160;/gi,' ')
+    .replace(/&amp;/gi,'&')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  var pos=texto.toLowerCase().indexOf('tipo de cambio');
+  if(pos<0) throw new Error('No se encontró el bloque de tipo de cambio del BCRD.');
+
+  var bloque=texto.slice(pos,pos+1500);
+  var venta=bloque.match(/\bVenta\s*(?:RD\$?\s*)?([0-9]{1,3}(?:[.,][0-9]{2,6})?)/i);
+  if(!venta) throw new Error('No se encontró la tasa de venta del BCRD.');
+
+  var valor=Number(venta[1].replace(',','.'));
+  if(!Number.isFinite(valor) || valor<=0 || valor>500) throw new Error('Tasa de venta BCRD fuera de rango.');
+
+  var fecha=bloque.match(/(\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]+\s+(?:de\s+)?\d{4})/i);
+
+  return {venta:valor,fecha:fecha?fecha[1]:'Última publicada',fuente:'Banco Central de la República Dominicana (BCRD)'};
+}
+
+/** Obtiene la tasa oficial; conserva la última válida como respaldo. */
+function obtenerTasaCambioBCRD() {
+
+  var claveCache='AXY_TASA_USD_DOP_BCRD_V1';
+  var claveRespaldo='AXY_TASA_USD_DOP_BCRD_ULTIMA';
+  var cache=CacheService.getScriptCache();
+  var guardada=cache.get(claveCache);
+
+  if(guardada) {
+    var desdeCache=JSON.parse(guardada);
+    desdeCache.desdeCache=true;
+    return desdeCache;
+  }
+
+  try {
+    var respuesta=UrlFetchApp.fetch('https://www.bancentral.gov.do/',{
+      method:'get',
+      followRedirects:true,
+      muteHttpExceptions:true,
+      headers:{'User-Agent':'Mozilla/5.0 (compatible; AxyCore/1.0)'}
+    });
+
+    var codigo=respuesta.getResponseCode();
+    if(codigo<200 || codigo>=300) throw new Error('BCRD respondió HTTP '+codigo+'.');
+
+    var tasa=extraerTasaCambioBCRD(respuesta.getContentText());
+    tasa.obtenidaEn=Utilities.formatDate(new Date(),'America/Santo_Domingo',"yyyy-MM-dd'T'HH:mm:ss");
+    tasa.respaldo=false;
+
+    var json=JSON.stringify(tasa);
+    cache.put(claveCache,json,3600);
+    PropertiesService.getScriptProperties().setProperty(claveRespaldo,json);
+    return tasa;
+
+  } catch(e) {
+    var ultima=PropertiesService.getScriptProperties().getProperty(claveRespaldo);
+    if(ultima) {
+      var respaldo=JSON.parse(ultima);
+      respaldo.respaldo=true;
+      respaldo.motivoRespaldo=String(e.message||e);
+      return respaldo;
+    }
+    throw e;
+  }
+}
+
+function probarTasaCambioBCRD() {
+  var muestra='<div>Tipo de cambio 30 de Septiembre 2026 Compra 59.5224 Venta 60.0783 Reservas internacionales</div>';
+  var r=extraerTasaCambioBCRD(muestra);
+  if(r.venta!==60.0783) throw new Error('No se extrajo correctamente la tasa de venta.');
+  if(r.fecha!=='30 de Septiembre 2026') throw new Error('No se extrajo correctamente la fecha.');
+  return {estado:'PASS',venta:r.venta,fecha:r.fecha,fuente:r.fuente};
+}
+
+var AXY_CALCULADORA_HTML="<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>AxyCore | Calculadora de Préstamos</title><style>\n:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172a46;background:#f3f6fb;font-size:15px;--azul:#175cb9;--borde:#dbe4f0}*{box-sizing:border-box}body{margin:0}header{background:#103b78;color:white;padding:24px max(24px,calc((100vw - 1200px)/2));display:flex;gap:18px;align-items:center}header .marca{display:flex;align-items:center;gap:10px;font-size:26px;font-weight:800;letter-spacing:-1px}header .axy-logo{width:46px;height:46px;object-fit:contain;display:block;flex:0 0 auto}header .linea{height:40px;border-left:1px solid #ffffff45}h1{font-size:22px;margin:0 0 4px}header p{margin:0;color:#d4e3fa;font-size:13px}main{max-width:1248px;margin:auto;padding:28px 24px 50px}.intro{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px}.intro p{margin:0;color:#5c6b81}.badge{border:1px solid #b7d0f1;background:#e7f0ff;color:#155398;padding:6px 12px;border-radius:30px;font-size:12px;font-weight:700}.layout{display:grid;grid-template-columns:minmax(350px,440px) minmax(0,1fr);gap:24px;align-items:start}.card{background:#fff;border:1px solid var(--borde);border-radius:16px;padding:24px;box-shadow:0 4px 20px #172a4605;margin-bottom:20px}h2{font-size:16px;margin:0 0 20px;display:flex;align-items:center;gap:10px}h2 .icon{background:#e8f0fd;color:var(--azul);width:30px;height:30px;display:grid;place-items:center;border-radius:9px}label{display:block;font-weight:600;font-size:13px;margin-bottom:8px}input,select{width:100%;height:44px;border:1px solid #cbd7e7;border-radius:9px;background:#fff;color:#172a46;padding:10px 12px;font:inherit}input:focus,select:focus{outline:3px solid #c9ddfb;border-color:var(--azul)}.field{margin-bottom:18px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:16px}.help{display:block;font-size:12px;color:#67768c;margin-top:7px;line-height:1.5}.suggestion{padding:14px;background:#edf4ff;border:1px solid #c8dcfa;border-radius:10px;margin-bottom:18px}.suggestion strong{color:#1659b0;font-size:20px}.suggestion small{display:block;color:#51677f;font-size:12px;margin-top:5px}.choice{display:flex;gap:12px;margin:10px 0 16px}.choice label{display:flex;align-items:center;gap:6px;margin:0;padding:10px 14px;border:1px solid var(--borde);border-radius:8px;font-weight:500}.choice input{height:16px;width:16px;accent-color:var(--azul)}button{border:0;background:var(--azul);color:white;font:inherit;font-weight:700;border-radius:10px;padding:14px 18px;cursor:pointer}button:hover{background:#104f9e}button:focus-visible{outline:3px solid #92bafb;outline-offset:3px}.primary{width:100%;letter-spacing:.3px}.secondary{color:var(--azul);background:#eaf1fc;font-size:13px;padding:10px 14px}.secondary:hover{background:#dce9fc}.error{color:#9c2531;background:#fff0f1;border:1px solid #f3b8be;border-radius:10px;padding:14px;margin-bottom:18px;font-size:13px;line-height:1.5}.empty{text-align:center;padding:75px 20px;color:#68778b}.empty .symbol{font-size:48px;margin-bottom:18px}.empty h2{display:block;font-size:21px;color:#244a7c;margin-bottom:12px}.empty p{line-height:1.7;font-size:14px;max-width:420px;margin:auto}.result-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:20px}.result-head h2{margin:0}.hero{background:linear-gradient(120deg,#103b78,#1966c9);color:#fff;border-radius:12px;padding:22px;margin-bottom:20px}.hero label{color:#d2e5ff;margin-bottom:6px}.hero .value{font-size:32px;font-weight:800;letter-spacing:-.7px}.hero .end{font-size:14px;margin-top:6px;color:#e4efff}.hero .dop{font-size:14px;margin-top:8px;color:#d8e9ff}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:14px}.metric{padding:15px;background:#f7f9fd;border:1px solid #e8edf5;border-radius:10px}.metric small{display:block;color:#65758b;font-size:12px;margin-bottom:7px}.metric strong{display:block;font-size:18px}.equiv{font-size:11px;color:#6b7c92;margin-top:5px}.detail{width:100%;border-collapse:collapse;margin:20px 0 0;font-size:13px}.detail td{padding:10px 0;border-bottom:1px solid #edf1f6}.detail td:last-child{text-align:right;font-weight:600}.detail td:first-child{color:#61728a;padding-right:18px}.net{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:13px 15px;background:#eaf6f1;color:#17644b;border-radius:9px;font-size:13px;margin-top:18px}.net strong{white-space:normal}.comparison{width:100%;border-collapse:collapse;font-size:13px}.comparison th{text-align:right;color:#5e728e;font-weight:500;font-size:12px;padding:10px}.comparison td{padding:12px 10px;text-align:right;border-top:1px solid #e7eef6}.comparison th:first-child,.comparison td:first-child{text-align:left}.comparison .selected{background:#eef4ff}.notice{font-size:12px;color:#667891;line-height:1.6;margin:14px 0 0}.schedule{margin-top:4px}.schedule .top{display:flex;justify-content:space-between;align-items:center;gap:15px}.schedule h2{margin:0}.schedule-tools{display:flex;align-items:center;gap:10px}.schedule-tools select{width:auto;height:38px;font-size:13px;padding:6px 10px}.table-wrap{overflow:auto;max-height:600px;margin-top:20px;border:1px solid var(--borde);border-radius:10px}.amort{width:100%;border-collapse:collapse;white-space:nowrap;font-size:13px}.amort th{position:sticky;top:0;background:#eaf1fc;color:#214e84;text-align:right;padding:14px 16px;border-bottom:1px solid var(--borde);z-index:1}.amort td{text-align:right;padding:12px 16px;border-bottom:1px solid #edf1f6}.amort th:nth-child(-n+2),.amort td:nth-child(-n+2){text-align:left}.amort tr:nth-child(even){background:#f9fbfe}.amort tfoot td{background:#edf4ff;font-weight:700}.stale{border-color:#edc481;background:#fff6e8;color:#89590e}footer{text-align:center;color:#76879a;font-size:12px;margin-top:26px}.footer-brand{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:18px 10px}.footer-title{font-weight:700;color:#53677f;font-size:13px}.footer-distributor{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}.footer-distributor span{color:#687b91}.mano-logo{width:30px;height:30px;object-fit:contain;display:block}.mano-name{font-weight:700;color:#29456d!important}.hidden,[hidden]{display:none!important}@media(max-width:900px){.layout{grid-template-columns:1fr}.card{padding:20px}main{padding:20px 16px}.schedule .top{flex-wrap:wrap}.schedule-tools{flex-wrap:wrap}header{padding:20px}.intro{align-items:flex-start}}@media(max-width:430px){header .marca{font-size:23px}header .axy-logo{width:38px;height:38px}h1{font-size:18px}header{gap:12px}.pair{grid-template-columns:1fr;gap:0}.metrics{gap:10px}.metric strong{font-size:16px}.hero .value{font-size:27px}.intro{flex-direction:column}}\n</style></head><body><header><div class=\"marca\"><img class=\"axy-logo\" src=\"data:image/png;base64,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\" alt=\"AxyCore\"><span>AxyCore</span></div><div class=\"linea\"></div><div><h1>🧮 Calculadora de Préstamos</h1><p>Condiciones claras. Cálculos precisos.</p></div></header><main><div class=\"intro\"><p>Configure el préstamo y compare sus opciones de pago.</p><span class=\"badge\">SIMULACIÓN · Sin crear operaciones</span></div><div class=\"layout\"><form id=\"form\" novalidate><section class=\"card\"><h2><span class=\"icon\">1</span>Datos del préstamo</h2><div class=\"field\"><label for=\"moneda\">Moneda</label><select id=\"moneda\" required><option value=\"DOP\">🇩🇴 Peso Dominicano (DOP / RD$)</option><option value=\"USD\">🇺🇸 Dólar Estadounidense (USD / US$)</option></select></div><div class=\"field\" id=\"cambioField\" hidden><label for=\"cambio\">Tasa de cambio USD/DOP</label><input id=\"cambio\" type=\"number\" inputmode=\"decimal\" step=\"0.000001\" min=\"0.000001\" placeholder=\"Ej.: 63.50\"><small class=\"help\" id=\"cambioHelp\">Se carga automáticamente desde el BCRD; puede editarla si necesita otra tasa.</small></div><div class=\"field\"><label for=\"monto\">Monto solicitado <span id=\"simbolo\">(RD$)</span></label><input id=\"monto\" type=\"number\" inputmode=\"decimal\" min=\"1\" step=\"0.01\" required placeholder=\"Ej.: 100000.00\"></div><div class=\"pair\"><div class=\"field\"><label for=\"frecuencia\">Frecuencia de pago</label><select id=\"frecuencia\" required></select></div><div class=\"field\"><label for=\"plazo\">Plazo <span id=\"unidad\">(meses)</span></label><input id=\"plazo\" type=\"number\" inputmode=\"numeric\" min=\"1\" step=\"1\" value=\"12\" required></div></div><small class=\"help\" id=\"cuotasHelp\">12 meses = 12 cuotas mensuales.</small><div class=\"field\" style=\"margin-top:18px;margin-bottom:0\"><label for=\"fecha\">Fecha estimada de desembolso</label><input id=\"fecha\" type=\"date\" required></div></section><section class=\"card\"><h2><span class=\"icon\">2</span>Condiciones</h2><div class=\"suggestion\"><label>Tasa sugerida</label><strong id=\"sugerida\">—</strong><small id=\"periodica\">Tasa mensual; se ajusta a la frecuencia de pago.</small></div><label>¿Desea utilizar la tasa sugerida?</label><div class=\"choice\"><label><input type=\"radio\" name=\"usar\" value=\"si\" checked>Sí</label><label><input type=\"radio\" name=\"usar\" value=\"no\">No</label></div><div class=\"field\" id=\"personalField\" hidden><label for=\"personal\">Tasa personalizada mensual (%)</label><input id=\"personal\" type=\"number\" inputmode=\"decimal\" min=\"0\" step=\"0.000001\" placeholder=\"Ej.: 3.5\"><small class=\"help\">Reemplaza la tasa sugerida solamente en esta simulación.</small></div><div class=\"field\"><label for=\"tipo\">Tipo de interés</label><select id=\"tipo\"><option>Fija</option><option>Insoluta</option></select><small class=\"help\" id=\"tipoHelp\">Capital uniforme e interés fijo sobre el monto financiado.</small></div><div class=\"field\"><label for=\"modalidadPago\">Modalidad de pago</label><select id=\"modalidadPago\"><option value=\"Normal\">Normal</option><option value=\"SoloInteresesInicial\">Por período</option></select><small class=\"help\">Permite pagar solo intereses al inicio y amortizar el capital en las cuotas restantes.</small></div><div class=\"field\" id=\"soloInteresesField\" hidden><label for=\"cuotasSoloInteres\">Cantidad de cuotas iniciales pagando solo intereses</label><input id=\"cuotasSoloInteres\" type=\"number\" inputmode=\"numeric\" min=\"1\" step=\"1\" value=\"1\"><small class=\"help\" id=\"soloInteresesHelp\">Ej.: si el plazo es 12 y coloca 5, las cuotas 1–5 pagan solo intereses y las 7 restantes amortizan capital.</small></div><div class=\"field\"><label>Gastos legales automáticos</label><div id=\"legal\" style=\"font-weight:700;font-size:19px\">—</div><small class=\"help\">Se calculan sobre el monto original solicitado.</small></div><div class=\"field\" style=\"margin-bottom:0\"><label for=\"gastos\">¿Cómo desea aplicar los gastos legales?</label><select id=\"gastos\"><option value=\"Descontar\">Descontar del desembolso</option><option value=\"Financiar\">Financiar los gastos legales</option></select></div></section><div id=\"error\" class=\"error\" role=\"alert\" hidden></div><button class=\"primary\" type=\"submit\">CALCULAR PRÉSTAMO</button><p class=\"notice\">El plazo representa directamente la cantidad de cuotas. Los resultados no crean préstamos, solicitudes, clientes ni desembolsos.</p></form><div><section class=\"card empty\" id=\"empty\"><div class=\"symbol\">🧮</div><h2>Su préstamo, en detalle</h2><p>Complete los datos y pulse <b>Calcular préstamo</b> para ver las cuotas, los intereses y el monto neto a recibir.</p></section><div id=\"resultado\" hidden><section class=\"card\"><div class=\"result-head\"><h2><span class=\"icon\">3</span>Resultado</h2><span id=\"tipoBadge\" class=\"badge\">Fija</span></div><div id=\"stale\" class=\"error stale\" hidden>Los datos cambiaron. Pulse CALCULAR PRÉSTAMO para actualizar el resultado.</div><div class=\"hero\"><label id=\"cuotaLabel\">Cuota</label><div class=\"value\" id=\"cuotaValue\"></div><div class=\"end\" id=\"cuotaFinal\"></div><div class=\"dop\" id=\"cuotaDop\"></div></div><div id=\"metricas\" class=\"metrics\"></div><div class=\"net\"><span>Monto neto que recibe el cliente</span><strong id=\"neto\"></strong></div><table class=\"detail\"><tbody id=\"detalle\"></tbody></table><p class=\"notice\" id=\"notaGastos\"></p></section><section class=\"card\"><h2>Fija vs. Insoluta</h2><div style=\"overflow:auto\"><table class=\"comparison\"><thead><tr><th>Concepto</th><th>Fija</th><th>Insoluta</th></tr></thead><tbody id=\"comparacion\"></tbody></table></div><p class=\"notice\">Cambie el tipo de interés para recalcular conservando los datos. Insoluta utiliza cuota nivelada: el interés disminuye y el capital aumenta; la última cuota ajusta el redondeo.</p></section></div></div></div><section class=\"card schedule\" id=\"schedule\" hidden><div class=\"top\"><h2><span class=\"icon\">4</span>Tabla de amortización <span id=\"filas\" class=\"badge\"></span></h2><div class=\"schedule-tools\"><label for=\"tablaMoneda\" style=\"margin:0\" id=\"tablaMonedaLabel\" hidden>Mostrar en</label><select id=\"tablaMoneda\" hidden><option value=\"original\">USD</option><option value=\"DOP\">Equivalente DOP</option></select></div></div><p class=\"notice\" id=\"tablaNota\"></p><div class=\"table-wrap\"><table class=\"amort\"><thead><tr><th># Cuota</th><th>Fecha</th><th>Etapa</th><th>Capital</th><th>Interés</th><th>Cuota</th><th>Balance</th></tr></thead><tbody id=\"amort\"></tbody><tfoot id=\"totales\"></tfoot></table></div></section><footer class=\"footer-brand\"><div class=\"footer-title\">AxyCore · Calculadora de Préstamos</div><div class=\"footer-distributor\"><img class=\"mano-logo\" src=\"data:image/png;base64,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\" alt=\"Mano Amiga\"><span class=\"mano-name\">Mano Amiga · Distribuidor oficial</span></div></footer></main><script>\n__AXY_ENGINE__\nvar config=__AXY_CONFIG__;\n(function(){'use strict';var $=function(id){return document.getElementById(id);}, actual=null, comparacion=null, calculado=false;\nfunction money(n,m){return (m==='USD'?'US$':'RD$')+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}\nfunction percent(n){return Number(n).toLocaleString('es-DO',{maximumFractionDigits:6})+'%';}\nfunction fechaTexto(s){var p=s.split('-');return p[2]+'/'+p[1]+'/'+p[0];}\nfunction safeText(el,t){el.textContent=t;}\nfunction dato(){return {moneda:$('moneda').value,monto:$('monto').value,frecuencia:$('frecuencia').value,plazo:Number($('plazo').value),fecha:$('fecha').value,usarSugerida:document.querySelector('input[name=\"usar\"]:checked').value==='si',tasaPersonalizada:$('personal').value,tipo:$('tipo').value,modalidadPago:$('modalidadPago').value,cuotasSoloInteres:Number($('cuotasSoloInteres').value||0),gastos:$('gastos').value,tasaCambio:$('cambio').value};}\nfunction condiciones(){var d=dato(),f=config.frecuencias[d.frecuencia];$('cambioField').hidden=d.moneda!=='USD';$('simbolo').textContent=d.moneda==='USD'?'(US$)':'(RD$)';$('personalField').hidden=d.usarSugerida;$('unidad').textContent='('+f.unidad+')';var frecuencia=d.frecuencia.toLowerCase();$('cuotasHelp').textContent=(d.plazo||'—')+' '+f.unidad+' = '+(d.plazo||'—')+' cuotas '+({Diaria:'diarias',Semanal:'semanales',Quincenal:'quincenales',Mensual:'mensuales'}[d.frecuencia])+'.';$('tipoHelp').textContent=d.tipo==='Fija'?'Capital uniforme e interés fijo sobre el monto financiado.':'Cuota nivelada; interés sobre el saldo pendiente de cada período.';var esSoloIntereses=d.modalidadPago==='SoloInteresesInicial';$('soloInteresesField').hidden=!esSoloIntereses;if(esSoloIntereses){$('cuotasSoloInteres').max=Math.max(1,d.plazo-1);var solo=Number($('cuotasSoloInteres').value||0),amortizan=Math.max(0,d.plazo-solo);$('soloInteresesHelp').textContent='Primeras '+solo+' cuotas: solo intereses. Las '+amortizan+' cuotas restantes amortizarán el capital.';}if(d.moneda==='USD'&&Number(d.tasaCambio)>0){var fuenteCambio=config.tasaCambioFuente?' · Fuente: '+config.tasaCambioFuente:'',fechaCambio=config.tasaCambioFecha?' · '+config.tasaCambioFecha:'',avisoRespaldo=config.tasaCambioRespaldo?' · Última tasa oficial disponible':'';$('cambioHelp').textContent='1 USD = '+money(d.tasaCambio,'DOP')+fuenteCambio+fechaCambio+avisoRespaldo+' · Editable';}else $('cambioHelp').textContent='Se carga automáticamente desde el BCRD; puede editarla si necesita otra tasa.';\ntry{var monto=Number(d.monto);if(!d.monto||!Number.isFinite(monto)||monto<1)throw new Error();var r=AxyCalculadora.sugerir(d.moneda,d.monto,config);$('sugerida').textContent=percent(r.tasa)+' mensual';var aplicada=d.usarSugerida?r.tasa:Number(d.tasaPersonalizada);$('periodica').textContent='Tasa '+frecuencia+': '+percent(aplicada/f.divisor)+(d.usarSugerida?' · Automática':' · Personalizada');$('legal').textContent=money(r.gastosLegales,d.moneda);}catch(e){$('sugerida').textContent='—';$('legal').textContent='—';$('periodica').textContent='Indique el monto para consultar la tasa.';}}\nfunction elemento(tag,t){var el=document.createElement(tag);el.textContent=t;return el;}\nfunction detail(k,v){var tr=document.createElement('tr');tr.append(elemento('td',k),elemento('td',v));$('detalle').append(tr);}\nfunction metric(k,v,dop){var el=document.createElement('div');el.className='metric';el.append(elemento('small',k),elemento('strong',money(v,actual.moneda)));if(actual.moneda==='USD'){var eq=elemento('div',money(dop,'DOP'));eq.className='equiv';el.append(eq);}$('metricas').append(el);}\nfunction tabla(){var esDOP=actual.moneda==='USD'&&$('tablaMoneda').value==='DOP',rows=esDOP?actual.cuotasDOP:actual.cuotas,m=esDOP?'DOP':actual.moneda,frag=document.createDocumentFragment();rows.forEach(function(c){var tr=document.createElement('tr');[String(c.numero),fechaTexto(c.fecha),c.etapa||'Amortización',money(c.capital,m),money(c.interes,m),money(c.cuota,m),money(c.balance,m)].forEach(function(t){tr.append(elemento('td',t));});frag.append(tr);});$('amort').replaceChildren(frag);$('totales').replaceChildren();var tr=document.createElement('tr');['Total','','',money(rows.reduce(function(a,c){return a+Math.round(c.capital*100);},0)/100,m),money(rows.reduce(function(a,c){return a+Math.round(c.interes*100);},0)/100,m),money(rows.reduce(function(a,c){return a+Math.round(c.cuota*100);},0)/100,m),money(0,m)].forEach(function(t){tr.append(elemento('td',t));});$('totales').append(tr);$('tablaNota').textContent=esDOP?'Equivalencias referenciales a la tasa indicada; cada importe se redondea de forma independiente. Las obligaciones y el cierre del capital se calculan en USD.':'Valores en '+m+'. El balance termina en cero y la última cuota absorbe la diferencia de redondeo.';}\nfunction render(){var r=actual,m=r.moneda,d=r.equivalenteDOP||{};$('empty').hidden=true;$('resultado').hidden=false;$('schedule').hidden=false;$('stale').hidden=true;$('tipoBadge').textContent=r.tipo;$('cuotaLabel').textContent=r.cuotasIguales?'Valor de cada cuota':'Cuota inicial';$('cuotaValue').textContent=money(r.cuotaInicial,m);$('cuotaFinal').textContent=r.cuotasIguales?r.numeroCuotas+' cuotas '+({Diaria:'diarias',Semanal:'semanales',Quincenal:'quincenales',Mensual:'mensuales'}[r.frecuencia]):'Cuota final: '+money(r.cuotaFinal,m)+' · '+r.numeroCuotas+' cuotas';$('cuotaDop').textContent=m==='USD'?money(d.cuotaInicial,'DOP')+(r.cuotasIguales?'':' · Final: '+money(d.cuotaFinal,'DOP')):'';$('metricas').replaceChildren();[['Monto solicitado','montoSolicitado'],['Gastos legales','gastosLegales'],['Monto financiado','montoFinanciado'],['Total de intereses','totalIntereses'],['Total de capital','totalCapital'],['Total general a pagar','totalAPagar']].forEach(function(a){metric(a[0],r[a[1]],d[a[1]]);});$('neto').textContent=money(r.montoNetoRecibir,m)+(m==='USD'?' / '+money(d.montoNetoRecibir,'DOP'):'');$('detalle').replaceChildren();detail('Moneda',m==='USD'?'Dólar Estadounidense (USD)':'Peso Dominicano (DOP)');if(m==='USD'){detail('Tasa de cambio','1 USD = '+money(r.tasaCambio,'DOP'));detail('Equivalente solicitado DOP',money(d.montoSolicitado,'DOP'));}detail('Frecuencia',r.frecuencia);detail('Plazo',r.plazo+' '+r.unidadPlazo);detail('Número total de cuotas',r.numeroCuotas);detail('Fecha de desembolso',fechaTexto(r.fechaDesembolso));detail('Tasa aplicada mensual',percent(r.tasaAplicada)+' · '+r.origenTasa);detail('Tasa por período',percent(r.tasaPeriodicaPorcentaje));detail('Tipo de interés',r.tipo+' · '+r.esquema);detail('Modalidad de pago',r.modalidadPago==='SoloInteresesInicial'?'Por período':'Normal');if(r.modalidadPago==='SoloInteresesInicial'){detail('Cuotas solo intereses',String(r.cuotasSoloInteres));detail('Cuotas amortizando capital',String(r.cuotasAmortizacion));}detail('Modalidad de gastos',r.modalidadGastos==='Financiar'?'Financiados':'Descontados');detail(r.modalidadGastos==='Financiar'?'Monto solicitado':'Monto aprobado',money(r.montoSolicitado,m));detail(r.modalidadGastos==='Financiar'?'(+) Gastos legales':'(−) Gastos legales',money(r.gastosLegales,m));detail(r.modalidadGastos==='Financiar'?'= Monto total financiado':'= Monto neto a recibir',money(r.modalidadGastos==='Financiar'?r.montoFinanciado:r.montoNetoRecibir,m));detail('Total de gastos legales',money(r.totalGastosLegales,m));$('notaGastos').textContent=r.modalidadGastos==='Financiar'?'Monto solicitado + gastos legales = monto financiado. Los gastos están incluidos en el capital y no se suman otra vez al total a pagar.':'Monto aprobado − gastos legales = monto neto a recibir. El total general corresponde a las cuotas; los gastos se descuentan una sola vez del desembolso.';$('comparacion').replaceChildren();[['Cuota inicial','cuotaInicial'],['Cuota final','cuotaFinal'],['Total de intereses','totalIntereses'],['Total a pagar','totalAPagar']].forEach(function(a){var tr=document.createElement('tr');tr.append(elemento('td',a[0]));['fija','insoluta'].forEach(function(t){var td=elemento('td',money(comparacion[t][a[1]],m));if(r.tipo.toLowerCase()===t)td.className='selected';tr.append(td);});$('comparacion').append(tr);});$('filas').textContent=r.numeroCuotas+' cuotas';$('tablaMoneda').hidden=m!=='USD';$('tablaMonedaLabel').hidden=m!=='USD';tabla();}\nfunction calcular(){try{comparacion=AxyCalculadora.comparar(dato(),config);actual=comparacion[$('tipo').value.toLowerCase()];$('error').hidden=true;calculado=true;render();}catch(e){$('error').textContent=e.message;$('error').hidden=false;if(calculado)$('stale').hidden=false;}}\nObject.keys(config.frecuencias).forEach(function(f){var o=elemento('option',f);o.value=f;$('frecuencia').append(o);});$('frecuencia').value='Mensual';$('plazo').max=config.maxCuotas;if(config.tasaCambioPredeterminada)$('cambio').value=config.tasaCambioPredeterminada;var now=new Date(),parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Santo_Domingo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now),part=function(k){return parts.find(function(x){return x.type===k;}).value;};$('fecha').value=part('year')+'-'+part('month')+'-'+part('day');$('form').addEventListener('submit',function(e){e.preventDefault();calcular();});$('form').addEventListener('input',function(e){condiciones();if(calculado)$('stale').hidden=false;});$('form').addEventListener('change',function(e){condiciones();if(calculado){if(e.target.id==='tipo')calcular();else $('stale').hidden=false;}});$('tablaMoneda').addEventListener('change',tabla);condiciones();})();\n</script></body></html>\n";
+
+/** Módulo web de simulación. No contiene claves ni lee registros operativos. */
+
+function doGet(e) {
+  if(e&&e.parameter&&(e.parameter.vista==='motor'||e.parameter.vista==='config'))return mdDoGetPanelPrincipal(e);
+
+  try {
+    var config=obtenerCondicionesCalculadoraAxyCore();
+
+    try {
+      var cambioBCRD=obtenerTasaCambioBCRD();
+      config.tasaCambioPredeterminada=cambioBCRD.venta;
+      config.tasaCambioFuente=cambioBCRD.fuente+' · Tasa de venta';
+      config.tasaCambioFecha=cambioBCRD.fecha;
+      config.tasaCambioAutomatica=true;
+      config.tasaCambioRespaldo=!!cambioBCRD.respaldo;
+    } catch(errorCambio) {
+      config.tasaCambioAutomatica=false;
+      config.tasaCambioRespaldo=false;
+      config.tasaCambioFuente='Manual';
+    }
+
+    var datos=JSON.stringify(config).replace(/</g,'\\\u003c');
+
+    var motor=crearMotorCalculadoraAxyCore.toString()+';var AxyCalculadora=crearMotorCalculadoraAxyCore();';
+
+    var html=AXY_CALCULADORA_HTML.replace('__AXY_CONFIG__',function(){return datos;})
+
+      .replace('__AXY_ENGINE__',function(){return motor;});
+
+    return HtmlService.createHtmlOutput(html).setTitle('AxyCore | Calculadora de Préstamos')
+
+      .addMetaTag('viewport','width=device-width,initial-scale=1');
+
+  } catch(e) {
+
+    return HtmlService.createHtmlOutput('<h1>AxyCore · Calculadora</h1><p>No fue posible cargar las condiciones desde PARAMETROS. Revise la configuración y la conexión de AxyCore antes de simular.</p>');
+
+  }
+}
+
+
+
+/** Instalación idempotente del acceso: no crea ninguna operación financiera. */
+
+function instalarAccesoCalculadoraAxyCore() {
+
+  var filas=leerTablaAppSheet('PARAMETROS');
+
+  var existentes=filas.filter(function(f){return f.ID_PARAMETRO==='MENU_INICIO_07';});
+
+  var url='https\://script.google.com/macros/s/AKfycbwzO8bQQ2T8SZnmZoePyyMX9c1cSvuC5yca5_c6-Kv_hmQI14SrIaJ7ok41jbPRueXE/exec';
+
+  if(existentes.length>1) throw new Error('Hay accesos duplicados; revise PARAMETROS.');
+
+  if(existentes.length===1) {
+
+    if(existentes[0].VALOR_TEXTO!==url) throw new Error('MENU_INICIO_07 ya está ocupado por otro acceso.');
+
+  } else {
+
+    agregarFilasAppSheet('PARAMETROS',[{ID_PARAMETRO:'MENU_INICIO_07',
+
+      NOMBRE:'🧮 Calculadora de Préstamos',CATEGORIA:filas.filter(function(f){return f.ID_PARAMETRO==='MENU_INICIO_06';})[0].CATEGORIA,VALOR:7,
+
+      VALOR_TEXTO:url,ACTIVO:true,DESCRIPCION:'Simular DOP/USD, comparar intereses y consultar amortización'}]);
+
+  }
+
+  var verificar=leerTablaAppSheet('PARAMETROS').filter(function(f){return f.ID_PARAMETRO==='MENU_INICIO_07';});
+
+  if(verificar.length!==1 || verificar[0].VALOR_TEXTO!==url) throw new Error('No se confirmó el acceso guardado.');
+
+  editarFilasAppSheet('PARAMETROS',[{ID_PARAMETRO:'CALCULADORA_CONFIG_V1',DESCRIPCION:'Condiciones mensuales suministradas el 02/10/2026. Calculadora de simulación integrada desde Inicio mediante Apps Script. Cambio USD/DOP automático desde BCRD (tasa de venta), editable y con respaldo de última tasa oficial válida. No crea operaciones reales.'}]);
+
+  console.log(JSON.stringify({estado:'PASS',acceso:verificar[0].NOMBRE,tabla:'PARAMETROS',duplicados:false}));
+
+}

@@ -1,0 +1,1128 @@
+# AXYCORE — MÓDULO INTEGRAL DE COBRANZA Y RECUPERACIÓN DE CARTERA
+
+## 1. ROL Y OBJETIVO
+
+Actúa como un arquitecto senior especializado en plataformas bancarias, microfinancieras, sistemas de administración de préstamos, recuperación de cartera, automatización de cobranzas, conciliación bancaria y desarrollo de aplicaciones financieras.
+
+Continúa desarrollando la aplicación web AxyCore que estamos construyendo en Google AI Studio.
+
+**OBJETIVO PRINCIPAL**
+
+Desarrollar e integrar un Módulo Integral de Cobranza, completamente funcional, conectado al Módulo de Préstamos existente.
+
+Este módulo debe administrar los préstamos desde el momento en que son desembolsados hasta su recuperación total, cancelación o tratamiento mediante un procedimiento autorizado.
+
+No quiero una maqueta visual ni formularios decorativos.
+
+Quiero funcionalidades reales, bases de datos persistentes, cálculos exactos, automatizaciones, controles, seguimiento de gestores, gestión de pagos, conciliación bancaria, alertas y reportes.
+
+### RESTRICCIÓN OBLIGATORIA
+
+Antes de modificar el proyecto:
+
+1. Inspecciona la arquitectura actual de AxyCore.
+2. Identifica las colecciones, modelos y servicios existentes.
+3. Identifica cómo están relacionados clientes, solicitudes, préstamos, cuotas y desembolsos.
+4. Reutiliza las entidades existentes.
+5. No dupliques clientes ni préstamos.
+6. No modifiques el Motor de Decisiones Crediticias V2.
+7. No alteres las condiciones contractuales de los préstamos ya desembolsados.
+8. No borres datos ni reconstruyas innecesariamente los módulos anteriores.
+9. Integra Cobranza mediante nuevos componentes y extensiones compatibles.
+10. Implementa migraciones controladas cuando sean necesarias.
+
+El nuevo módulo debe operar sobre la misma base de datos centralizada de AxyCore.
+
+---
+
+# 2. MENÚ PRINCIPAL DE COBRANZA
+
+Agregar al menú lateral de AxyCore una sección principal denominada **COBRANZA**.
+
+Incorporar los siguientes submódulos:
+
+1. Dashboard de Cobranza.
+2. Cartera General.
+3. Cobros del Día.
+4. Cobros Urgentes.
+5. Mis Gestiones.
+6. Gestiones Generales.
+7. Promesas y Acuerdos.
+8. Agenda de Seguimiento.
+9. Registro de Pagos.
+10. Conciliación Bancaria.
+11. Pagos por Identificar.
+12. Contact Center.
+13. AxyRecovery Bot.
+14. Centinela — Alertas de Cobranza.
+15. Asignación de Cartera.
+16. Reportes de Cobranza.
+17. Parámetros.
+18. Auditoría.
+
+Cada opción debe tener navegación funcional, permisos y operaciones conectadas con el backend.
+
+---
+
+# 3. INTEGRACIÓN CON EL MÓDULO DE PRÉSTAMOS
+
+La cobranza comienza automáticamente cuando un préstamo pasa al estado DESEMBOLSADO / ACTIVO.
+
+Al activarse el préstamo:
+
+- Recuperar el identificador del cliente.
+- Recuperar el identificador del préstamo.
+- Recuperar monto y moneda.
+- Recuperar tasa y método contractual.
+- Recuperar fecha de desembolso.
+- Recuperar cronograma definitivo de cuotas.
+- Recuperar fechas de vencimiento.
+- Recuperar capital, intereses y cargos autorizados.
+- Recuperar saldo inicial.
+- Recuperar sucursal y responsable, cuando corresponda.
+
+Incorporar automáticamente ese préstamo a la cartera administrable.
+
+No generar un segundo préstamo en el módulo de Cobranza.
+
+No alterar el cronograma original sin una operación autorizada y auditable.
+
+El expediente de cobranza debe estar vinculado al expediente crediticio completo:
+
+Solicitud → Motor de Decisiones → Evaluación → Comité → Formalización → Desembolso → Cartera → Cobranza → Cancelación.
+
+---
+
+# 4. CARTERA GENERAL
+
+Desarrollar una vista profesional de cartera con información actualizada.
+
+Columnas:
+
+- Número de préstamo.
+- Cliente.
+- Documento de identidad.
+- Producto.
+- Moneda.
+- Capital original.
+- Saldo de capital.
+- Intereses exigibles.
+- Mora exigible.
+- Otros cargos autorizados.
+- Total adeudado.
+- Cuota contractual.
+- Próximo vencimiento.
+- Cuotas vencidas.
+- Días de atraso.
+- Estado.
+- Banda de riesgo.
+- Gestor asignado.
+- Último pago.
+- Última gestión.
+- Próxima acción.
+
+Agregar búsqueda avanzada y filtros por cliente, préstamo, sucursal, moneda, producto, gestor, fecha, estado y días de atraso.
+
+Permitir abrir la ficha de cualquier préstamo.
+
+## 4.1. Ficha 360° del cliente
+
+Mostrar:
+
+- Datos del cliente.
+- Todos sus préstamos.
+- Historial crediticio interno.
+- Condiciones de cada préstamo.
+- Saldo actualizado.
+- Cronograma.
+- Cuotas pendientes y vencidas.
+- Pagos aplicados.
+- Gestiones realizadas.
+- Promesas y acuerdos.
+- Documentos.
+- Alertas.
+- Responsable actual.
+
+La información debe obtenerse de las entidades originales, evitando duplicidad.
+
+---
+
+# 5. CÁLCULO AUTOMÁTICO DE MOROSIDAD
+
+Implementar un motor de seguimiento de vencimientos.
+
+Calcular automáticamente los días de atraso de cada obligación considerando la fecha de vencimiento y los importes exigibles todavía pendientes.
+
+Si una cuota fue pagada totalmente, no debe continuar generando días de atraso.
+
+Cuando una cuota esté parcialmente pagada y conserve un importe exigible, debe continuar considerándose pendiente según la política contractual.
+
+El DPD del préstamo debe basarse en la obligación exigible más antigua pendiente, respetando los calendarios y períodos de gracia autorizados.
+
+Utilizar la zona horaria America/Santo_Domingo para la operación dominicana y guardar instantes de tiempo normalizados.
+
+Crear las siguientes etapas configurables como propuesta inicial:
+
+- Preventiva: antes del vencimiento.
+- Temprana: 1–30 días.
+- Intermedia: 31–60 días.
+- Avanzada: 61–90 días.
+- Crítica: más de 90 días.
+
+No asumir que estos rangos están comercialmente aprobados. Permitir su configuración por empresa y producto.
+
+Actualizar diariamente:
+
+- Estado de cada cuota.
+- Días de atraso.
+- Total vencido.
+- Número de cuotas vencidas.
+- Etapa de cobranza.
+- Alertas.
+- Prioridades.
+
+Los pagos aplicados también deben activar una actualización inmediata de los saldos y estados afectados.
+
+---
+
+# 6. COBROS DEL DÍA
+
+Construir una pantalla que muestre automáticamente todos los compromisos que requieren atención durante la jornada.
+
+Incluir:
+
+- Cuotas que vencen hoy.
+- Promesas con fecha de pago hoy.
+- Compromisos programados.
+- Clientes pendientes de seguimiento.
+- Clientes con pagos parciales pendientes.
+- Gestiones asignadas para hoy.
+
+Columnas:
+
+Cliente | Préstamo | Cuota | Fecha | Monto exigible | Responsable | Teléfono | Compromiso | Estado | Acción.
+
+Agregar botones funcionales:
+
+- Registrar gestión.
+- Consultar historial.
+- Registrar promesa.
+- Registrar pago recibido.
+- Programar seguimiento.
+- Abrir expediente.
+
+Los registros deben clasificarse como:
+
+- Pendiente.
+- Contactado.
+- No contactado.
+- Compromiso registrado.
+- Pago reportado.
+- Pago confirmado.
+- Reprogramado.
+
+Distinguir expresamente pagos reportados de pagos confirmados.
+
+Mostrar un resumen de la jornada con monto programado, monto confirmado, compromisos pendientes y casos sin gestión.
+
+---
+
+# 7. COBROS URGENTES
+
+Crear una bandeja que priorice las cuentas que requieren intervención.
+
+Criterios configurables:
+
+- Días de atraso.
+- Monto vencido.
+- Cuotas vencidas.
+- Riesgo crediticio.
+- Promesas incumplidas.
+- Historial de pagos.
+- Contactabilidad.
+- Tiempo sin gestión.
+- Incidencias operativas.
+
+El sistema debe calcular una prioridad operativa explicable.
+
+Clasificación:
+
+- Crítica.
+- Alta.
+- Media.
+- Baja.
+
+No utilizar una clasificación creada arbitrariamente como si fuera un modelo de riesgo validado.
+
+Permitir ordenar por prioridad, monto, antigüedad y gestor.
+
+Generar tareas y avisos al responsable.
+
+Evitar que un mismo cliente aparezca duplicado en la cola por varias alertas de un mismo préstamo.
+
+---
+
+# 8. GESTIONES DE COBRANZA
+
+Construir una interfaz completa para registrar y consultar todas las acciones realizadas.
+
+Campos obligatorios:
+
+- ID de gestión.
+- Cliente.
+- Préstamo.
+- Fecha y hora.
+- Usuario responsable.
+- Canal.
+- Tipo de gestión.
+- Resultado.
+- Persona contactada.
+- Observaciones.
+- Compromiso, cuando corresponda.
+- Próxima acción.
+- Fecha de seguimiento.
+- Evidencia, si procede.
+
+## 8.1. Canales
+
+- Llamada telefónica.
+- WhatsApp.
+- SMS.
+- Correo electrónico.
+- Visita.
+- Atención presencial.
+- Otro canal autorizado.
+
+## 8.2. Resultados
+
+- Contacto efectivo.
+- No contesta.
+- Teléfono apagado.
+- Número incorrecto.
+- Contacto con tercero, sin divulgación de información financiera.
+- Cliente informa que pagó.
+- Promesa de pago.
+- Pago parcial reportado.
+- Solicitud de aclaración.
+- Reclamación.
+- Dificultad temporal de pago.
+- Seguimiento pendiente.
+- Otros resultados configurables.
+
+Toda gestión debe guardar el historial y mostrar su siguiente acción.
+
+No permitir modificar una gestión cerrada sin generar una versión auditada o una corrección autorizada.
+
+Implementar límites de contacto configurables, horarios permitidos y medidas para evitar comunicaciones excesivas o abusivas.
+
+---
+
+# 9. PROMESAS Y ACUERDOS DE PAGO
+
+Crear un sistema para administrar los compromisos del cliente.
+
+Campos:
+
+- ID de acuerdo.
+- Cliente.
+- Préstamo.
+- Fecha del compromiso.
+- Monto prometido.
+- Fecha límite.
+- Responsable.
+- Tipo de acuerdo.
+- Observaciones.
+- Estado.
+- Pagos vinculados.
+- Importe pendiente de cumplir.
+
+Estados:
+
+- Pendiente.
+- Vigente.
+- Cumplido.
+- Cumplido parcialmente.
+- Incumplido.
+- Cancelado.
+- Sustituido por otro acuerdo.
+
+## 9.1. Verificación automática
+
+El sistema debe verificar los pagos realmente aplicados al préstamo durante la ventana correspondiente.
+
+Si el monto confirmado cubre el compromiso, marcarlo como cumplido.
+
+Si existe pago parcial, mostrar el importe satisfecho y el faltante.
+
+Cuando venza el compromiso sin cubrirse, marcarlo incumplido según las reglas de tolerancia configuradas.
+
+No declarar incumplimiento mientras exista un pago bancario pendiente de verificación sin resolver; registrar el caso para revisión.
+
+No permitir que una promesa reduzca el saldo de la deuda.
+
+Conservar historial de promesas cumplidas e incumplidas.
+
+## 9.2. Renegociación y acuerdos especiales
+
+Permitir propuestas de:
+
+- Fraccionamiento de pagos.
+- Cambio de fecha de compromiso.
+- Regularización de cuotas vencidas.
+- Reestructuración.
+- Refinanciamiento.
+- Otras alternativas autorizadas.
+
+Distinguir una promesa de pago de una modificación contractual.
+
+Cualquier reestructuración o refinanciamiento debe seguir un flujo de aprobación específico y, cuando corresponda, regresar al análisis crediticio.
+
+Ningún acuerdo debe modificar automáticamente capital, tasa, plazo o cronograma contractual sin aprobación.
+
+---
+
+# 10. AGENDA AUTOMÁTICA
+
+Crear una agenda por gestor y supervisor.
+
+Mostrar tareas:
+
+- Vencidas.
+- Para hoy.
+- Próximas.
+- Completadas.
+- Reprogramadas.
+
+Permitir asignaciones individuales o masivas.
+
+Cada tarea debe tener:
+
+- Responsable.
+- Fecha y hora.
+- Cliente.
+- Préstamo.
+- Motivo.
+- Prioridad.
+- Estado.
+- Resultado.
+- Evidencia.
+
+Generar tareas automáticas cuando ocurra un evento como:
+
+- Cuota próxima a vencer.
+- Cuota vencida.
+- Promesa incumplida.
+- Pago reportado sin verificar.
+- Cliente sin seguimiento.
+- Reclamación pendiente.
+- Caso escalado.
+
+Evitar crear tareas duplicadas por el mismo evento.
+
+---
+
+# 11. REGISTRO DE PAGOS
+
+Desarrollar un sistema financiero de captura y aplicación de pagos.
+
+Permitir:
+
+- Pago de una cuota.
+- Pago parcial.
+- Pago de varias cuotas.
+- Abono extraordinario a capital.
+- Pago anticipado.
+- Liquidación total.
+- Operaciones especiales autorizadas.
+
+Canales:
+
+- Caja.
+- Transferencia.
+- Depósito.
+- Pasarela de pago, cuando esté integrada.
+- Otros medios autorizados.
+
+Capturar:
+
+- ID de pago.
+- Cliente.
+- Préstamo.
+- Monto.
+- Moneda.
+- Fecha de recepción.
+- Medio de pago.
+- Banco.
+- Cuenta destino.
+- Referencia.
+- Comprobante.
+- Usuario registrador.
+- Estado de verificación.
+- Estado de aplicación.
+
+Estados independientes:
+
+1. REPORTADO.
+2. RECIBIDO_PENDIENTE_VERIFICACION.
+3. VERIFICADO.
+4. APLICADO.
+5. RECHAZADO.
+6. REVERTIDO.
+
+Nunca interpretar un comprobante subido por un cliente como evidencia suficiente de dinero confirmado.
+
+## 11.1. Aplicación de pagos
+
+Al verificarse el dinero, aplicar el pago según la política contractual configurable.
+
+Componentes posibles:
+
+- Capital.
+- Intereses ordinarios.
+- Mora.
+- Cargos autorizados.
+
+El orden de imputación debe ser configurable y aprobado. No inventar un orden obligatorio universal.
+
+Calcular y guardar:
+
+- Capital aplicado.
+- Interés aplicado.
+- Mora aplicada.
+- Otros cargos aplicados.
+- Importe sin aplicar, si existe.
+- Saldo anterior.
+- Saldo posterior.
+
+El importe distribuido debe conciliar exactamente con el importe aplicado.
+
+No permitir saldos negativos ni doble aplicación.
+
+Utilizar operaciones transaccionales e identificadores idempotentes.
+
+## 11.2. Comprobantes y recibos
+
+Permitir subir comprobantes.
+
+Generar recibos oficiales solo después de que el pago quede efectivamente aplicado.
+
+El recibo debe incluir número único, préstamo, cliente, fecha, moneda, monto, distribución y referencia.
+
+---
+
+# 12. BOT DE CONCILIACIÓN AUTOMÁTICA
+
+Desarrollar un servicio de conciliación de pagos conectado con el módulo financiero.
+
+Objetivo: relacionar movimientos bancarios reales con pagos registrados y cuotas pendientes.
+
+## 12.1. Fuentes
+
+Preparar integración con:
+
+- Importación de extractos CSV.
+- Importación de Excel.
+- Archivos bancarios autorizados.
+- API bancaria, si existe y está contratada.
+- Movimientos internos de caja.
+- Referencias de transferencia.
+- Comprobantes suministrados por clientes.
+
+No afirmar que existe una conexión bancaria real sin haber configurado credenciales e integración.
+
+## 12.2. Motor de coincidencias
+
+Analizar:
+
+- Número de referencia.
+- Monto.
+- Moneda.
+- Fecha.
+- Banco.
+- Cuenta destino.
+- Identificador de préstamo.
+- Identidad del pagador cuando esté disponible.
+
+Clasificar cada movimiento:
+
+- Coincidencia única de alta confianza.
+- Coincidencia probable.
+- Coincidencias múltiples.
+- Diferencia de monto.
+- Pago duplicado.
+- Movimiento no identificado.
+- Movimiento ya conciliado.
+
+No aplicar automáticamente pagos ambiguos.
+
+Permitir que las coincidencias inequívocas y verificadas se apliquen automáticamente únicamente cuando una política aprobada habilite esa función, con controles de idempotencia y auditoría.
+
+Los demás casos deben ir a una bandeja de revisión por Finanzas.
+
+## 12.3. Secuencia operativa
+
+1. Recibir movimiento.
+2. Validar origen.
+3. Normalizar referencia, fecha, moneda e importe.
+4. Detectar duplicados.
+5. Buscar préstamo o pago relacionado.
+6. Calcular coincidencias.
+7. Verificar reglas.
+8. Conciliar o enviar a revisión.
+9. Autorizar aplicación.
+10. Aplicar pago.
+11. Actualizar cuotas y saldo.
+12. Actualizar promesas.
+13. Actualizar indicadores.
+14. Registrar auditoría.
+15. Emitir recibo cuando corresponda.
+
+Los movimientos bancarios importados deben conservar su identidad y origen.
+
+Ningún reintento puede duplicar pagos.
+
+---
+
+# 13. AXYRECOVERY BOT — COBRANZA POR WHATSAPP
+
+Crear un submódulo denominado **AxyRecovery Bot**.
+
+Objetivo: automatizar recordatorios y comunicaciones de cobranza mediante proveedores de mensajería autorizados.
+
+## 13.1. Integración
+
+Preparar conectores para WhatsApp Business Platform mediante su API oficial o un proveedor autorizado.
+
+Configurar las credenciales exclusivamente en backend.
+
+No utilizar automatizaciones no autorizadas mediante sesiones personales de WhatsApp.
+
+Si la API todavía no está conectada, mostrar claramente INTEGRACIÓN PENDIENTE.
+
+No simular mensajes como realmente entregados.
+
+## 13.2. Automatizaciones
+
+Permitir configurar campañas para:
+
+- Bienvenida al préstamo.
+- Recordatorio previo al vencimiento.
+- Recordatorio del día de vencimiento.
+- Aviso de cuota vencida.
+- Seguimiento de promesa.
+- Confirmación de pago aplicado.
+- Aviso de regularización.
+- Confirmación de cancelación.
+
+Registrar consentimiento, preferencias, restricciones de contacto y bajas de comunicación.
+
+Utilizar plantillas aprobadas por el proveedor cuando corresponda.
+
+## 13.3. Conversación con el cliente
+
+Diseñar un asistente que permita:
+
+- Confirmar identidad mediante un mecanismo seguro.
+- Consultar información limitada del préstamo.
+- Informar que realizó un pago.
+- Compartir un comprobante.
+- Solicitar una llamada.
+- Solicitar información.
+- Proponer una fecha de pago.
+- Pedir comunicación con un representante humano.
+
+No revelar saldos ni datos financieros sensibles antes de verificar la identidad.
+
+No recibir ni almacenar contraseñas o credenciales bancarias.
+
+El bot debe registrar la conversación y las gestiones relevantes en el expediente.
+
+Nunca confirmar un pago únicamente porque el cliente dijo haber pagado o envió una imagen.
+
+## 13.4. Control y calidad
+
+Permitir:
+
+- Activar o desactivar campañas.
+- Definir horarios autorizados.
+- Limitar frecuencias.
+- Configurar mensajes.
+- Revisar historial.
+- Transferir casos a humanos.
+- Gestionar errores de entrega.
+- Evitar contactos duplicados.
+
+Incluir salvaguardas contra acoso, intimidación, divulgación de deudas a terceros y comunicaciones engañosas.
+
+---
+
+# 14. CENTINELA — INTELIGENCIA DE COBRANZA
+
+Integrar un componente de alertas denominado Centinela.
+
+Su objetivo es identificar eventos operativos que puedan aumentar el riesgo de incumplimiento o requerir intervención.
+
+Alertas propuestas:
+
+- Primera cuota vencida.
+- Aumento de días de atraso.
+- Dos o más cuotas pendientes.
+- Promesa incumplida.
+- Promesas incumplidas reiteradamente.
+- Cliente sin contacto efectivo.
+- Pago reportado y no confirmado.
+- Diferencia de conciliación.
+- Movimiento financiero duplicado.
+- Operación con reverso.
+- Cuenta sin gestor.
+- Caso con gestión vencida.
+- Deterioro del comportamiento de pago.
+
+Clasificar alertas por gravedad y mostrar sus razones.
+
+No modificar automáticamente el score original utilizado para aprobar el crédito.
+
+Permitir mantener un indicador separado de comportamiento de cartera, únicamente cuando exista una metodología definida, validada y versionada.
+
+Generar tareas para el responsable cuando una alerta requiera acción.
+
+---
+
+# 15. ASIGNACIÓN AUTOMÁTICA DE CARTERA
+
+Crear un mecanismo para distribuir cuentas entre los gestores.
+
+Permitir asignaciones por:
+
+- Sucursal.
+- Zona.
+- Producto.
+- Moneda.
+- Cantidad de clientes.
+- Cantidad de préstamos.
+- Saldo de cartera.
+- Días de atraso.
+- Nivel de prioridad.
+- Carga operativa.
+
+Crear reglas configurables de distribución equitativa.
+
+Funciones:
+
+- Asignación individual.
+- Asignación masiva.
+- Reasignación.
+- Liberación.
+- Transferencia entre equipos.
+- Historial de responsables.
+
+No perder las gestiones anteriores cuando un cliente cambie de gestor.
+
+Cada responsable debe tener una bandeja personal.
+
+Los supervisores deben visualizar las carteras de sus equipos.
+
+---
+
+# 16. CONTACT CENTER Y PRODUCTIVIDAD
+
+Construir un panel de supervisión con indicadores operativos.
+
+KPI configurables:
+
+- Cartera total asignada.
+- Clientes gestionados.
+- Cobertura diaria de cartera.
+- Intentos de contacto.
+- Contactos efectivos.
+- Contactabilidad.
+- Gestiones orientadas a pago.
+- Promesas registradas.
+- Promesas cumplidas.
+- Recuperación monetaria confirmada.
+- Monto recuperado por gestor.
+- Seguimientos vencidos.
+- Tiempo sin gestión.
+- Productividad por jornada.
+- Calidad del registro.
+
+Cada indicador debe tener definición, numerador, denominador, período, criterios de exclusión y reglas para evitar duplicados.
+
+No fijar metas arbitrarias sin una política de la empresa.
+
+Distinguir gestiones registradas, pagos confirmados y resultados financieros reales.
+
+Incorporar dashboards para:
+
+- Gestor.
+- Supervisor.
+- Coordinador de Cobranza.
+- Gerencia.
+
+Permitir comparar desempeño por fechas y segmentos.
+
+---
+
+# 17. REPORTE DE MOROSIDAD Y RECUPERACIÓN
+
+Crear reportes:
+
+1. Cartera total.
+2. Cartera vigente.
+3. Cartera vencida.
+4. Antigüedad de saldos.
+5. Días de atraso por préstamo.
+6. Mora por producto.
+7. Mora por sucursal.
+8. Mora por gestor.
+9. Recuperación diaria.
+10. Recuperación mensual.
+11. Promesas cumplidas.
+12. Promesas incumplidas.
+13. Clientes sin contactar.
+14. Gestiones realizadas.
+15. Productividad.
+16. Conciliación bancaria.
+17. Pagos no identificados.
+18. Pagos parciales.
+19. Reversiones.
+20. Préstamos cancelados.
+
+Incorporar indicadores PAR 1, PAR 30, PAR 60 y PAR 90 basados en exposición de capital pendiente de préstamos con atraso superior al umbral correspondiente.
+
+Definir y documentar exactamente la metodología de cada reporte.
+
+No confundir total de cuotas vencidas con capital total en riesgo.
+
+Los reportes históricos deben permitir seleccionar fecha de corte y obtener resultados reproducibles.
+
+No sumar DOP y USD directamente. Mostrar resultados por moneda o utilizar una conversión fechada y documentada.
+
+---
+
+# 18. ANTICÍPATE — PROYECCIONES DE RECUPERACIÓN
+
+Crear la conexión lógica con el futuro módulo Anticípate.
+
+Proyectar:
+
+- Cuotas esperadas a 30 días.
+- Cuotas esperadas a 60 días.
+- Cuotas esperadas a 90 días.
+- Promesas programadas.
+- Cobros confirmados.
+- Cobros pendientes.
+- Recuperación potencial.
+- Riesgo de incumplimiento.
+
+Separar flujos contractuales, compromisos declarados y estimaciones.
+
+No contar una promesa como dinero efectivamente disponible.
+
+Preparar escenarios sin modificar transacciones ni cronogramas reales.
+
+---
+
+# 19. RECLAMACIONES Y CASOS ESPECIALES
+
+Crear una bandeja para:
+
+- Pago no reflejado.
+- Pago aplicado incorrectamente.
+- Monto en disputa.
+- Interés cuestionado.
+- Solicitud de liquidación.
+- Solicitud de reestructuración.
+- Solicitud de refinanciamiento.
+- Duplicidad de pago.
+- Reverso.
+- Fallecimiento del titular, cuando corresponda.
+- Caso legal.
+- Otros eventos excepcionales.
+
+Cada expediente debe tener responsable, prioridad, fecha límite, evidencia, estado y resolución.
+
+Los procesos legales deben quedar sujetos a revisión humana, normativa aplicable y autorizaciones.
+
+El sistema no debe activar medidas coercitivas o acciones legales automáticamente basándose únicamente en un puntaje o alerta.
+
+---
+
+# 20. CANCELACIÓN DEL PRÉSTAMO
+
+Cuando un préstamo tenga todas sus obligaciones contractuales satisfechas:
+
+1. Verificar saldo de capital.
+2. Verificar intereses pendientes.
+3. Verificar mora y cargos válidos.
+4. Verificar pagos aplicados.
+5. Verificar partidas bancarias pendientes.
+6. Confirmar saldo exigible cero.
+7. Solicitar autorización de cierre cuando corresponda.
+8. Cambiar el préstamo a CANCELADO.
+9. Registrar fecha de cancelación.
+10. Generar constancia de cancelación.
+11. Cerrar tareas de cobranza pendientes.
+12. Conservar el expediente completo.
+
+No eliminar el préstamo de la base de datos.
+
+Mantener historial disponible para consultas y auditoría.
+
+---
+
+# 21. ROLES Y PERMISOS
+
+Implementar:
+
+**Gestor de Cobranza**
+- Consultar cartera asignada.
+- Registrar gestiones.
+- Registrar promesas.
+- Reportar pagos.
+- Administrar sus tareas.
+
+**Supervisor**
+- Consultar equipos.
+- Asignar cartera.
+- Revisar productividad.
+- Supervisar acuerdos.
+- Escalar casos.
+
+**Coordinador de Cobranza**
+- Administrar cartera general.
+- Configurar prioridades autorizadas.
+- Revisar excepciones.
+- Supervisar indicadores.
+
+**Finanzas**
+- Verificar dinero recibido.
+- Conciliar movimientos.
+- Autorizar aplicaciones según facultad.
+- Gestionar diferencias y reversos.
+
+**Caja**
+- Registrar recepción de fondos.
+- Emitir constancias conforme a los controles autorizados.
+- Realizar cierres y entregas de caja.
+
+**Gerencia**
+- Consultar dashboards.
+- Autorizar excepciones dentro de sus facultades.
+- Revisar desempeño.
+
+**Administrador**
+- Configurar permisos y parámetros.
+- Administrar integraciones.
+- Gestionar políticas versionadas.
+
+**Auditor**
+- Consultar información y trazabilidad.
+- Sin autorización para modificar registros financieros.
+
+Aplicar segregación de funciones y validar permisos en backend.
+
+---
+
+# 22. BASE DE DATOS
+
+Reutilizar las colecciones ya creadas en AxyCore:
+
+- customers
+- loans
+- loan_installments
+- users
+- organizations
+- credit_policies
+- audit_logs
+
+Crear o extender, según corresponda:
+
+- collection_accounts
+- collection_assignments
+- collection_actions
+- collection_tasks
+- payment_promises
+- payment_agreements
+- payment_intents
+- payments
+- payment_allocations
+- payment_reversals
+- bank_transactions
+- reconciliation_matches
+- reconciliation_exceptions
+- collector_targets
+- collection_campaigns
+- message_templates
+- message_events
+- risk_alerts
+- customer_disputes
+- collection_policy_versions
+- collection_daily_snapshots
+
+Utilizar identificadores estables.
+
+Crear índices apropiados para vencimientos, clientes, préstamos, gestores, estados y fechas.
+
+Asegurar aislamiento de datos por organización.
+
+Implementar operaciones financieras idempotentes y transaccionales.
+
+No permitir que una actualización parcial genere incoherencia entre pagos, cuotas, saldo y cartera.
+
+---
+
+# 23. SEGURIDAD FINANCIERA Y AUDITORÍA
+
+Obligatorio:
+
+- Autenticación.
+- Autorización por rol.
+- Controles de acceso por organización.
+- Protección de datos personales.
+- Registro permanente de operaciones sensibles.
+- Trazabilidad de cambios de saldo.
+- Versionado de políticas.
+- Separación entre reporte y aplicación de pago.
+- Control de reversiones.
+- Prevención de registros duplicados.
+- Protección de comprobantes.
+- Validación del lado del servidor.
+- Manejo seguro de secretos.
+- Límites para automatizaciones.
+- Registro de acciones de bots.
+
+No guardar información bancaria sensible en registros de depuración.
+
+No eliminar pagos aplicados para corregir errores; utilizar reversos autorizados que conserven el historial financiero.
+
+---
+
+# 24. PRUEBAS OBLIGATORIAS
+
+Crear pruebas automáticas para los siguientes escenarios:
+
+1. Préstamo desembolsado aparece automáticamente en Cartera.
+2. Las cuotas conservan el cronograma original.
+3. Un vencimiento genera tarea de cobro.
+4. Se calcula correctamente el atraso.
+5. Un pago completo elimina el atraso correspondiente.
+6. Un pago parcial conserva el saldo pendiente.
+7. Una promesa no modifica el saldo.
+8. Una promesa se cumple con pagos confirmados.
+9. Una promesa vencida sin pago genera alerta.
+10. El sistema detecta una referencia bancaria duplicada.
+11. Un comprobante no confirmado no aplica pago.
+12. La conciliación identifica una coincidencia exacta.
+13. Las coincidencias ambiguas van a revisión.
+14. La aplicación actualiza correctamente capital e intereses.
+15. No se aplica dos veces una transacción.
+16. Los redondeos financieros concilian.
+17. Una reversión conserva auditoría.
+18. Una cuenta se reasigna sin perder gestiones.
+19. El gestor no accede a préstamos no autorizados.
+20. El bot no envía mensajes sin autorización.
+21. Las fallas de mensajería no generan pagos falsos.
+22. Las tareas automáticas no se duplican.
+23. Un préstamo se cancela únicamente con saldo exigible cero y controles cumplidos.
+24. Los reportes de cartera concilian con los saldos individuales.
+25. Las operaciones en USD mantienen su moneda original.
+26. Los datos de distintas empresas están aislados.
+27. Los datos persisten entre sesiones.
+28. El sistema conserva historial completo.
+29. Los cálculos históricos por fecha de corte son reproducibles.
+30. El proceso integral funciona desde desembolso hasta cancelación.
+
+Usar datos de prueba sintéticos y aislados.
+
+No enviar WhatsApp reales ni realizar transacciones bancarias durante las pruebas.
+
+---
+
+# 25. ORDEN DE IMPLEMENTACIÓN
+
+Desarrollar por fases, sin romper lo existente.
+
+**FASE 1**
+- Integración con préstamos desembolsados.
+- Cartera general.
+- Cuotas, saldos y vencimientos.
+- Ficha 360°.
+- Cálculo de morosidad.
+
+**FASE 2**
+- Cobros del Día.
+- Cobros Urgentes.
+- Gestiones.
+- Agenda.
+- Asignación de cartera.
+
+**FASE 3**
+- Promesas y acuerdos.
+- Seguimiento automático.
+- Alertas.
+- Escalamiento.
+
+**FASE 4**
+- Registro de pagos.
+- Aplicación financiera.
+- Recibos.
+- Conciliación bancaria.
+
+**FASE 5**
+- AxyRecovery Bot.
+- Automatizaciones.
+- Contact Center.
+- Centinela.
+
+**FASE 6**
+- Dashboard.
+- Reportes.
+- Parámetros.
+- Auditoría.
+- Pruebas completas de integración.
+
+Antes de comenzar cada fase, verificar la funcionalidad de la fase anterior.
+
+---
+
+# 26. RESULTADO FINAL ESPERADO
+
+Quiero poder iniciar sesión en AxyCore y realizar este proceso completo:
+
+1. Consultar un préstamo recién desembolsado.
+2. Visualizar todas sus cuotas y vencimientos.
+3. Identificar cuándo vence una cuota.
+4. Incorporarla automáticamente a Cobros del Día.
+5. Detectar si la cuota cae en atraso.
+6. Priorizarla en Cobros Urgentes cuando corresponda.
+7. Asignar el caso a un gestor.
+8. Registrar la llamada o gestión.
+9. Crear una promesa de pago.
+10. Dar seguimiento.
+11. Registrar un pago informado por el cliente.
+12. Verificar el movimiento bancario.
+13. Conciliar y aplicar el pago.
+14. Actualizar las cuotas y el saldo.
+15. Confirmar automáticamente si se cumplió la promesa.
+16. Actualizar indicadores del gestor.
+17. Generar un recibo.
+18. Mostrar alertas de riesgos pendientes.
+19. Continuar hasta recuperar completamente el préstamo.
+20. Cancelarlo y conservar su historial.
+
+**INSTRUCCIÓN FINAL**
+
+Construye el Módulo Integral de Cobranza como parte de la misma aplicación AxyCore.
+
+No crees una segunda base de datos ni dupliques clientes o préstamos.
+
+Prioriza primero la consistencia de cartera, cuotas y pagos; después las gestiones, las automatizaciones y la inteligencia de cobranza.
+
+No sustituyas operaciones funcionales por interfaces de demostración.
+
+Cuando una integración externa no esté configurada, identifica claramente qué falta, sin simular que funciona.
+
+Al finalizar cada fase, presenta las funcionalidades implementadas, los cambios de base de datos, las pruebas superadas y las integraciones todavía pendientes.
+
+El objetivo es construir un sistema de cobranza financiero profesional, escalable, seguro, automatizado y completamente integrado con el ciclo crediticio de AxyCore.

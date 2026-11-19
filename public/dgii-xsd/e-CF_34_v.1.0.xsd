@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+  <!-- Esquema Oficial DGII e-CF Tipo 34 v1.0 (Ley 32-23 República Dominicana) -->
+  
+  <xs:simpleType name="VersionType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="1\.0"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="RncOCedulaType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{9}|[0-9]{11}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="RncEmpresaType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{9}|[0-9]{11}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="FechaDgiiType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="FechaHoraDgiiType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-[0-9]{4} ([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Decimal18v2Type">
+    <xs:restriction base="xs:decimal">
+      <xs:totalDigits value="18"/>
+      <xs:fractionDigits value="2"/>
+      <xs:minInclusive value="0.00"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DecimalPositive2Type">
+    <xs:restriction base="xs:decimal">
+      <xs:totalDigits value="18"/>
+      <xs:fractionDigits value="2"/>
+      <xs:minInclusive value="0.01"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DecimalPositive4Type">
+    <xs:restriction base="xs:decimal">
+      <xs:totalDigits value="18"/>
+      <xs:fractionDigits value="4"/>
+      <xs:minInclusive value="0.0001"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="IndicadorMontoGravadoType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0"/>
+      <xs:enumeration value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="TipoPagoType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+      <xs:enumeration value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="FormaPagoType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+      <xs:enumeration value="3"/>
+      <xs:enumeration value="4"/>
+      <xs:enumeration value="5"/>
+      <xs:enumeration value="6"/>
+      <xs:enumeration value="7"/>
+      <xs:enumeration value="8"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="IndicadorFacturacionType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0"/>
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+      <xs:enumeration value="3"/>
+      <xs:enumeration value="4"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="IndicadorBienoServicioType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="CodigoModificacionType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+      <xs:enumeration value="3"/>
+      <xs:enumeration value="4"/>
+      <xs:enumeration value="5"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="NumeroLineaType">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="1"/>
+      <xs:maxInclusive value="1000"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="NombreItemType">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+      <xs:maxLength value="80"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="RazonSocialType">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+      <xs:maxLength value="150"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DireccionType">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+      <xs:maxLength value="200"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="CorreoType">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="80"/>
+      <xs:pattern value="[^@\s]+@[^@\s]+\.[^@\s]+"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="MonedaIsoType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Z]{3}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="TasaItbisType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="18"/>
+      <xs:enumeration value="16"/>
+      <xs:enumeration value="0"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="EncfAnyType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="E(31|32|33|34|41|43|44|45|46|47)[0-9]{10}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <xs:simpleType name="TipoeCFType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="34"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="EncfSpecificType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="E34[0-9]{10}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:element name="ECF">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Encabezado">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Version" type="VersionType"/>
+              <xs:element name="IdDoc">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="TipoeCF" type="TipoeCFType"/>
+                    <xs:element name="eNCF" type="EncfSpecificType"/>
+                    <xs:element name="FechaVencimientoSecuencia" type="FechaDgiiType" minOccurs="0"/>
+                    <xs:element name="IndicadorMontoGravado" type="IndicadorMontoGravadoType" minOccurs="0"/>
+                    <xs:element name="TipoPago" type="TipoPagoType"/>
+                    <xs:element name="FechaLimitePago" type="FechaDgiiType" minOccurs="0"/>
+                    <xs:element name="TablaFormasPago" minOccurs="0">
+                      <xs:complexType>
+                        <xs:sequence>
+                          <xs:element name="FormaDePago" maxOccurs="7">
+                            <xs:complexType>
+                              <xs:sequence>
+                                <xs:element name="FormaPago" type="FormaPagoType"/>
+                                <xs:element name="MontoPago" type="DecimalPositive2Type"/>
+                              </xs:sequence>
+                            </xs:complexType>
+                          </xs:element>
+                        </xs:sequence>
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="Emisor">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="RNCEmisor" type="RncEmpresaType"/>
+                    <xs:element name="RazonSocialEmisor" type="RazonSocialType"/>
+                    <xs:element name="NombreComercial" type="RazonSocialType" minOccurs="0"/>
+                    <xs:element name="DireccionEmisor" type="DireccionType"/>
+                    <xs:element name="FechaEmision" type="FechaDgiiType"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="Comprador" minOccurs="1">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="RNCComprador" type="RncOCedulaType" minOccurs="0"/>
+                    <xs:element name="IdentificadorExtranjero" type="xs:string" minOccurs="0"/>
+                    <xs:element name="RazonSocialComprador" type="RazonSocialType"/>
+                    <xs:element name="CorreoComprador" type="CorreoType" minOccurs="0"/>
+                    <xs:element name="DireccionComprador" type="DireccionType" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="Totales">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="MontoGravadoTotal" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="MontoGravadoI1" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="MontoGravadoI2" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="MontoExento" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="ITBIS1" type="TasaItbisType" minOccurs="0"/>
+                    <xs:element name="ITBIS2" type="TasaItbisType" minOccurs="0"/>
+                    <xs:element name="TotalITBIS" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="MontoImpuestoAdicional" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="MontoTotal" type="DecimalPositive2Type"/>
+                    <xs:element name="TipoMoneda" type="MonedaIsoType" minOccurs="0"/>
+                    <xs:element name="TipoCambio" type="DecimalPositive4Type" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="DetallesItems">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Item" maxOccurs="1000">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="NumeroLinea" type="NumeroLineaType"/>
+                    <xs:element name="IndicadorFacturacion" type="IndicadorFacturacionType"/>
+                    <xs:element name="NombreItem" type="NombreItemType"/>
+                    <xs:element name="IndicadorBienoServicio" type="IndicadorBienoServicioType"/>
+                    <xs:element name="CantidadItem" type="DecimalPositive4Type"/>
+                    <xs:element name="UnidadMedida" type="xs:string" minOccurs="0"/>
+                    <xs:element name="PrecioUnitarioItem" type="Decimal18v2Type"/>
+                    <xs:element name="DescuentoMonto" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="MontoItem" type="Decimal18v2Type"/>
+                    <xs:element name="MontoITBIS" type="Decimal18v2Type" minOccurs="0"/>
+                    <xs:element name="MontoOtrosImpuestos" type="Decimal18v2Type" minOccurs="0"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="DescuentosORecargos" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="InformacionReferencia" minOccurs="1">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="NCFModificado" type="EncfAnyType"/>
+              <xs:element name="FechaNCFModificado" type="FechaDgiiType" minOccurs="0"/>
+              <xs:element name="CodigoModificacion" type="CodigoModificacionType" minOccurs="0"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:any minOccurs="0" processContents="skip"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

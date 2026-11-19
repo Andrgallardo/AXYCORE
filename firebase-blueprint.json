@@ -1,0 +1,1547 @@
+{
+  "entities": {
+    "Organization": {
+      "title": "Organization",
+      "description": "Tenant organization record for multi-company SaaS isolation and licensing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "tenant_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 160 },
+        "legalName": { "type": "string", "maxLength": 200 },
+        "tradeName": { "type": "string", "maxLength": 160 },
+        "taxId": { "type": "string", "maxLength": 40 },
+        "rnc": { "type": "string", "maxLength": 40 },
+        "logoUrl": { "type": "string", "maxLength": 600 },
+        "country": { "type": "string", "maxLength": 80 },
+        "province": { "type": "string", "maxLength": 80 },
+        "city": { "type": "string", "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "corporateEmail": { "type": "string", "maxLength": 254 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "timezone": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["ACTIVA", "SUSPENDIDA", "INACTIVA", "PRUEBA", "EN_REVISION", "DESACTIVADA", "PENDIENTE"] },
+        "onboardingDate": { "type": "string", "maxLength": 40 },
+        "planCode": { "type": "string", "enum": ["BASICO", "PROFESIONAL", "EMPRESARIAL", "CORPORATIVO", "PERSONALIZADO"] },
+        "licenseId": { "type": "string", "maxLength": 128 },
+        "licenseStatus": { "type": "string", "enum": ["PENDIENTE", "ACTIVA", "PROXIMA_A_VENCER", "VENCIDA", "SUSPENDIDA", "CANCELADA"] },
+        "licenseStartDate": { "type": "string", "maxLength": 40 },
+        "licenseEndDate": { "type": "string", "maxLength": 40 },
+        "maxUsers": { "type": "number" },
+        "enabledModules": { "type": "array", "items": { "type": "string" } },
+        "modulesEnabled": { "type": "array", "items": { "type": "string" } },
+        "primaryAdminUid": { "type": "string", "maxLength": 128 },
+        "primaryAdminName": { "type": "string", "maxLength": 160 },
+        "primaryAdminEmail": { "type": "string", "maxLength": 254 },
+        "primaryAdminPhone": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 1500 },
+        "primaryColor": { "type": "string", "maxLength": 32 },
+        "accentColor": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "createdAt", "updatedAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "AxyCore authenticated user and RBAC role assignment",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "displayName": { "type": "string", "maxLength": 160 },
+        "role": {
+          "type": "string",
+          "enum": [
+            "ADMIN",
+            "BUSINESS_OFFICER",
+            "CREDIT_ANALYST",
+            "RISK_OFFICER",
+            "COMMITTEE_MEMBER",
+            "FORMALIZATION",
+            "OPERATIONS",
+            "FINANCE",
+            "AUDITOR",
+            "COLLECTION_AGENT",
+            "SUPERVISOR",
+            "COLLECTION_COORDINATOR",
+            "CASHIER",
+            "MANAGEMENT",
+            "EXTERNAL_CLIENT"
+          ]
+        },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "isSuperAdmin": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "INVITED"] },
+        "invitationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "invitationStatus": { "type": "string", "enum": ["INVITACION_ENVIADA", "ENVIADA", "CONFIRMADA", "PENDIENTE"] },
+        "invitedBy": { "type": "string", "maxLength": 128 },
+        "invitedAt": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "organizationId", "status", "createdAt", "updatedAt"]
+    },
+    "UserInvitation": {
+      "title": "UserInvitation",
+      "description": "Verifiable corporate user invitation record keyed deterministically by normalized email for automatic role claim and onboarding",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "displayName": { "type": "string", "maxLength": 160 },
+        "role": {
+          "type": "string",
+          "enum": [
+            "ADMIN",
+            "BUSINESS_OFFICER",
+            "CREDIT_ANALYST",
+            "RISK_OFFICER",
+            "COMMITTEE_MEMBER",
+            "FORMALIZATION",
+            "OPERATIONS",
+            "FINANCE",
+            "AUDITOR",
+            "COLLECTION_AGENT",
+            "SUPERVISOR",
+            "COLLECTION_COORDINATOR",
+            "CASHIER",
+            "MANAGEMENT",
+            "EXTERNAL_CLIENT"
+          ]
+        },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationName": { "type": "string", "maxLength": 160 },
+        "accessCode": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["INVITACION_ENVIADA", "ACCEPTED", "REVOKED"] },
+        "invitedBy": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "invitedByEmail": { "type": "string", "maxLength": 254 },
+        "invitedAt": { "type": "string", "maxLength": 60 },
+        "invitationLink": { "type": "string", "maxLength": 600 },
+        "authStatus": { "type": "string", "maxLength": 64 },
+        "emailDeliveryChannel": { "type": "string", "maxLength": 80 },
+        "acceptedUid": { "type": "string", "maxLength": 128 },
+        "acceptedAt": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "displayName", "role", "organizationId", "status", "invitedBy", "invitedAt", "createdAt", "updatedAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Individual borrower profile with deduplication key",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "documentType": { "type": "string", "enum": ["CEDULA", "PASAPORTE"] },
+        "documentNumber": { "type": "string", "maxLength": 40 },
+        "documentKey": { "type": "string", "maxLength": 180 },
+        "firstName": { "type": "string", "maxLength": 120 },
+        "lastName": { "type": "string", "maxLength": 120 },
+        "birthDate": { "type": "string", "maxLength": 20 },
+        "nationality": { "type": "string", "maxLength": 80 },
+        "maritalStatus": { "type": "string", "maxLength": 40 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "altPhone": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 254 },
+        "address": { "type": "string", "maxLength": 300 },
+        "municipality": { "type": "string", "maxLength": 100 },
+        "province": { "type": "string", "maxLength": 100 },
+        "residenceMonths": { "type": "number" },
+        "housingType": { "type": "string", "enum": ["PROPIA", "ALQUILADA", "FAMILIAR", "OTRA", "NO_DECLARADA"] },
+        "housingPayment": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "documentType", "documentNumber", "documentKey", "firstName", "lastName", "phone", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Business": {
+      "title": "Business",
+      "description": "Commercial entity profile for business loans",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "rnc": { "type": "string", "maxLength": 40 },
+        "rncKey": { "type": "string", "maxLength": 180 },
+        "legalName": { "type": "string", "maxLength": 200 },
+        "tradeName": { "type": "string", "maxLength": 200 },
+        "companyType": { "type": "string", "maxLength": 80 },
+        "economicActivity": { "type": "string", "maxLength": 160 },
+        "operationsStartDate": { "type": "string", "maxLength": 20 },
+        "authorizedRepName": { "type": "string", "maxLength": 160 },
+        "authorizedRepDoc": { "type": "string", "maxLength": 40 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "rnc", "rncKey", "legalName", "authorizedRepName", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Loan origination application across internal and external channels",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "applicationNumber": { "type": "string", "maxLength": 64 },
+        "fileNumber": { "type": "string", "maxLength": 64 },
+        "channel": { "type": "string", "enum": ["INTERNAL", "EXTERNAL"] },
+        "applicantType": { "type": "string", "enum": ["INDIVIDUAL", "BUSINESS"] },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "businessId": { "type": "string", "maxLength": 128 },
+        "applicantDisplayName": { "type": "string", "maxLength": 200 },
+        "productCode": { "type": "string", "enum": ["PERSONAL_DOP", "EMPRESARIAL_DOP", "PERSONAL_USD", "EMPRESARIAL_USD"] },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "requestedAmount": { "type": "number" },
+        "requestedTermMonths": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "BORRADOR",
+            "RECIBIDA",
+            "EN_EVALUACION",
+            "EN_COMITE",
+            "APROBADA",
+            "APROBADA_CONDICIONADA",
+            "DEVUELTA",
+            "RECHAZADA",
+            "FORMALIZADA",
+            "DESEMBOLSADA"
+          ]
+        },
+        "prequalificationStatus": { "type": "string", "maxLength": 64 },
+        "latestScore": { "type": "number" },
+        "latestRiskBand": { "type": "string", "maxLength": 64 },
+        "recommendedAmount": { "type": "number" },
+        "recommendedRateMonthly": { "type": "number" },
+        "recommendedTermMonths": { "type": "number" },
+        "recommendedInstallment": { "type": "number" },
+        "authorizedAlternateAmount": { "type": "number" },
+        "alternateAmountAuthorizedBy": { "type": "string", "maxLength": 128 },
+        "latestScoringExecutionId": { "type": "string", "maxLength": 128 },
+        "assignedTo": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationNumber", "fileNumber", "channel", "applicantType", "customerId", "productCode", "currency", "requestedAmount", "requestedTermMonths", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "ApplicationDocument": {
+      "title": "ApplicationDocument",
+      "description": "Uploaded or attached document metadata for a loan file",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 80 },
+        "fileName": { "type": "string", "maxLength": 240 },
+        "reviewStatus": { "type": "string", "enum": ["PENDIENTE", "RECIBIDO", "VERIFICADO", "OBSERVADO"] },
+        "uploadedBy": { "type": "string", "maxLength": 128 },
+        "uploadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "category", "fileName", "reviewStatus", "uploadedBy", "uploadedAt"]
+    },
+    "ApplicationConsent": {
+      "title": "ApplicationConsent",
+      "description": "Immutable applicant terms & Ley 172-13 data consent record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "consentVersion": { "type": "string", "maxLength": 40 },
+        "accepted": { "type": "boolean" },
+        "acceptedBy": { "type": "string", "maxLength": 128 },
+        "acceptedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "consentVersion", "accepted", "acceptedBy", "acceptedAt"]
+    },
+    "CreditPolicy": {
+      "title": "CreditPolicy",
+      "description": "Versioned credit policy and Decision Engine V2 parameters",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "version": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["PROPUESTA", "EN_PRUEBAS", "APROBADA", "ACTIVA", "HISTORICA"] },
+        "workflowConfig": { "type": "object" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "version", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "ScoringExecution": {
+      "title": "ScoringExecution",
+      "description": "Immutable Decision Engine V2 execution snapshot with 22 indicators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "policyVersion": { "type": "string", "maxLength": 40 },
+        "totalScore": { "type": "number" },
+        "status": { "type": "string", "maxLength": 64 },
+        "executedBy": { "type": "string", "maxLength": 128 },
+        "executedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "policyVersion", "totalScore", "status", "executedBy", "executedAt"]
+    },
+    "CreditEvaluation": {
+      "title": "CreditEvaluation",
+      "description": "Analyst credit evaluation and debugging record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "analystId": { "type": "string", "maxLength": 128 },
+        "referencesVerified": { "type": "boolean" },
+        "addressVerified": { "type": "boolean" },
+        "phoneVerified": { "type": "boolean" },
+        "socialMediaVerified": { "type": "boolean" },
+        "recommendedDecision": { "type": "string", "enum": ["APROBAR", "MODIFICAR", "DEVOLVER", "RECHAZAR"] },
+        "riskOpinionStatus": { "type": "string", "enum": ["PENDIENTE", "CONFORME", "CON_OBSERVACIONES", "RECHAZO_RIESGO"] },
+        "riskOpinionNotes": { "type": "string", "maxLength": 3000 },
+        "riskOfficerId": { "type": "string", "maxLength": 128 },
+        "riskOfficerName": { "type": "string", "maxLength": 160 },
+        "riskReviewedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "analystId", "recommendedDecision", "createdAt", "updatedAt"]
+    },
+    "CommitteeDecision": {
+      "title": "CommitteeDecision",
+      "description": "Immutable credit committee decision record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "decision": { "type": "string", "enum": ["APROBADO", "APROBADO_CONDICIONADO", "DEVUELTO", "RECHAZADO"] },
+        "voteStatus": { "type": "string", "enum": ["VOTO_PARCIAL", "RESOLUCION_FINAL"] },
+        "requiredVotes": { "type": "number" },
+        "totalPanelMembers": { "type": "number" },
+        "decidedBy": { "type": "string", "maxLength": 128 },
+        "decidedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "decision", "decidedBy", "decidedAt"]
+    },
+    "Formalization": {
+      "title": "Formalization",
+      "description": "Contract formalization and pre-disbursement checklist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "promissoryNoteConfirmed": { "type": "boolean" },
+        "contractConfirmed": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["PENDIENTE", "LISTA_PARA_DESEMBOLSO", "DESEMBOLSADA"] },
+        "formalizedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "status", "formalizedBy", "createdAt", "updatedAt"]
+    },
+    "Disbursement": {
+      "title": "Disbursement",
+      "description": "Idempotent disbursement execution keyed by applicationId",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "disbursementNumber": { "type": "string", "maxLength": 64 },
+        "voucherFileName": { "type": "string", "maxLength": 240 },
+        "voucherMimeType": { "type": "string", "maxLength": 120 },
+        "voucherDocumentId": { "type": "string", "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "maxLength": 128 },
+        "responsibleUserId": { "type": "string", "maxLength": 128 },
+        "authorizerUserId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["CONFIRMADO"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "loanId", "disbursementNumber", "idempotencyKey", "responsibleUserId", "authorizerUserId", "status", "createdAt"]
+    },
+    "Loan": {
+      "title": "Loan",
+      "description": "Disbursed active loan obligation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanNumber": { "type": "string", "maxLength": 64 },
+        "applicationId": { "type": "string", "maxLength": 128 },
+        "disbursementId": { "type": "string", "maxLength": 128 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "totalFinancedPrincipal": { "type": "number" },
+        "status": { "type": "string", "enum": ["ACTIVO", "PAGADO", "VENCIDO", "CANCELADO"] },
+        "closedAt": { "type": "string" },
+        "closureCertificateNumber": { "type": "string", "maxLength": 64 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "loanNumber", "applicationId", "disbursementId", "customerId", "currency", "totalFinancedPrincipal", "status", "createdBy", "createdAt"]
+    },
+    "LoanInstallment": {
+      "title": "LoanInstallment",
+      "description": "Installment row belonging to a disbursed loan with tracked paid components",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "installmentNumber": { "type": "number" },
+        "dueDate": { "type": "string", "maxLength": 20 },
+        "principalAmount": { "type": "number" },
+        "interestAmount": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "remainingPrincipalBalance": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDIENTE", "PARCIAL", "PAGADA", "VENCIDA"] },
+        "paidPrincipal": { "type": "number" },
+        "paidInterest": { "type": "number" },
+        "paidLateFee": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "loanId", "installmentNumber", "dueDate", "principalAmount", "interestAmount", "totalAmount", "remainingPrincipalBalance", "status", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Append-only immutable audit log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 80 },
+        "entityType": { "type": "string", "maxLength": 80 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 160 },
+        "transactionId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "eventType", "entityType", "entityId", "action", "transactionId", "userId", "timestamp"]
+    },
+    "SystemParameter": {
+      "title": "SystemParameter",
+      "description": "Configurable system parameters, FX rates, and contract templates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "key": { "type": "string", "maxLength": 100 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "key", "updatedBy", "updatedAt"]
+    },
+    "EmailNotification": {
+      "title": "EmailNotification",
+      "description": "Automatic customer email notification triggered on credit application status changes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "applicationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "applicationNumber": { "type": "string", "maxLength": 64 },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "applicantUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recipientEmail": { "type": "string", "maxLength": 254 },
+        "recipientName": { "type": "string", "maxLength": 200 },
+        "eventCode": {
+          "type": "string",
+          "enum": [
+            "RECIBIDA",
+            "EN_EVALUACION",
+            "DEVUELTA",
+            "EN_COMITE",
+            "APROBADA",
+            "APROBADA_CONDICIONADA",
+            "RECHAZADA",
+            "PENDIENTE_FIRMA",
+            "FORMALIZADA",
+            "DESEMBOLSADA"
+          ]
+        },
+        "toStatus": { "type": "string", "maxLength": 64 },
+        "subject": { "type": "string", "maxLength": 300 },
+        "deliveryChannel": {
+          "type": "string",
+          "enum": ["CLOUD_FUNCTION_TRIGGER", "EXPRESS_SMTP_RELAY", "CLOUD_FUNCTION_PENDING_SMTP"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["QUEUED", "SENT", "PENDING_CLOUD_FUNCTION", "SKIPPED_NO_EMAIL", "FAILED"]
+        },
+        "idempotencyKey": { "type": "string", "maxLength": 180 },
+        "triggeredBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "applicationId", "applicationNumber", "customerId", "applicantUid", "recipientEmail", "recipientName", "eventCode", "toStatus", "subject", "deliveryChannel", "status", "idempotencyKey", "triggeredBy", "createdAt", "updatedAt"]
+    },
+    "FcmDeviceToken": {
+      "title": "FcmDeviceToken",
+      "description": "Firebase Cloud Messaging Web Push device token registered by internal credit staff",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userRole": {
+          "type": "string",
+          "enum": [
+            "ADMIN",
+            "BUSINESS_OFFICER",
+            "CREDIT_ANALYST",
+            "RISK_OFFICER",
+            "COMMITTEE_MEMBER",
+            "FORMALIZATION",
+            "OPERATIONS",
+            "FINANCE",
+            "AUDITOR",
+            "COLLECTION_AGENT",
+            "SUPERVISOR",
+            "COLLECTION_COORDINATOR",
+            "CASHIER",
+            "MANAGEMENT"
+          ]
+        },
+        "userEmail": { "type": "string", "maxLength": 254 },
+        "token": { "type": "string", "maxLength": 512 },
+        "platform": { "type": "string", "maxLength": 64 },
+        "userAgent": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["ACTIVE", "REVOKED"] },
+        "lastSeenAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "userId", "userRole", "userEmail", "token", "platform", "userAgent", "status", "lastSeenAt", "createdAt", "updatedAt"]
+    },
+    "PushSubscription": {
+      "title": "PushSubscription",
+      "description": "W3C VAPID Web Push browser subscription for credit application status-change notifications (staff and external clients)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userRole": {
+          "type": "string",
+          "enum": [
+            "ADMIN",
+            "BUSINESS_OFFICER",
+            "CREDIT_ANALYST",
+            "RISK_OFFICER",
+            "COMMITTEE_MEMBER",
+            "FORMALIZATION",
+            "OPERATIONS",
+            "FINANCE",
+            "AUDITOR",
+            "COLLECTION_AGENT",
+            "SUPERVISOR",
+            "COLLECTION_COORDINATOR",
+            "CASHIER",
+            "MANAGEMENT",
+            "EXTERNAL_CLIENT"
+          ]
+        },
+        "userEmail": { "type": "string", "maxLength": 254 },
+        "endpoint": { "type": "string", "maxLength": 1024 },
+        "p256dh": { "type": "string", "maxLength": 256 },
+        "auth": { "type": "string", "maxLength": 128 },
+        "fcmToken": { "type": "string", "maxLength": 512 },
+        "vapidPublicKeyPrefix": { "type": "string", "maxLength": 32 },
+        "subscribedStatuses": { "type": "array" },
+        "platform": { "type": "string", "maxLength": 64 },
+        "userAgent": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["ACTIVE", "REVOKED"] },
+        "lastSeenAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "userId", "userRole", "userEmail", "endpoint", "p256dh", "auth", "vapidPublicKeyPrefix", "subscribedStatuses", "platform", "userAgent", "status", "lastSeenAt", "createdAt", "updatedAt"]
+    },
+    "CollectionAccount": {
+      "title": "CollectionAccount",
+      "description": "Operational collections state linked 1:1 to a master Loan record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "loanNumber": { "type": "string", "maxLength": 64 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "dpd": { "type": "number" },
+        "stage": { "type": "string", "maxLength": 40 },
+        "bucket": { "type": "string", "maxLength": 20 },
+        "priority": { "type": "string", "enum": ["CRITICA", "ALTA", "MEDIA", "BAJA"] },
+        "overdueTotalAmount": { "type": "number" },
+        "totalOutstandingPrincipal": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "loanId", "loanNumber", "customerId", "currency", "dpd", "stage", "priority"]
+    },
+    "CollectionAssignment": {
+      "title": "CollectionAssignment",
+      "description": "Immutable assignment and reassignment history for collection accounts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "newCollectorId": { "type": "string", "maxLength": 128 },
+        "assignedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "loanId", "newCollectorId", "assignedBy"]
+    },
+    "CollectionAction": {
+      "title": "CollectionAction",
+      "description": "Collection contact log entry (closed once saved)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "collectorId": { "type": "string", "maxLength": 128 },
+        "channel": { "type": "string", "maxLength": 40 },
+        "contactResult": { "type": "string", "maxLength": 64 },
+        "isClosed": { "type": "boolean" }
+      },
+      "required": ["id", "organizationId", "loanId", "customerId", "collectorId", "channel", "contactResult"]
+    },
+    "CollectionTask": {
+      "title": "CollectionTask",
+      "description": "Follow-up task in Agenda de Seguimiento deduplicated by sourceEventKey",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "assignedToUserId": { "type": "string", "maxLength": 128 },
+        "sourceEventKey": { "type": "string", "maxLength": 180 },
+        "dueDate": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["PENDIENTE", "EN_PROCESO", "COMPLETADA", "VENCIDA", "CANCELADA"] }
+      },
+      "required": ["id", "organizationId", "loanId", "assignedToUserId", "sourceEventKey", "dueDate", "status"]
+    },
+    "PaymentPromise": {
+      "title": "PaymentPromise",
+      "description": "Promise to pay verified strictly against confirmed/applied payments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "promisedAmount": { "type": "number" },
+        "promisedDate": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "enum": ["VIGENTE", "CUMPLIDA", "CUMPLIDA_PARCIAL", "INCUMPLIDA", "CANCELADA", "PENDIENTE_VERIFICACION"] }
+      },
+      "required": ["id", "organizationId", "loanId", "currency", "promisedAmount", "promisedDate", "status"]
+    },
+    "PaymentAgreement": {
+      "title": "PaymentAgreement",
+      "description": "Payment agreement, restructuring, or refinancing proposal with separate approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "agreementType": { "type": "string", "enum": ["ACUERDO_PAGO", "REESTRUCTURACION", "REFINANCIAMIENTO"] },
+        "status": { "type": "string", "enum": ["PROPUESTO", "APROBADO", "ACTIVO", "CUMPLIDO", "INCUMPLIDO", "RECHAZADO"] }
+      },
+      "required": ["id", "organizationId", "loanId", "agreementType", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Reported, verified, applied, rejected, or reversed payment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "amount": { "type": "number" },
+        "paymentDate": { "type": "string", "maxLength": 20 },
+        "method": { "type": "string", "maxLength": 40 },
+        "bankName": { "type": "string", "maxLength": 120 },
+        "referenceNumber": { "type": "string", "maxLength": 120 },
+        "receiptEvidenceName": { "type": "string", "maxLength": 240 },
+        "receiptEvidenceMimeType": { "type": "string", "maxLength": 120 },
+        "receiptEvidenceSizeBytes": { "type": "number" },
+        "receiptEvidenceDataUrl": { "type": "string", "maxLength": 700000 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["REPORTADO", "RECIBIDO_PENDIENTE_VERIFICACION", "VERIFICADO", "APLICADO", "RECHAZADO", "REVERTIDO"] }
+      },
+      "required": ["id", "organizationId", "loanId", "currency", "amount", "status"]
+    },
+    "PaymentAllocation": {
+      "title": "PaymentAllocation",
+      "description": "Installment-level breakdown of applied payment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "paymentId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "installmentId": { "type": "string", "maxLength": 128 },
+        "totalAllocated": { "type": "number" }
+      },
+      "required": ["id", "organizationId", "paymentId", "loanId", "installmentId", "totalAllocated"]
+    },
+    "PaymentReversal": {
+      "title": "PaymentReversal",
+      "description": "Immutable reversal authorization record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "paymentId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "reversedAmount": { "type": "number" },
+        "authorizedByUserId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "organizationId", "paymentId", "loanId", "reversedAmount", "authorizedByUserId"]
+    },
+    "CollectionReceipt": {
+      "title": "CollectionReceipt",
+      "description": "Official receipt emitted strictly after payment application",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "receiptNumber": { "type": "string", "maxLength": 64 },
+        "paymentId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["EMITIDO", "ANULADO_POR_REVERSO"] }
+      },
+      "required": ["id", "organizationId", "receiptNumber", "paymentId", "loanId", "status"]
+    },
+    "PaymentIntent": {
+      "title": "PaymentIntent",
+      "description": "Unverified client/bot payment report prior to verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["PENDIENTE_VERIFICACION", "VINCULADO_A_PAGO", "RECHAZADO"] }
+      },
+      "required": ["id", "organizationId", "loanId", "status"]
+    },
+    "BankTransaction": {
+      "title": "BankTransaction",
+      "description": "Imported bank statement movement for reconciliation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "referenceNumber": { "type": "string", "maxLength": 120 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "status": { "type": "string", "enum": ["PENDIENTE", "CONCILIADA", "POR_IDENTIFICAR", "DUPLICADA", "IGNORADA"] }
+      },
+      "required": ["id", "organizationId", "referenceNumber", "amount", "currency", "status"]
+    },
+    "ReconciliationMatch": {
+      "title": "ReconciliationMatch",
+      "description": "Bank transaction match against reported payment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "bankTransactionId": { "type": "string", "maxLength": 128 },
+        "confidence": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["SUGERIDO", "CONFIRMADO", "RECHAZADO"] }
+      },
+      "required": ["id", "organizationId", "bankTransactionId", "confidence", "status"]
+    },
+    "ReconciliationException": {
+      "title": "ReconciliationException",
+      "description": "Unidentified or ambiguous bank movements queued for Finance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "bankTransactionId": { "type": "string", "maxLength": 128 },
+        "exceptionType": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["ABIERTA", "RESUELTA", "DESCARTADA"] }
+      },
+      "required": ["id", "organizationId", "bankTransactionId", "exceptionType", "status"]
+    },
+    "CollectorTarget": {
+      "title": "CollectorTarget",
+      "description": "Monthly collection targets and portfolio caps per collector",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "periodYm": { "type": "string", "maxLength": 10 }
+      },
+      "required": ["id", "organizationId", "userId", "periodYm"]
+    },
+    "CollectionCampaign": {
+      "title": "CollectionCampaign",
+      "description": "AxyRecovery Bot collection campaign configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["ACTIVA", "PAUSADA", "BORRADOR"] }
+      },
+      "required": ["id", "organizationId", "name", "status"]
+    },
+    "MessageTemplate": {
+      "title": "MessageTemplate",
+      "description": "Approved messaging templates for AxyRecovery Bot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 64 },
+        "approvalStatus": { "type": "string", "enum": ["APROBADA", "BORRADOR", "RECHAZADA"] }
+      },
+      "required": ["id", "organizationId", "code", "approvalStatus"]
+    },
+    "MessageEvent": {
+      "title": "MessageEvent",
+      "description": "Logged bot/channel message event with consent and delivery state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "deliveryStatus": { "type": "string", "maxLength": 40 }
+      },
+      "required": ["id", "organizationId", "loanId", "deliveryStatus"]
+    },
+    "RiskAlert": {
+      "title": "RiskAlert",
+      "description": "Centinela risk and delinquency alert event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "ruleCode": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["ACTIVA", "EN_REVISION", "ATENDIDA", "DESCARTADA"] }
+      },
+      "required": ["id", "organizationId", "loanId", "ruleCode", "status"]
+    },
+    "CustomerDispute": {
+      "title": "CustomerDispute",
+      "description": "Customer dispute/claim record pausing automated pressure",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "disputeType": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["ABIERTA", "EN_INVESTIGACION", "RESUELTA_FAVOR_CLIENTE", "RESUELTA_IMPROCEDENTE"] }
+      },
+      "required": ["id", "organizationId", "loanId", "disputeType", "status"]
+    },
+    "CollectionPolicyVersion": {
+      "title": "CollectionPolicyVersion",
+      "description": "Versioned collections policy parameters (DPD stages, grace days, imputation order)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "version": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["ACTIVA", "PROPUESTA", "HISTORICA"] }
+      },
+      "required": ["id", "organizationId", "version", "status"]
+    },
+    "CollectionDailySnapshot": {
+      "title": "CollectionDailySnapshot",
+      "description": "Reproducible daily PAR & exposure snapshot by cutoff date",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "organizationId": { "type": "string", "maxLength": 128 },
+        "cutoffDate": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["id", "organizationId", "cutoffDate"]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "Per-user operational notification document in the notifications collection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "maxLength": 64 },
+        "category": { "type": "string", "enum": ["CREDITO", "COBRANZA", "RIESGO", "BITACORA", "SISTEMA"] },
+        "priority": { "type": "string", "enum": ["INMEDIATA", "ALTA", "MEDIA"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 600 },
+        "amountLabel": { "type": "string", "maxLength": 80 },
+        "targetSection": { "type": "string", "maxLength": 64 },
+        "entityType": { "type": "string", "maxLength": 64 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "sourceEventKey": { "type": "string", "maxLength": 160 },
+        "actorName": { "type": "string", "maxLength": 160 },
+        "eventTimestampIso": { "type": "string", "maxLength": 40 },
+        "read": { "type": "boolean" },
+        "readAt": { "type": "string", "maxLength": 40 },
+        "createdBy": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "userId", "type", "category", "priority", "title", "message", "read", "createdBy", "createdAt", "updatedAt"]
+    },
+    "OrganizationMembership": {
+      "title": "OrganizationMembership",
+      "description": "Multi-organization membership linking a user to a tenant organization with specific role and granular permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "tenantId": { "type": "string", "maxLength": 128 },
+        "tenant_id": { "type": "string", "maxLength": 128 },
+        "organizationName": { "type": "string", "maxLength": 160 },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userEmail": { "type": "string", "maxLength": 254 },
+        "userDisplayName": { "type": "string", "maxLength": 160 },
+        "role": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "INVITED", "REVOKED"] },
+        "granularPermissions": { "type": "array", "items": { "type": "string" } },
+        "allowedModuleCodes": { "type": "array", "items": { "type": "string" } },
+        "isPrimaryAdmin": { "type": "boolean" },
+        "invitationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "invitedBy": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "userId", "userEmail", "userDisplayName", "role", "status", "granularPermissions", "createdBy", "createdAt", "updatedAt"]
+    },
+    "TenantLicense": {
+      "title": "TenantLicense",
+      "description": "Tenant software license record controlling expiration, user seats, and enabled modules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "licenseKey": { "type": "string", "maxLength": 80 },
+        "planCode": { "type": "string", "enum": ["BASICO", "PROFESIONAL", "EMPRESARIAL", "CORPORATIVO", "PERSONALIZADO"] },
+        "status": { "type": "string", "enum": ["PENDIENTE", "ACTIVA", "PROXIMA_A_VENCER", "VENCIDA", "SUSPENDIDA", "CANCELADA"] },
+        "startDate": { "type": "string", "maxLength": 40 },
+        "endDate": { "type": "string", "maxLength": 40 },
+        "maxUsers": { "type": "number" },
+        "enabledModules": { "type": "array", "items": { "type": "string" } },
+        "autoRenew": { "type": "boolean" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "licenseKey", "planCode", "status", "startDate", "endDate", "maxUsers", "enabledModules", "autoRenew", "updatedBy", "createdAt", "updatedAt"]
+    },
+    "TenantSubscription": {
+      "title": "TenantSubscription",
+      "description": "Commercial SaaS subscription and billing record per organization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "planCode": { "type": "string", "enum": ["BASICO", "PROFESIONAL", "EMPRESARIAL", "CORPORATIVO", "PERSONALIZADO"] },
+        "billingCycle": { "type": "string", "enum": ["MENSUAL", "TRIMESTRAL", "ANUAL"] },
+        "amountUsd": { "type": "number" },
+        "status": { "type": "string", "enum": ["AL_DIA", "PENDIENTE_PAGO", "EN_GRACIA", "SUSPENDIDA", "CANCELADA"] },
+        "nextBillingDate": { "type": "string", "maxLength": 40 },
+        "lastPaymentDate": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "planCode", "billingCycle", "amountUsd", "status", "nextBillingDate", "createdAt", "updatedAt"]
+    },
+    "OperatingExpense": {
+      "title": "OperatingExpense",
+      "description": "Operating expense entry for accounting and financial statements per organization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "expenseNumber": { "type": "string", "maxLength": 64 },
+        "expenseDate": { "type": "string", "maxLength": 20 },
+        "category": {
+          "type": "string",
+          "enum": [
+            "NOMINA",
+            "ALQUILER",
+            "SERVICIOS_BASICOS",
+            "TECNOLOGIA",
+            "MARKETING",
+            "LEGAL_COBRANZA",
+            "IMPUESTOS",
+            "SUMINISTROS",
+            "INTERESES_INVERSIONISTAS",
+            "OTROS"
+          ]
+        },
+        "concept": { "type": "string", "maxLength": 200 },
+        "vendorName": { "type": "string", "maxLength": 160 },
+        "invoiceNumber": { "type": "string", "maxLength": 64 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["TRANSFERENCIA", "EFECTIVO", "CHEQUE", "TARJETA"] },
+        "status": { "type": "string", "enum": ["PAGADO", "PENDIENTE", "ANULADO"] },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdBy": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdByName": { "type": "string", "maxLength": 160 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "expenseNumber",
+        "expenseDate",
+        "category",
+        "concept",
+        "vendorName",
+        "currency",
+        "amount",
+        "paymentMethod",
+        "status",
+        "createdBy",
+        "createdByName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Investor": {
+      "title": "Investor",
+      "description": "Capital investor profile and balances per organization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "investorCode": { "type": "string", "maxLength": 64 },
+        "fullName": { "type": "string", "maxLength": 160 },
+        "investorType": { "type": "string", "enum": ["PERSONA_FISICA", "PERSONA_JURIDICA"] },
+        "documentNumber": { "type": "string", "maxLength": 40 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "email": { "type": "string", "maxLength": 254 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "annualReturnRatePct": { "type": "number" },
+        "joinDate": { "type": "string", "maxLength": 20 },
+        "currentInvestedBalance": { "type": "number" },
+        "totalContributed": { "type": "number" },
+        "totalWithdrawn": { "type": "number" },
+        "totalReturnsPaid": { "type": "number" },
+        "status": { "type": "string", "enum": ["ACTIVO", "INACTIVO"] },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdBy": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdByName": { "type": "string", "maxLength": 160 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "investorCode",
+        "fullName",
+        "investorType",
+        "documentNumber",
+        "phone",
+        "currency",
+        "annualReturnRatePct",
+        "joinDate",
+        "currentInvestedBalance",
+        "totalContributed",
+        "totalWithdrawn",
+        "totalReturnsPaid",
+        "status",
+        "createdBy",
+        "createdByName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "InvestorTransaction": {
+      "title": "InvestorTransaction",
+      "description": "Immutable capital contribution, withdrawal or yield payment entry for an investor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "investorId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "investorName": { "type": "string", "maxLength": 160 },
+        "transactionType": { "type": "string", "enum": ["APORTE_CAPITAL", "RETIRO_CAPITAL", "PAGO_RENDIMIENTO"] },
+        "transactionDate": { "type": "string", "maxLength": 20 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["TRANSFERENCIA", "EFECTIVO", "CHEQUE", "TARJETA"] },
+        "referenceNumber": { "type": "string", "maxLength": 80 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdBy": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdByName": { "type": "string", "maxLength": 160 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "investorId",
+        "investorName",
+        "transactionType",
+        "transactionDate",
+        "currency",
+        "amount",
+        "paymentMethod",
+        "createdBy",
+        "createdByName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DashboardWidgetConfig": {
+      "title": "DashboardWidgetConfig",
+      "description": "Per-user and operational-role dashboard widget configuration (order, drag-drop layout, hidden widgets)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": {
+          "type": "string",
+          "enum": [
+            "ADMIN",
+            "BUSINESS_OFFICER",
+            "CREDIT_ANALYST",
+            "RISK_OFFICER",
+            "COMMITTEE_MEMBER",
+            "FORMALIZATION",
+            "OPERATIONS",
+            "FINANCE",
+            "AUDITOR",
+            "COLLECTION_AGENT",
+            "SUPERVISOR",
+            "COLLECTION_COORDINATOR",
+            "CASHIER",
+            "MANAGEMENT",
+            "EXTERNAL_CLIENT"
+          ]
+        },
+        "sectionOrder": { "type": "array", "items": { "type": "string" } },
+        "hiddenSections": { "type": "array", "items": { "type": "string" } },
+        "kpiOrder": { "type": "array", "items": { "type": "string" } },
+        "hiddenKpis": { "type": "array", "items": { "type": "string" } },
+        "alertOrder": { "type": "array", "items": { "type": "string" } },
+        "hiddenAlerts": { "type": "array", "items": { "type": "string" } },
+        "alertsViewMode": { "type": "string", "enum": ["CARDS", "FEED"] },
+        "updatedBy": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "userId",
+        "role",
+        "sectionOrder",
+        "hiddenSections",
+        "kpiOrder",
+        "hiddenKpis",
+        "alertOrder",
+        "hiddenAlerts",
+        "alertsViewMode",
+        "updatedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AccountingAccount": {
+      "title": "AccountingAccount",
+      "description": "Tenant chart-of-accounts ledger definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "maxLength": 32 },
+        "name": { "type": "string", "maxLength": 160 },
+        "accountType": { "type": "string", "enum": ["ACTIVO", "PASIVO", "PATRIMONIO", "INGRESO", "COSTO", "GASTO"] },
+        "normalBalance": { "type": "string", "enum": ["DEBITO", "CREDITO"] },
+        "isPostable": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVA", "INACTIVA"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "code", "name", "accountType", "normalBalance", "isPostable", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "Immutable balanced double-entry accounting journal entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "entryNumber": { "type": "string", "maxLength": 64 },
+        "entryDate": { "type": "string", "maxLength": 20 },
+        "sourceType": { "type": "string", "maxLength": 40 },
+        "sourceId": { "type": "string", "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "maxLength": 180 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "description": { "type": "string", "maxLength": 400 },
+        "totalDebit": { "type": "number" },
+        "totalCredit": { "type": "number" },
+        "status": { "type": "string", "enum": ["CONTABILIZADO", "REVERTIDO"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "entryNumber", "entryDate", "sourceType", "sourceId", "idempotencyKey", "currency", "description", "totalDebit", "totalCredit", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "DgiiFiscalConfig": {
+      "title": "DgiiFiscalConfig",
+      "description": "Per-tenant DGII fiscal profile, endpoints by environment, and accounting mapping",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "rnc": { "type": "string", "maxLength": 20 },
+        "legalName": { "type": "string", "maxLength": 200 },
+        "environment": { "type": "string", "enum": ["DESARROLLO", "PRECERTIFICACION", "CERTIFICACION", "PRODUCCION"] },
+        "isCertifiedByDgii": { "type": "boolean" },
+        "enabledEcfTypes": { "type": "array", "items": { "type": "string" } },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "rnc", "legalName", "environment", "isCertifiedByDgii", "enabledEcfTypes", "updatedBy", "createdAt", "updatedAt"]
+    },
+    "DgiiCertificate": {
+      "title": "DgiiCertificate",
+      "description": "Non-secret X.509 digital certificate metadata referencing encrypted server vault",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "alias": { "type": "string", "maxLength": 120 },
+        "subjectCn": { "type": "string", "maxLength": 200 },
+        "serialNumber": { "type": "string", "maxLength": 128 },
+        "fingerprintSha256": { "type": "string", "maxLength": 128 },
+        "validFrom": { "type": "string", "maxLength": 40 },
+        "validTo": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["ACTIVO", "POR_VENCER", "VENCIDO", "REVOCADO"] },
+        "vaultKeyId": { "type": "string", "maxLength": 128 },
+        "uploadedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "alias", "subjectCn", "serialNumber", "fingerprintSha256", "validFrom", "validTo", "status", "vaultKeyId", "uploadedBy", "createdAt", "updatedAt"]
+    },
+    "DgiiEncfSequence": {
+      "title": "DgiiEncfSequence",
+      "description": "Authorized DGII e-NCF sequence ranges with concurrency-safe tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ecfType": { "type": "string", "enum": ["31", "32", "33", "34", "41", "43", "44", "45", "46", "47"] },
+        "prefix": { "type": "string", "maxLength": 10 },
+        "authorizationNumber": { "type": "string", "maxLength": 64 },
+        "authDate": { "type": "string", "maxLength": 20 },
+        "expiryDate": { "type": "string", "maxLength": 20 },
+        "startSequence": { "type": "number" },
+        "endSequence": { "type": "number" },
+        "lastUsedSequence": { "type": "number" },
+        "status": { "type": "string", "enum": ["ACTIVA", "AGOTADA", "VENCIDA", "SUSPENDIDA"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "ecfType", "prefix", "authorizationNumber", "authDate", "expiryDate", "startSequence", "endSequence", "lastUsedSequence", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "DgiiReceiver": {
+      "title": "DgiiReceiver",
+      "description": "Taxpayer customer and supplier registry for e-CF",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "partyRole": { "type": "string", "enum": ["CLIENTE", "PROVEEDOR", "AMBOS"] },
+        "idType": { "type": "string", "enum": ["RNC", "CEDULA", "PASAPORTE"] },
+        "taxId": { "type": "string", "maxLength": 40 },
+        "legalName": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["ACTIVO", "INACTIVO"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "partyRole", "idType", "taxId", "legalName", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "DgiiProduct": {
+      "title": "DgiiProduct",
+      "description": "Tax-configured products and services catalog for e-CF",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sku": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 160 },
+        "itemType": { "type": "string", "enum": ["BIEN", "SERVICIO"] },
+        "unitPrice": { "type": "number" },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "itbisRate": { "type": "number" },
+        "status": { "type": "string", "enum": ["ACTIVO", "INACTIVO"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "sku", "name", "itemType", "unitPrice", "currency", "itbisRate", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "DgiiEcfDocument": {
+      "title": "DgiiEcfDocument",
+      "description": "Issued or received DGII e-CF fiscal document with XML, TrackId, and lifecycle state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "direction": { "type": "string", "enum": ["EMITIDO", "RECIBIDO"] },
+        "ecfType": { "type": "string", "enum": ["31", "32", "33", "34", "41", "43", "44", "45", "46", "47"] },
+        "eNCF": { "type": "string", "maxLength": 20 },
+        "status": {
+          "type": "string",
+          "enum": [
+            "BORRADOR",
+            "PENDIENTE_FIRMA",
+            "FIRMADA",
+            "PENDIENTE_ENVIO",
+            "ENVIADA_DGII",
+            "PENDIENTE_RESPUESTA",
+            "ACEPTADA",
+            "ACEPTADA_CONDICIONAL",
+            "RECHAZADA",
+            "ANULADA",
+            "ERROR_COMUNICACION"
+          ]
+        },
+        "environment": { "type": "string", "enum": ["DESARROLLO", "PRECERTIFICACION", "CERTIFICACION", "PRODUCCION"] },
+        "totalAmount": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "direction", "ecfType", "status", "environment", "totalAmount", "createdBy", "createdAt", "updatedAt"]
+    },
+    "DgiiAuditLog": {
+      "title": "DgiiAuditLog",
+      "description": "Immutable fiscal e-CF audit trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventType": { "type": "string", "maxLength": 64 },
+        "environment": { "type": "string", "enum": ["DESARROLLO", "PRECERTIFICACION", "CERTIFICACION", "PRODUCCION"] },
+        "summary": { "type": "string", "maxLength": 400 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "timestampIso": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "eventType", "environment", "summary", "actorUid", "timestampIso", "createdAt"]
+    },
+    "AlteraSavedScenario": {
+      "title": "AlteraSavedScenario",
+      "description": "Read-only ALTERA alternative universe credit simulation snapshot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 200 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "loanNumber": { "type": "string", "maxLength": 64 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 200 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "interventionType": {
+          "type": "string",
+          "enum": [
+            "ABONO_EXTRAORDINARIO",
+            "CAMBIO_FECHA_PAGO",
+            "REESTRUCTURACION_PLAZO",
+            "REDUCCION_TEMPORAL_CUOTA",
+            "ESTRATEGIA_COBRANZA_PREVENTIVA",
+            "PAGO_PARCIAL_CONTROLADO"
+          ]
+        },
+        "projectedRecoveryPct": { "type": "number" },
+        "projectedBalanceDelta": { "type": "number" },
+        "policyCompliant": { "type": "boolean" },
+        "confidencePct": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "title", "loanId", "loanNumber", "customerId", "customerName", "currency", "interventionType", "projectedRecoveryPct", "policyCompliant", "confidencePct", "createdBy", "createdAt", "updatedAt"]
+    },
+    "AlteraRecommendation": {
+      "title": "AlteraRecommendation",
+      "description": "Governed ALTERA intervention recommendation requiring human authorization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "maxLength": 64 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "priority": { "type": "string", "enum": ["CRITICA", "ALTA", "MEDIA", "BAJA"] },
+        "status": {
+          "type": "string",
+          "enum": ["GENERADA", "PENDIENTE_REVISION", "APROBADA", "RECHAZADA", "EN_EJECUCION", "EJECUTADA", "CERRADA"]
+        },
+        "confidencePct": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "code", "customerId", "loanId", "currency", "priority", "status", "confidencePct", "createdBy", "createdAt", "updatedAt"]
+    },
+    "AlteraOutcome": {
+      "title": "AlteraOutcome",
+      "description": "Projected vs actual recovery learning calibration record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recommendationId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "enum": ["DOP", "USD"] },
+        "projectedRecoveryPct": { "type": "number" },
+        "actualRecoveryPct": { "type": "number" },
+        "effectivenessScore": { "type": "number" },
+        "commitmentFulfilled": { "type": "boolean" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "recommendationId", "loanId", "currency", "projectedRecoveryPct", "actualRecoveryPct", "effectivenessScore", "commitmentFulfilled", "createdBy", "createdAt", "updatedAt"]
+    },
+    "AlteraAnalysisLog": {
+      "title": "AlteraAnalysisLog",
+      "description": "Immutable ALTERA analysis & Consulta a Altera history entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "analysisType": {
+          "type": "string",
+          "enum": ["CONSULTA_ALTERA", "GEMELO_DIGITAL", "ADN_FINANCIERO", "UNIVERSOS_ALTERNATIVOS", "PLAN_B_PREVENTIVO", "CALIBRACION_RESULTADOS"]
+        },
+        "summary": { "type": "string", "maxLength": 600 },
+        "confidencePct": { "type": "number" },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "createdAtIso": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "analysisType", "summary", "confidencePct", "actorUid", "createdAtIso", "createdAt"]
+    },
+    "AlteraConfig": {
+      "title": "AlteraConfig",
+      "description": "Per-tenant ALTERA thresholds, limits, and heuristic weights",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "earlyDeteriorationDelayThresholdDays": { "type": "number" },
+        "maxRestructureExtensionMonths": { "type": "number" },
+        "requireHumanApprovalForAllInterventions": { "type": "boolean" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "earlyDeteriorationDelayThresholdDays", "maxRestructureExtensionMonths", "requireHumanApprovalForAllInterventions", "updatedBy", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/organizations/{orgId}": { "schema": { "$ref": "#/entities/Organization" }, "description": "Tenant organization profile" },
+    "/users/{userId}": { "schema": { "$ref": "#/entities/User" }, "description": "AxyCore user accounts and roles" },
+    "/user_invitations/{invitationId}": { "schema": { "$ref": "#/entities/UserInvitation" }, "description": "Verifiable admin-issued staff invitations for automatic registration and role assignment" },
+    "/customers/{customerId}": { "schema": { "$ref": "#/entities/Customer" }, "description": "Individual borrower registry" },
+    "/businesses/{businessId}": { "schema": { "$ref": "#/entities/Business" }, "description": "Commercial borrower registry" },
+    "/applications/{applicationId}": { "schema": { "$ref": "#/entities/Application" }, "description": "Loan applications" },
+    "/application_documents/{docId}": { "schema": { "$ref": "#/entities/ApplicationDocument" }, "description": "Digital file documents" },
+    "/application_consents/{consentId}": { "schema": { "$ref": "#/entities/ApplicationConsent" }, "description": "Applicant data consent records" },
+    "/credit_policies/{policyId}": { "schema": { "$ref": "#/entities/CreditPolicy" }, "description": "Versioned credit policies" },
+    "/scoring_executions/{executionId}": { "schema": { "$ref": "#/entities/ScoringExecution" }, "description": "Immutable scoring executions" },
+    "/credit_evaluations/{evaluationId}": { "schema": { "$ref": "#/entities/CreditEvaluation" }, "description": "Credit analyst evaluations" },
+    "/committee_decisions/{decisionId}": { "schema": { "$ref": "#/entities/CommitteeDecision" }, "description": "Immutable committee decisions" },
+    "/formalizations/{formalizationId}": { "schema": { "$ref": "#/entities/Formalization" }, "description": "Loan formalizations" },
+    "/disbursements/{disbursementId}": { "schema": { "$ref": "#/entities/Disbursement" }, "description": "Idempotent disbursements" },
+    "/loans/{loanId}": { "schema": { "$ref": "#/entities/Loan" }, "description": "Disbursed active loans" },
+    "/loan_installments/{installmentId}": { "schema": { "$ref": "#/entities/LoanInstallment" }, "description": "Amortization schedule installments" },
+    "/audit_logs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Immutable audit log entries" },
+    "/system_parameters/{paramId}": { "schema": { "$ref": "#/entities/SystemParameter" }, "description": "System parameters and templates" },
+    "/email_notifications/{notificationId}": { "schema": { "$ref": "#/entities/EmailNotification" }, "description": "Customer email notifications outbox and Cloud Function log" },
+    "/fcm_tokens/{tokenId}": { "schema": { "$ref": "#/entities/FcmDeviceToken" }, "description": "Staff Web Push FCM device registration tokens" },
+    "/push_subscriptions/{subscriptionId}": { "schema": { "$ref": "#/entities/PushSubscription" }, "description": "W3C VAPID Web Push browser subscriptions for staff and external clients" },
+    "/collection_accounts/{accountId}": { "schema": { "$ref": "#/entities/CollectionAccount" }, "description": "Operational collections state per loan" },
+    "/collection_assignments/{assignmentId}": { "schema": { "$ref": "#/entities/CollectionAssignment" }, "description": "Immutable portfolio assignment logs" },
+    "/collection_actions/{actionId}": { "schema": { "$ref": "#/entities/CollectionAction" }, "description": "Collection contact and follow-up actions" },
+    "/collection_tasks/{taskId}": { "schema": { "$ref": "#/entities/CollectionTask" }, "description": "Deduplicated collection agenda tasks" },
+    "/payment_promises/{promiseId}": { "schema": { "$ref": "#/entities/PaymentPromise" }, "description": "Payment promises" },
+    "/payment_agreements/{agreementId}": { "schema": { "$ref": "#/entities/PaymentAgreement" }, "description": "Payment agreements and restructurings" },
+    "/payments/{paymentId}": { "schema": { "$ref": "#/entities/Payment" }, "description": "Payments reported, verified, applied, and reversed" },
+    "/payment_allocations/{allocationId}": { "schema": { "$ref": "#/entities/PaymentAllocation" }, "description": "Payment allocations per installment" },
+    "/payment_reversals/{reversalId}": { "schema": { "$ref": "#/entities/PaymentReversal" }, "description": "Immutable payment reversal logs" },
+    "/collection_receipts/{receiptId}": { "schema": { "$ref": "#/entities/CollectionReceipt" }, "description": "Official collection receipts" },
+    "/payment_intents/{intentId}": { "schema": { "$ref": "#/entities/PaymentIntent" }, "description": "Unverified client payment notices" },
+    "/bank_transactions/{txId}": { "schema": { "$ref": "#/entities/BankTransaction" }, "description": "Bank statement movements" },
+    "/reconciliation_matches/{matchId}": { "schema": { "$ref": "#/entities/ReconciliationMatch" }, "description": "Bank reconciliation matches" },
+    "/reconciliation_exceptions/{excId}": { "schema": { "$ref": "#/entities/ReconciliationException" }, "description": "Unidentified bank exceptions" },
+    "/collector_targets/{targetId}": { "schema": { "$ref": "#/entities/CollectorTarget" }, "description": "Collector recovery targets" },
+    "/collection_campaigns/{campaignId}": { "schema": { "$ref": "#/entities/CollectionCampaign" }, "description": "AxyRecovery Bot campaigns" },
+    "/message_templates/{templateId}": { "schema": { "$ref": "#/entities/MessageTemplate" }, "description": "Approved messaging templates" },
+    "/message_events/{eventId}": { "schema": { "$ref": "#/entities/MessageEvent" }, "description": "Bot and notification dispatch logs" },
+    "/risk_alerts/{alertId}": { "schema": { "$ref": "#/entities/RiskAlert" }, "description": "Centinela risk alerts" },
+    "/customer_disputes/{disputeId}": { "schema": { "$ref": "#/entities/CustomerDispute" }, "description": "Customer disputes and special cases" },
+    "/collection_policy_versions/{policyVersionId}": { "schema": { "$ref": "#/entities/CollectionPolicyVersion" }, "description": "Versioned collections policy parameters" },
+    "/collection_daily_snapshots/{snapshotId}": { "schema": { "$ref": "#/entities/CollectionDailySnapshot" }, "description": "Daily reproducible PAR and exposure snapshots" },
+    "/notifications/{notificationId}": { "schema": { "$ref": "#/entities/UserNotification" }, "description": "Per-user notifications filtered by userId with read/unread tracking" },
+    "/organization_memberships/{membershipId}": { "schema": { "$ref": "#/entities/OrganizationMembership" }, "description": "Multi-tenant user-organization memberships and granular permissions" },
+    "/licenses/{licenseId}": { "schema": { "$ref": "#/entities/TenantLicense" }, "description": "SaaS tenant software licenses and feature flags" },
+    "/subscriptions/{subscriptionId}": { "schema": { "$ref": "#/entities/TenantSubscription" }, "description": "SaaS commercial subscriptions and billing cycles" },
+    "/operating_expenses/{expenseId}": { "schema": { "$ref": "#/entities/OperatingExpense" }, "description": "Organization operating expenses for accounting and statements" },
+    "/investors/{investorId}": { "schema": { "$ref": "#/entities/Investor" }, "description": "Registered investors and capital balances" },
+    "/investor_transactions/{txId}": { "schema": { "$ref": "#/entities/InvestorTransaction" }, "description": "Investor capital contributions, withdrawals and return payouts" },
+    "/dashboard_widget_configs/{configId}": { "schema": { "$ref": "#/entities/DashboardWidgetConfig" }, "description": "User and operational-role dashboard widget layout and visibility state" },
+    "/accounting_accounts/{accountId}": { "schema": { "$ref": "#/entities/AccountingAccount" }, "description": "Tenant chart of accounts" },
+    "/accounting_journal_entries/{entryId}": { "schema": { "$ref": "#/entities/JournalEntry" }, "description": "Balanced double-entry accounting journal entries" },
+    "/dgii_fiscal_configs/{orgId}": { "schema": { "$ref": "#/entities/DgiiFiscalConfig" }, "description": "Per-tenant DGII e-CF configuration and endpoints" },
+    "/dgii_certificates/{certId}": { "schema": { "$ref": "#/entities/DgiiCertificate" }, "description": "Non-secret X.509 digital certificate metadata" },
+    "/dgii_encf_sequences/{seqId}": { "schema": { "$ref": "#/entities/DgiiEncfSequence" }, "description": "Authorized e-NCF sequence ranges" },
+    "/dgii_receivers/{receiverId}": { "schema": { "$ref": "#/entities/DgiiReceiver" }, "description": "Taxpayer customers and suppliers registry" },
+    "/dgii_products/{productId}": { "schema": { "$ref": "#/entities/DgiiProduct" }, "description": "Tax-configured products and services catalog" },
+    "/dgii_ecf_documents/{docId}": { "schema": { "$ref": "#/entities/DgiiEcfDocument" }, "description": "Issued and received DGII e-CF documents" },
+    "/dgii_audit_logs/{logId}": { "schema": { "$ref": "#/entities/DgiiAuditLog" }, "description": "Immutable fiscal audit trail" },
+    "/altera_scenarios/{scenarioId}": { "schema": { "$ref": "#/entities/AlteraSavedScenario" }, "description": "Saved ALTERA alternative universe scenarios" },
+    "/altera_recommendations/{recId}": { "schema": { "$ref": "#/entities/AlteraRecommendation" }, "description": "ALTERA preventive & prescriptive recommendations" },
+    "/altera_outcomes/{outcomeId}": { "schema": { "$ref": "#/entities/AlteraOutcome" }, "description": "ALTERA projected vs real outcome learning records" },
+    "/altera_analyses/{analysisId}": { "schema": { "$ref": "#/entities/AlteraAnalysisLog" }, "description": "Immutable ALTERA query & analysis logs" },
+    "/altera_configs/{configId}": { "schema": { "$ref": "#/entities/AlteraConfig" }, "description": "Per-tenant ALTERA thresholds and weights" }
+  }
+}

@@ -1,0 +1,1225 @@
+# PROMPT MAESTRO — AXYCORE
+## Desarrollo del módulo de préstamos y Motor de Decisiones Crediticias V2
+
+### 1. ROL Y OBJETIVO
+
+Actúa como un equipo de desarrollo de software financiero de alto nivel, integrado por:
+
+- Arquitecto senior de software full-stack.
+- Especialista en sistemas bancarios y microfinancieros.
+- Experto en riesgo y evaluación crediticia.
+- Ingeniero de bases de datos.
+- Especialista en motores de decisiones automatizadas.
+- Diseñador UX/UI de plataformas financieras.
+- Especialista en seguridad, auditoría y controles internos.
+- Ingeniero de pruebas y calidad de software.
+
+Desarrolla desde cero una plataforma financiera denominada **AxyCore**, comenzando exclusivamente por el **Módulo Integral de Préstamos**.
+
+La aplicación debe funcionar en navegadores web, ser adaptable a dispositivos móviles y estar preparada para conectarse posteriormente a un dominio personalizado.
+
+No quiero un prototipo exclusivamente visual, pantallas ficticias ni botones que no hagan nada.
+
+Quiero una aplicación funcional, con frontend, backend, base de datos persistente, autenticación, validaciones, cálculos reales, navegación operativa y controles de acceso.
+
+**Objetivo principal:** administrar todo el ciclo de un préstamo, desde su solicitud inicial hasta su aprobación, formalización, desembolso y creación de la obligación financiera.
+
+### 2. ARQUITECTURA TECNOLÓGICA
+
+Utilizar preferentemente:
+
+- React y TypeScript.
+- Tailwind CSS.
+- Firebase Authentication.
+- Cloud Firestore.
+- Firebase Storage para documentos, o almacenamiento equivalente protegido.
+- Servicios backend seguros para el motor de decisiones y operaciones críticas.
+- Arquitectura modular y escalable.
+- API interna con contratos tipados.
+- Despliegue futuro mediante Cloud Run o infraestructura equivalente.
+
+Solicitar la autorización necesaria para configurar Firebase.
+
+No utilizar localStorage como base de datos principal.
+
+Todos los datos deben persistir entre sesiones y entre dispositivos.
+
+No colocar claves secretas ni credenciales de servicio en el frontend.
+
+Diseñar una arquitectura que permita integrar posteriormente Cobranza, Caja, Finanzas, Contabilidad, Reportes y otros módulos de AxyCore sin reconstruir el sistema.
+
+### 3. IDENTIDAD VISUAL
+
+Construir una interfaz financiera corporativa moderna, profesional y premium.
+
+Características:
+
+- Nombre de la plataforma: AxyCore.
+- Diseño limpio, elegante y tecnológico.
+- Menú lateral plegable.
+- Panel principal con indicadores.
+- Tablas profesionales con búsqueda y filtros.
+- Formularios organizados por pasos.
+- Pantallas de expedientes crediticios.
+- Indicadores visuales discretos de riesgo.
+- Navegación intuitiva.
+- Compatibilidad con pantallas de escritorio, tabletas y teléfonos.
+- Colores corporativos configurables.
+- Modo claro y oscuro.
+
+La experiencia debe sentirse como una plataforma financiera profesional, no como una plantilla genérica.
+
+### 4. MENÚ PRINCIPAL DEL MÓDULO
+
+Crear las siguientes secciones:
+
+1. Dashboard de Préstamos.
+2. Nueva Solicitud.
+3. Solicitudes Recibidas.
+4. Motor de Decisiones.
+5. Evaluación de Créditos.
+6. Comité de Crédito.
+7. Formalización.
+8. Desembolsos.
+9. Préstamos Desembolsados.
+10. Clientes.
+11. Expedientes Digitales.
+12. Reportes.
+13. Parámetros y Políticas.
+14. Auditoría.
+
+Cada sección debe tener una ruta funcional y operaciones reales.
+
+No construir por ahora el módulo completo de cobranza. Solo dejar la estructura necesaria para conectar posteriormente los préstamos desembolsados y sus cuotas.
+
+---
+
+# 5. MÓDULO DE SOLICITUDES
+
+Construir un sistema de originación crediticia que permita recibir solicitudes desde dos canales:
+
+**Canal interno:** registro por un usuario autorizado de AxyCore.
+
+**Canal externo:** formulario web seguro para que un cliente solicite su crédito desde un enlace público.
+
+Ambos canales deben alimentar la misma base de datos.
+
+Cada solicitud debe generar automáticamente:
+
+- Identificador único.
+- Fecha y hora.
+- Número de expediente.
+- Canal de origen.
+- Cliente asociado.
+- Estado actual.
+- Responsable asignado.
+- Historial de movimientos.
+
+## 5.1. Datos personales
+
+Para solicitantes individuales:
+
+- Nombres.
+- Apellidos.
+- Cédula o documento de identidad.
+- Fecha de nacimiento.
+- Nacionalidad.
+- Estado civil.
+- Teléfonos.
+- Correo electrónico, si dispone.
+- Dirección.
+- Municipio.
+- Provincia.
+- Tiempo de residencia.
+- Tipo de vivienda.
+- Pago de vivienda.
+- Datos de contacto alternativos.
+
+Validar formatos y evitar duplicaciones de clientes.
+
+No utilizar nacionalidad, estado civil, sexo ni otros atributos protegidos para sumar o restar puntuación crediticia.
+
+## 5.2. Datos laborales y económicos
+
+Registrar:
+
+- Tipo de actividad.
+- Empresa o negocio.
+- Cargo u ocupación.
+- Antigüedad laboral o comercial.
+- Tipo de ingreso.
+- Ingreso principal neto mensual.
+- Ingresos adicionales netos.
+- Moneda de los ingresos.
+- Gastos esenciales mensuales.
+- Pago de vivienda.
+- Indicación de si el alquiler ya está incluido en los gastos.
+- Cantidad de deudas.
+- Saldo total adeudado.
+- Cuotas mensuales de deudas.
+- Deudas con bancos.
+- Deudas con financieras.
+- Deudas de tarjetas.
+- Préstamos informales.
+- Otras obligaciones.
+
+Separar claramente gastos operativos, gastos esenciales y pagos de deudas para evitar dobles descuentos.
+
+## 5.3. Solicitudes empresariales
+
+Permitir registrar:
+
+- Razón social.
+- Nombre comercial.
+- RNC.
+- Tipo de empresa.
+- Actividad económica.
+- Fecha de inicio de operaciones.
+- Representante autorizado.
+- Documentación societaria.
+- Ingresos del negocio.
+- Ventas brutas.
+- Costos operativos.
+- Flujo neto mensual disponible.
+- Obligaciones empresariales.
+- Origen principal del repago.
+- Garantías propuestas.
+
+No confundir ventas brutas con ingresos netos disponibles para pagar.
+
+## 5.4. Condiciones solicitadas
+
+Capturar:
+
+- Tipo de préstamo.
+- Moneda DOP o USD.
+- Monto solicitado.
+- Plazo.
+- Frecuencia de pago.
+- Destino del financiamiento.
+- Descripción del destino.
+- Garantía propuesta, si corresponde.
+- Método de amortización solicitado.
+
+## 5.5. Referencias y documentos
+
+Permitir registrar dos referencias con nombre, relación y teléfono.
+
+Crear un administrador de documentos por expediente, con categoría, fecha, usuario, archivo y estado de revisión.
+
+El cliente debe aceptar expresamente los términos y el tratamiento de sus datos antes de enviar la solicitud.
+
+Guardar versión y fecha del consentimiento.
+
+Una solicitud incompleta podrá guardarse como borrador.
+
+---
+
+# 6. MOTOR DE DECISIONES CREDITICIAS AXYCORE V2
+
+Este componente es prioritario.
+
+Desarrollar un motor de decisiones determinista, explicable, versionado y auditable.
+
+El motor debe funcionar automáticamente con los datos declarados en la solicitud.
+
+No debe necesitar que un analista revise primero los documentos, contacte referencias o consulte burós externos para generar la precalificación.
+
+No utilizar Equifax ni inventar una puntuación externa.
+
+El motor debe generar:
+
+- Score interno de 0 a 100.
+- Banda de riesgo.
+- Monto recomendado.
+- Tasa nominal mensual.
+- Plazo recomendado.
+- Cuota estimada.
+- Capacidad de pago.
+- Relación deuda/ingresos.
+- Justificación detallada.
+- Alertas.
+- Datos faltantes.
+- Estado de precalificación.
+
+**Importante:** el score constituye una recomendación preliminar, nunca una aprobación contractual automática.
+
+La política descrita a continuación es una especificación de desarrollo propuesta y deberá mantenerse inicialmente en entorno de pruebas, pendiente de validación y autorización comercial.
+
+## 6.1. Matriz de 22 indicadores
+
+Implementar exactamente 22 indicadores, con ponderación total de 100 puntos.
+
+| N.º | Indicador | Máximo |
+|---|---|---:|
+| 1 | Capacidad económica disponible | 16 |
+| 2 | Endeudamiento mensual actual | 12 |
+| 3 | Cuota solicitada / ingreso | 8 |
+| 4 | Cobertura de cuota solicitada | 6 |
+| 5 | Gastos mensuales / ingreso | 4 |
+| 6 | Saldo total de deudas / ingreso | 2 |
+| 7 | Cantidad de deudas | 2 |
+| 8 | Antigüedad laboral o comercial | 10 |
+| 9 | Tipo de fuente de ingresos | 5 |
+| 10 | Ingresos adicionales declarados | 3 |
+| 11 | Identificación laboral o comercial | 2 |
+| 12 | Antigüedad de residencia | 4 |
+| 13 | Tipo de vivienda | 3 |
+| 14 | Pago de vivienda / ingreso | 3 |
+| 15 | Referencias completas | 3 |
+| 16 | Redes sociales declaradas | 2 |
+| 17 | Información de contacto | 3 |
+| 18 | Documentos suministrados | 3 |
+| 19 | Destino del préstamo | 2 |
+| 20 | Condiciones solicitadas completas | 3 |
+| 21 | Coherencia de ingresos | 2 |
+| 22 | Coherencia de deudas | 2 |
+
+Total obligatorio: **100 puntos**.
+
+Los parámetros deben estar almacenados en una configuración editable y versionada.
+
+## 6.2. Reglas exactas de puntuación
+
+Implementar:
+
+**01. Capacidad disponible / ingreso elegible**
+
+- 40% o más: 16 puntos.
+- 30% a menos de 40%: 12.
+- 20% a menos de 30%: 8.
+- 10% a menos de 20%: 4.
+- Menos de 10%: 0.
+
+**02. Cuotas actuales / ingreso elegible**
+
+- Hasta 10%: 12.
+- Más de 10% y hasta 20%: 9.
+- Más de 20% y hasta 30%: 6.
+- Más de 30% y hasta 35%: 3.
+- Más de 35%: 0.
+
+**03. Cuota simulada / ingreso elegible**
+
+- Hasta 10%: 8.
+- Más de 10% y hasta 15%: 6.
+- Más de 15% y hasta 20%: 3.
+- Más de 20%: 0.
+
+**04. Cobertura disponible / cuota simulada**
+
+- 2.00 veces o más: 6.
+- Desde 1.50 hasta menos de 2.00: 4.
+- Desde 1.25 hasta menos de 1.50: 2.
+- Menos de 1.25: 0.
+
+**05. Gastos esenciales / ingreso**
+
+- Hasta 40%: 4.
+- Más de 40% y hasta 55%: 3.
+- Más de 55% y hasta 70%: 1.
+- Más de 70%: 0.
+
+**06. Saldo total de deudas / ingreso mensual**
+
+- Hasta 3 veces: 2.
+- Más de 3 y hasta 6 veces: 1.
+- Más de 6 veces: 0.
+
+**07. Cantidad de deudas**
+
+- Entre 0 y 1: 2.
+- Entre 2 y 3: 1.
+- Cuatro o más: 0.
+
+**08. Antigüedad laboral o comercial**
+
+- 36 meses o más: 10.
+- 24 a 35 meses: 8.
+- 12 a 23 meses: 6.
+- 6 a 11 meses: 3.
+- Menos de 6 meses: 0.
+
+**09. Fuente de ingresos**
+
+- Fija o recurrente: 5.
+- Mixta recurrente: 4.
+- Irregular: 2.
+- Sin ingresos: 0.
+
+**10. Ingresos adicionales**
+
+- Declara expresamente que no tiene: 3.
+- Ingresos adicionales cuantificados: 3.
+- Declaración parcial: 1.
+- Declaración inconsistente: 0.
+
+**11. Identificación laboral/comercial**
+
+- Entidad o actividad y ocupación completas: 2.
+- Información parcial: 1.
+- Información ausente: 0.
+
+**12. Antigüedad residencial**
+
+- 36 meses o más: 4.
+- 12 a 35 meses: 3.
+- 6 a 11 meses: 2.
+- 1 a 5 meses: 1.
+- Información ausente: 0.
+
+**13. Tipo de vivienda**
+
+- Propia: 3.
+- Alquilada: 2.
+- Familiar: 2.
+- Otra: 1.
+- No declarada: 0.
+
+**14. Pago de vivienda / ingreso**
+
+- Hasta 15%: 3.
+- Más de 15% y hasta 25%: 2.
+- Más de 25% y hasta 35%: 1.
+- Más de 35%: 0.
+
+**15. Referencias**
+
+- Dos referencias completas: 3.
+- Una referencia completa: 1.
+- Ninguna: 0.
+
+Referencia completa significa nombre, relación y teléfono. No exigir llamada de confirmación antes del scoring.
+
+**16. Redes sociales declaradas**
+
+- Declara tener redes y proporciona identificador: 2.
+- Declara expresamente no tener: 1.
+- No responde: 0.
+
+Esta variable no puede bloquear por sí sola una solicitud. Marcarla como variable de equidad pendiente de revisión y posible eliminación del modelo.
+
+**17. Información de contacto**
+
+- Teléfono, dirección y correo: 3.
+- Teléfono y dirección: 2.
+- Solo teléfono: 1.
+- Incompleta: 0.
+
+La ausencia de correo no debe bloquear por sí sola la solicitud.
+
+**18. Documentos suministrados**
+
+- Identidad y evidencia de ingresos: 3.
+- Solo identidad: 2.
+- Solo evidencia de ingresos: 1.
+- Ninguno: 0.
+
+No confundir documento suministrado con documento verificado.
+
+**19. Destino del préstamo**
+
+- Destino y descripción: 2.
+- Solo destino: 1.
+- No declarado: 0.
+
+**20. Condiciones solicitadas**
+
+- Monto, plazo, frecuencia y moneda completos: 3.
+- Tres de cuatro: 2.
+- Dos de cuatro: 1.
+- Uno o ninguno: 0.
+
+**21. Coherencia de ingresos**
+
+- Diferencia aritmética hasta 1%: 2.
+- Mayor de 1% y hasta 5%: 1.
+- Más de 5% o no conciliable: 0.
+
+**22. Coherencia de deudas**
+
+- Diferencia hasta 1%: 2.
+- Mayor de 1% y hasta 5%: 1.
+- Más de 5% o no conciliable: 0.
+
+Cuando el cliente declare expresamente que no tiene deudas y todos sus saldos y cuotas sean cero, otorgar los puntos correspondientes a coherencia completa.
+
+Los 22 resultados deben mostrar valores utilizados, puntos otorgados y explicación individual.
+
+---
+
+# 7. BANDAS DE RIESGO
+
+Crear una matriz configurable.
+
+| Score | Clasificación | Tasa mensual | Plazo permitido |
+|---|---|---|---|
+| 90–100 | Muy bajo | 4.0% | 3–18 meses |
+| 80–89 | Bajo | 4.4% | 3–18 meses |
+| 70–79 | Moderado | 4.8% | 3–15 meses |
+| 60–69 | Medio-alto | 5.2% | 3–12 meses |
+| 50–59 | Alto | 5.5% | 3–6 meses |
+| 0–49 | Crítico | Sin oferta automática | — |
+
+No clasificar estas bandas como probabilidades estadísticas validadas de incumplimiento.
+
+## 7.1. Límites por producto
+
+**Préstamo Personal DOP**
+
+- Mínimo RD$500.
+- Máximo absoluto RD$500,000.
+- Topes por bandas elegibles, de mayor a menor score: RD$500,000; RD$300,000; RD$150,000; RD$75,000; RD$25,000.
+
+**Préstamo Empresarial DOP**
+
+- Mínimo RD$500.
+- Máximo absoluto RD$1,000,000.
+- Topes: RD$1,000,000; RD$600,000; RD$300,000; RD$150,000; RD$50,000.
+
+**Préstamo Personal USD**
+
+- Mínimo US$300.
+- Máximo absoluto US$5,000.
+- Topes: US$5,000; US$3,500; US$2,500; US$1,500; US$750.
+
+**Préstamo Empresarial USD**
+
+- Mínimo US$300.
+- Máximo absoluto US$5,000.
+- Topes iguales a Personal USD.
+
+Las cuatro políticas deben ser independientes, editables y versionadas.
+
+Estos valores son parámetros iniciales de prueba, no condiciones comerciales definitivas aprobadas.
+
+---
+
+# 8. MOTOR DE CAPACIDAD DE PAGO
+
+Implementar cálculos financieros deterministas en el backend.
+
+Ingreso elegible:
+
+I = ingreso principal neto + (0.70 × ingresos adicionales netos).
+
+Gastos esenciales: E.
+
+Cuotas actuales de deuda: D.
+
+Flujo disponible:
+
+F = máximo(0, I − E − D).
+
+Endeudamiento actual:
+
+DTI_actual = D / I.
+
+Endeudamiento proyectado:
+
+DTI_proyectado = (D + cuota_nueva) / I.
+
+La nueva cuota debe respetar simultáneamente:
+
+- Cuota nueva máxima: 20% del ingreso elegible.
+- Endeudamiento total proyectado máximo: 35%.
+- Cobertura mínima de cuota: 1.25.
+- Flujo disponible positivo.
+
+Fórmula:
+
+CUOTA_MAX = máximo(0, mínimo(0.20 × I, 0.35 × I − D, 0.80 × F)).
+
+No duplicar gastos de vivienda ni pagos de deuda que estén incluidos en otras partidas.
+
+El motor debe distinguir cero declarado, información ausente, no aplica e información inconsistente.
+
+Si faltan datos financieros esenciales, no inventar resultados.
+
+## 8.1. Evitar circularidad del score
+
+Para calcular los indicadores 03 y 04:
+
+1. Tomar monto y plazo solicitados.
+2. Simular inicialmente la cuota al 5.5% mensual de referencia.
+3. Calcular los 22 indicadores.
+4. Obtener el score.
+5. Determinar banda y tasa aplicable.
+6. Recalcular la oferta sostenible utilizando la tasa correspondiente.
+
+Esta secuencia debe conservarse.
+
+## 8.2. Cálculo de monto recomendado
+
+Para amortización mensual a saldo insoluto:
+
+Cuota(P,r,n) = P × r / [1 − (1+r)^(-n)].
+
+Capital sostenible:
+
+P_cap = CUOTA_MAX × [1 − (1+r)^(-n)] / r.
+
+Monto recomendado:
+
+mínimo de:
+
+- Monto solicitado.
+- Tope de la banda de riesgo.
+- Máximo absoluto del producto.
+- Capital sostenible por capacidad de pago.
+
+Nunca recomendar más de lo solicitado.
+
+Si el importe sostenible es inferior al mínimo del producto, generar SIN_OFERTA_CAPACIDAD.
+
+No aumentar automáticamente el plazo solicitado para ofrecer más dinero.
+
+Usar inicialmente pagos mensuales a saldo insoluto como modalidad de oferta automática. Preparar soporte configurable para interés fijo/plano, pagos quincenales y semanales, pero no habilitar estas modalidades para operaciones reales hasta implementar y validar sus fórmulas financieras y calendarios completos.
+
+## 8.3. Monedas
+
+Normalizar los importes a la moneda del préstamo.
+
+Registrar:
+
+- Moneda de origen.
+- Moneda del crédito.
+- Tipo de cambio.
+- Fecha.
+- Fuente.
+
+No inventar tasas de cambio.
+
+Si una solicitud USD depende de ingresos DOP, incorporar escenarios configurables de depreciación de 15% y 25%, como controles de estrés del modelo propuesto.
+
+Si no se dispone de tipo de cambio válido o la capacidad deja de ser sostenible, impedir la preoferta automática USD y generar una alerta explicable.
+
+---
+
+# 9. RESULTADO AUTOMÁTICO EN SOLICITUDES RECIBIDAS
+
+Este requisito es obligatorio.
+
+Inmediatamente después de guardar una solicitud con los datos suficientes, ejecutar el motor y presentar el resultado en **Solicitudes Recibidas**, antes de que cualquier analista realice una evaluación.
+
+Mostrar como columnas:
+
+- Número de solicitud.
+- Cliente.
+- Tipo de préstamo.
+- Moneda.
+- Monto solicitado.
+- Score interno.
+- Nivel de riesgo.
+- Monto recomendado.
+- Tasa mensual recomendada.
+- Plazo recomendado.
+- Cuota recomendada.
+- Estado de precalificación.
+- Estado del expediente.
+- Fecha.
+- Responsable.
+
+Permitir abrir una ficha completa del motor con:
+
+1. Resultado general.
+2. Desglose de 22 indicadores.
+3. Capacidad de pago.
+4. Condiciones recomendadas.
+5. Factores favorables.
+6. Alertas.
+7. Información faltante.
+8. Política y versión utilizadas.
+9. Historial de ejecuciones.
+
+Distinguir visualmente **PRECALIFICADO** de **APROBADO**.
+
+La precalificación nunca debe marcar automáticamente un préstamo como aprobado.
+
+Estados del motor:
+
+- PREOFERTA.
+- SIN_OFERTA.
+- SIN_OFERTA_CAPACIDAD.
+- DATOS_INSUFICIENTES.
+- DATOS_INSUFICIENTES_DEUDA.
+- DATOS_INSUFICIENTES_CAMBIO.
+- SOLICITUD_FUERA_POLITICA.
+- ERROR_CALCULO.
+
+Los errores técnicos deben registrarse sin mostrar información sensible al usuario final.
+
+---
+
+# 10. EVALUACIÓN Y DEPURACIÓN CREDITICIA
+
+Crear una bandeja de trabajo exclusiva para analistas autorizados.
+
+El analista recibe la solicitud y el resultado preliminar del motor.
+
+Debe visualizar:
+
+- Información del cliente.
+- Documentos.
+- Ingresos declarados.
+- Gastos declarados.
+- Obligaciones financieras.
+- Capacidad calculada.
+- Score.
+- Recomendación automática.
+- Alertas.
+- Garantías y codeudores, si corresponden.
+
+Permitir:
+
+- Verificar identidad y documentación.
+- Confirmar ingresos.
+- Revisar obligaciones.
+- Registrar referencias verificadas.
+- Depurar inconsistencias.
+- Solicitar información adicional.
+- Registrar hallazgos.
+- Añadir observaciones.
+- Emitir informe técnico.
+- Recomendar aprobación, modificación, devolución o rechazo.
+
+Toda modificación de datos que influya en el score debe generar una nueva ejecución versionada del motor.
+
+No sobrescribir resultados históricos.
+
+Mostrar siempre por separado:
+
+- Datos originalmente declarados.
+- Datos posteriormente verificados.
+- Resultado preliminar.
+- Resultado actualizado.
+- Recomendación del analista.
+
+El analista podrá recomendar condiciones diferentes a las generadas por el motor, pero deberá justificarlo y respetar las facultades de aprobación.
+
+No permitir al analista modificar silenciosamente el resultado automático o alterar una política histórica.
+
+---
+
+# 11. COMITÉ DE CRÉDITO
+
+Crear un módulo de comité con bandeja de expedientes pendientes.
+
+Cada expediente debe mostrar:
+
+- Solicitud original.
+- Resultado del motor.
+- Informe del analista.
+- Datos verificados.
+- Garantías.
+- Condiciones propuestas.
+- Alertas.
+- Documentación.
+- Historial completo.
+
+Decisiones disponibles:
+
+**APROBADO:** autoriza condiciones específicas.
+
+**APROBADO CONDICIONADO:** registra requisitos pendientes que deben cumplirse antes de formalizar o desembolsar.
+
+**DEVUELTO:** solicita correcciones o información adicional.
+
+**RECHAZADO:** requiere motivo documentado.
+
+Registrar:
+
+- Usuario decisor.
+- Fecha y hora.
+- Decisión.
+- Monto aprobado.
+- Tasa.
+- Plazo.
+- Frecuencia.
+- Método de amortización.
+- Condiciones.
+- Observaciones.
+- Autoridad o facultad utilizada.
+
+Diseñar una matriz configurable de facultades de aprobación por monto, producto, riesgo y rol.
+
+No inventar límites de facultades: deben configurarse por un administrador antes de utilizar el comité en producción.
+
+Permitir aprobaciones colegiadas cuando la política lo requiera.
+
+No permitir que un usuario sin facultades apruebe una solicitud.
+
+Los usuarios que registran una solicitud no podrán aprobarla por defecto si existe conflicto de funciones.
+
+Las decisiones deben ser inmutables: cualquier corrección posterior requiere una revisión adicional auditable.
+
+---
+
+# 12. FORMALIZACIÓN DEL PRÉSTAMO
+
+Una solicitud aprobada debe pasar a Formalización.
+
+Crear una bandeja de solicitudes aprobadas pendientes de documentos contractuales.
+
+Generar:
+
+- Resumen de aprobación.
+- Contrato de préstamo.
+- Pagaré, cuando corresponda.
+- Tabla de amortización.
+- Resumen de condiciones.
+- Autorizaciones y consentimientos.
+- Relación de documentos requeridos.
+- Garantías y codeudores cuando correspondan.
+
+Los contratos deben usar plantillas editables que requieran revisión legal antes de su utilización real.
+
+Incorporar campos automáticos:
+
+- Datos del cliente.
+- Identificador del préstamo.
+- Capital.
+- Tasa.
+- Método de intereses.
+- Plazo.
+- Frecuencia.
+- Cuota.
+- Fecha inicial.
+- Vencimiento.
+- Gastos aplicables.
+- Total contractual a pagar.
+
+Diferenciar:
+
+- Capital originalmente aprobado.
+- Gastos financiados.
+- Total financiado.
+- Gastos descontados.
+- Importe neto a entregar al cliente.
+
+No financiar gastos automáticamente sin aprobación y configuración expresa.
+
+Permitir descargar documentos y registrar evidencias de firma.
+
+Registrar firma presencial o electrónica solamente cuando exista un mecanismo válido configurado.
+
+Controlar la completitud documental antes de habilitar el desembolso.
+
+---
+
+# 13. DESEMBOLSOS
+
+Crear un módulo operativo de desembolsos con controles independientes.
+
+Una solicitud solamente podrá desembolsarse cuando:
+
+1. Exista aprobación vigente y válida.
+2. Se hayan cumplido las condiciones del comité.
+3. El expediente esté formalizado.
+4. Los documentos obligatorios estén completos.
+5. Las condiciones financieras coincidan con las aprobadas.
+6. Exista autorización de un usuario facultado.
+7. No exista un desembolso previo de la misma operación.
+
+Permitir registrar:
+
+- Número de desembolso.
+- Cliente.
+- Número de préstamo.
+- Monto aprobado.
+- Total financiado.
+- Gastos.
+- Importe neto entregado.
+- Fecha de desembolso.
+- Medio de pago.
+- Entidad financiera.
+- Cuenta destino, con datos sensibles protegidos.
+- Número de referencia.
+- Comprobante.
+- Usuario responsable.
+- Usuario autorizador.
+- Estado.
+
+Implementar mecanismo de idempotencia para impedir dobles desembolsos, incluso si un usuario hace doble clic o repite una solicitud.
+
+No ejecutar transferencias bancarias reales sin una integración bancaria específica, autorización expresa y controles adicionales.
+
+Inicialmente, el sistema debe registrar desembolsos confirmados mediante evidencia y autorización humana.
+
+Al confirmar el desembolso:
+
+- Crear automáticamente el registro del préstamo.
+- Generar el calendario definitivo de cuotas.
+- Registrar saldo inicial.
+- Registrar fecha efectiva.
+- Registrar desembolso y referencia.
+- Cambiar el expediente a DESEMBOLSADO.
+- Generar movimientos de auditoría.
+- Dejar el préstamo disponible para futuros módulos de Cartera, Cobranza y Contabilidad.
+
+Una aprobación no equivale a un desembolso.
+
+---
+
+# 14. TABLA DE AMORTIZACIÓN
+
+Crear un simulador y generador de cronogramas financieros.
+
+Campos:
+
+- Capital financiado.
+- Tasa contractual.
+- Tipo de interés.
+- Plazo.
+- Frecuencia.
+- Fecha de desembolso.
+- Fecha de primera cuota.
+- Gastos y cargos autorizados.
+
+Mostrar:
+
+| Cuota | Fecha | Capital | Interés | Otros cargos | Total | Saldo |
+|---|---|---|---|---|---|---|
+
+Aplicar precisión decimal adecuada para dinero.
+
+No usar cálculos financieros imprecisos de punto flotante como fuente definitiva de registro.
+
+Asegurar que los redondeos de cada cuota y el ajuste final produzcan saldos conciliados.
+
+Separar saldo de capital, intereses y cargos.
+
+Las fechas de vencimiento deben manejar correctamente meses de diferente duración.
+
+Guardar un cronograma aprobado inmutable o versionado. No recalcular silenciosamente cuotas desembolsadas por cambios posteriores en la política.
+
+---
+
+# 15. ROLES Y SEGURIDAD
+
+Crear autenticación y administración de usuarios.
+
+Roles iniciales:
+
+- Administrador.
+- Oficial de Negocios.
+- Analista de Créditos.
+- Miembro del Comité.
+- Formalización.
+- Operaciones.
+- Finanzas.
+- Auditor.
+- Cliente externo.
+
+Aplicar permisos diferenciados.
+
+Un usuario no puede acceder a información o ejecutar acciones únicamente porque conoce una URL.
+
+Los permisos deben validarse también en backend y reglas de seguridad de Firestore.
+
+Separar creación, evaluación, aprobación y desembolso.
+
+Registrar intentos de acceso y operaciones sensibles.
+
+Implementar:
+
+- Control de sesiones.
+- Protección de documentos.
+- Validación de datos.
+- Restricciones de lectura y escritura.
+- Registro de cambios.
+- Identificadores únicos.
+- Operaciones transaccionales.
+- Protección contra operaciones duplicadas.
+
+No utilizar cuentas administrativas compartidas.
+
+Preparar estructura para múltiples empresas en el futuro, garantizando aislamiento de datos entre organizaciones.
+
+Aplicar medidas de privacidad y revisar cumplimiento de la normativa dominicana aplicable, incluida la Ley 172-13, antes de utilizar datos personales y crediticios reales.
+
+---
+
+# 16. BASE DE DATOS
+
+Diseñar una estructura relacional lógica mediante documentos, referencias e índices apropiados para Firestore.
+
+Colecciones o entidades sugeridas:
+
+- organizations
+- users
+- customers
+- businesses
+- applications
+- application_documents
+- application_consents
+- credit_products
+- credit_policies
+- scoring_models
+- scoring_executions
+- scoring_indicator_details
+- credit_evaluations
+- committee_decisions
+- approval_authorities
+- formalizations
+- contract_documents
+- disbursements
+- loans
+- loan_installments
+- audit_logs
+- system_parameters
+
+Establecer relaciones mediante identificadores persistentes.
+
+Implementar mecanismos que eviten:
+
+- Clientes duplicados.
+- Expedientes duplicados.
+- Préstamos duplicados.
+- Desembolsos duplicados.
+- Pérdida de historial.
+- Modificación indebida de resultados históricos.
+
+Guardar fecha de creación, fecha de modificación, usuario responsable y versión cuando corresponda.
+
+Las operaciones críticas deben ser atómicas y consistentes.
+
+---
+
+# 17. DASHBOARD DE PRÉSTAMOS
+
+Crear un dashboard ejecutivo conectado a la base de datos.
+
+Indicadores:
+
+- Solicitudes recibidas.
+- Solicitudes pendientes.
+- Precalificadas.
+- En evaluación.
+- En comité.
+- Aprobadas.
+- Aprobadas condicionadas.
+- Rechazadas.
+- Pendientes de formalización.
+- Pendientes de desembolso.
+- Total desembolsado.
+- Monto solicitado.
+- Monto aprobado.
+- Tiempo promedio de evaluación.
+- Distribución por banda de riesgo.
+
+Incorporar filtros por:
+
+- Fecha.
+- Producto.
+- Moneda.
+- Estado.
+- Usuario.
+- Canal.
+- Banda de riesgo.
+
+No mostrar cifras ficticias como datos reales.
+
+Si la base de datos está vacía, mostrar estados vacíos y permitir crear operaciones de prueba.
+
+---
+
+# 18. REPORTES
+
+Construir inicialmente:
+
+1. Reporte de solicitudes.
+2. Reporte de precalificación.
+3. Reporte de evaluación.
+4. Reporte de decisiones de comité.
+5. Reporte de formalizaciones.
+6. Reporte de desembolsos.
+7. Reporte de tasas, montos y plazos.
+8. Reporte de usuarios y productividad.
+9. Reporte de auditoría.
+10. Reporte de indicadores y resultados del motor.
+
+Permitir filtros y exportaciones CSV y Excel.
+
+Agregar exportación PDF cuando se implemente un generador verificable.
+
+---
+
+# 19. POLÍTICAS Y CONFIGURACIÓN
+
+Crear una sección administrativa para modificar, mediante versiones controladas:
+
+- Productos.
+- Monedas.
+- Tasas.
+- Plazos.
+- Montos.
+- Pesos de indicadores.
+- Rangos de puntuación.
+- Bandas de riesgo.
+- Factores de ingresos.
+- Límites de endeudamiento.
+- Cobertura de cuotas.
+- Métodos de amortización.
+- Criterios de excepción.
+- Facultades de aprobación.
+- Requisitos documentales.
+- Gastos permitidos.
+- Parámetros de tipo de cambio.
+
+Los cambios de política nunca deben alterar retroactivamente resultados ya emitidos.
+
+Cada evaluación debe conservar exactamente la versión del modelo que utilizó.
+
+Mantener política propuesta, política en pruebas, política aprobada y política activa como estados independientes.
+
+---
+
+# 20. AUDITORÍA
+
+Crear una bitácora permanente y protegida.
+
+Registrar:
+
+- Evento.
+- Usuario.
+- Fecha.
+- Entidad afectada.
+- Acción ejecutada.
+- Estado anterior.
+- Estado posterior.
+- Justificación.
+- Identificador de transacción.
+- Versión del motor, cuando corresponda.
+
+Auditar especialmente:
+
+- Cambios financieros.
+- Cambios de scoring.
+- Evaluaciones.
+- Excepciones.
+- Aprobaciones.
+- Cambios de condiciones.
+- Formalizaciones.
+- Desembolsos.
+
+No permitir eliminar registros históricos de auditoría desde la interfaz ordinaria.
+
+---
+
+# 21. PRUEBAS OBLIGATORIAS
+
+Implementar pruebas automatizadas de los cálculos y flujos críticos.
+
+Validar, como mínimo:
+
+- Score máximo de 100.
+- Score mínimo de 0.
+- Suma exacta de los 22 indicadores.
+- Score 90 con tasa 4%.
+- Score 50 con tasa 5.5% y plazo máximo de seis meses.
+- Score 49 sin oferta.
+- Límites de Personal DOP.
+- Límites de Empresa DOP.
+- Límites de Personal USD.
+- Límites de Empresa USD.
+- Monto inferior al mínimo.
+- Monto superior al máximo.
+- Plazos fuera de política.
+- Ausencia de ingresos.
+- Ausencia de gastos.
+- Ausencia de información sobre deudas.
+- Declaración explícita de cero deudas.
+- Doble descuento de gastos.
+- Capacidad insuficiente.
+- Monedas incompatibles sin tipo de cambio.
+- Empresa con ventas brutas pero sin flujo neto.
+- Referencias no verificadas.
+- Cliente sin correo.
+- Cliente sin redes.
+- Vivienda alquilada.
+- Recalcular cuando cambien datos financieros.
+- Conservar resultados históricos.
+- Exactitud de amortización.
+- Consistencia de calendario de cuotas.
+- Prevención de dobles desembolsos.
+- Intentos de aprobación sin permisos.
+- Impedimento de desembolsar sin aprobación.
+- Impedimento de desembolsar sin formalización.
+- Persistencia correcta al cerrar y reabrir sesión.
+
+Crear datos sintéticos de demostración en un entorno separado de producción.
+
+Ejecutar pruebas de integración del ciclo completo:
+
+SOLICITUD → MOTOR → EVALUACIÓN → COMITÉ → FORMALIZACIÓN → DESEMBOLSO → PRÉSTAMO ACTIVO.
+
+Ninguna prueba debe desembolsar dinero real.
+
+---
+
+# 22. REQUISITOS DE IMPLEMENTACIÓN
+
+Desarrolla la aplicación con las siguientes prioridades:
+
+**Primera prioridad:** autenticación, estructura de datos, clientes y formularios de solicitud.
+
+**Segunda prioridad:** motor de decisiones con sus 22 indicadores y cálculos financieros reales.
+
+**Tercera prioridad:** bandeja de solicitudes con la precalificación automática visible.
+
+**Cuarta prioridad:** evaluación y depuración crediticia.
+
+**Quinta prioridad:** comité y decisiones.
+
+**Sexta prioridad:** formalización y generación de cronograma.
+
+**Séptima prioridad:** desembolso y creación del préstamo.
+
+**Octava prioridad:** reportes, dashboard, parámetros y auditoría.
+
+Trabaja de manera incremental sin destruir funcionalidades ya construidas.
+
+No reemplaces funcionalidades complejas por botones decorativos, simulaciones no identificadas o respuestas fijas.
+
+Si alguna integración requiere configuración externa, crea la arquitectura y el código correspondiente, identifica la configuración pendiente y no declares esa integración como operativa mientras no haya sido comprobada.
+
+No inventes credenciales, integraciones bancarias ni políticas comerciales.
+
+Antes de considerar terminada cada etapa, verifica navegación, persistencia, permisos, operaciones y pruebas.
+
+---
+
+# 23. RESULTADO FINAL ESPERADO
+
+Quiero abrir AxyCore desde el navegador y poder:
+
+1. Iniciar sesión con un usuario autorizado.
+2. Registrar un cliente.
+3. Crear una solicitud de préstamo.
+4. Guardar la información financiera.
+5. Ejecutar automáticamente el motor de decisiones.
+6. Visualizar score, riesgo, monto, tasa, plazo y cuota en Solicitudes Recibidas.
+7. Abrir el expediente.
+8. Evaluar y depurar la operación.
+9. Someterla a comité.
+10. Registrar una decisión.
+11. Formalizar el préstamo.
+12. Generar el calendario de pagos.
+13. Autorizar y registrar el desembolso.
+14. Consultar el préstamo ya desembolsado.
+15. Revisar el historial completo desde la solicitud inicial.
+
+Todos los pasos deben funcionar sobre información persistente y guardar evidencia de sus operaciones.
+
+**INSTRUCCIÓN FINAL**
+
+Comienza creando la arquitectura real de AxyCore y el módulo completo de Préstamos.
+
+Prioriza la integridad financiera, la exactitud matemática, la seguridad, la trazabilidad y el funcionamiento real.
+
+Implementa el Motor de Decisiones Crediticias V2 exactamente con las reglas definidas, manteniéndolo inicialmente como política propuesta en entorno de pruebas.
+
+No utilices una puntuación inventada, una fórmula genérica diferente ni información ficticia para generar recomendaciones reales.
+
+Construye una base sólida para convertir AxyCore en una plataforma financiera web profesional, escalable y comercializable.

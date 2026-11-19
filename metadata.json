@@ -1,0 +1,6 @@
+{
+  "name": "AxyCore",
+  "description": "Plataforma financiera integral para originación de préstamos, Motor de Decisiones Crediticias V2, evaluación, comité, formalización y desembolso.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

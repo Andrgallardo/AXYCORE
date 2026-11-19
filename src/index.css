@@ -1,0 +1,143 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    /* AxyCore Official Brand Tokens (Extracted from Logo) */
+    --axy-navy: #041b4e;
+    --axy-navy-deep: #040c1e;
+    --axy-cobalt: #0052cc;
+    --axy-primary: #0066ff;
+    --axy-cyan: #00b8ff;
+    --axy-cyan-bright: #00d1ff;
+    --axy-gold: #e2b35e;
+    --axy-accent: #00b8ff;
+
+    /* Light Theme Canvas & Surfaces (<5% cool navy tint) */
+    --axy-canvas: #f4f7fc;
+    --axy-surface: #ffffff;
+    --axy-surface-muted: #ebf1fa;
+    --axy-border: rgba(4, 27, 78, 0.09);
+    --axy-shadow-sm: 0 1px 2px rgba(4, 27, 78, 0.04), 0 1px 1px rgba(4, 27, 78, 0.02);
+    --axy-shadow-md: 0 10px 28px -6px rgba(4, 27, 78, 0.1), 0 2px 8px -2px rgba(0, 102, 255, 0.06);
+    font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+    color-scheme: light;
+  }
+
+  .dark {
+    /* Dark Theme Technological Midnight Navy Surfaces */
+    --axy-canvas: #030816;
+    --axy-surface: #08132b;
+    --axy-surface-muted: #0e1d40;
+    --axy-border: rgba(0, 184, 255, 0.14);
+    --axy-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+    --axy-shadow-md: 0 16px 36px -8px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 184, 255, 0.08);
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: "Plus Jakarta Sans", "DM Sans", system-ui, sans-serif;
+    letter-spacing: -0.015em;
+  }
+
+  .font-mono, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  *:focus-visible {
+    outline: 2px solid rgba(0, 184, 255, 0.72);
+    outline-offset: 2px;
+  }
+
+  /* Refined scrollbars across high-density data tables and sidebars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 102, 255, 0.28) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 102, 255, 0.26);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 184, 255, 0.5);
+  }
+}
+
+/* AxyCore Brand Visual Utilities */
+.axy-brand-gradient {
+  background: linear-gradient(135deg, #0052cc 0%, #0066ff 55%, #00b8ff 100%);
+}
+
+.axy-infinity-line {
+  background: linear-gradient(90deg, #041b4e 0%, #0066ff 35%, #00d1ff 70%, #e2b35e 100%);
+}
+
+.axy-wordmark-core {
+  background: linear-gradient(135deg, #0066ff 0%, #00b8ff 65%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.axy-card {
+  background-color: var(--axy-surface);
+  border-color: var(--axy-border);
+  box-shadow: var(--axy-shadow-sm);
+}
+
+@keyframes axyDrawerSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes axyPanelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.axy-drawer-in {
+  animation: axyDrawerSlideIn 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.axy-panel-in {
+  animation: axyPanelFadeIn 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .axy-drawer-in,
+  .axy-panel-in {
+    animation: none;
+  }
+}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('axycore_theme');
+          var isDark = stored === 'dark';
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add('dark');
+            root.dataset.theme = 'dark';
+            root.style.colorScheme = 'dark';
+          } else {
+            root.classList.remove('dark');
+            root.dataset.theme = 'light';
+            root.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script>
+      (function () {
+        if (typeof window === 'undefined' || !window.WebSocket) return;
+        var NativeWS = window.WebSocket;
+        function PatchedWebSocket(url, protocols) {
+          var protoStr = Array.isArray(protocols) ? protocols.join(',') : String(protocols || '');
+          if (protoStr.indexOf('vite-hmr') !== -1 || protoStr.indexOf('vite-ping') !== -1) {
+            return {
+              url: String(url || ''),
+              readyState: 1,
+              OPEN: 1,
+              CONNECTING: 0,
+              CLOSING: 2,
+              CLOSED: 3,
+              protocol: protoStr,
+              extensions: '',
+              bufferedAmount: 0,
+              binaryType: 'blob',
+              send: function () {},
+              close: function () {},
+              addEventListener: function (type, fn) {
+                if (type === 'open' && typeof fn === 'function') {
+                  setTimeout(function () { fn({ type: 'open' }); }, 0);
+                }
+              },
+              removeEventListener: function () {},
+              dispatchEvent: function () { return true; }
+            };
+          }
+          return protocols !== undefined ? new NativeWS(url, protocols) : new NativeWS(url);
+        }
+        PatchedWebSocket.prototype = NativeWS.prototype;
+        PatchedWebSocket.CONNECTING = NativeWS.CONNECTING;
+        PatchedWebSocket.OPEN = NativeWS.OPEN;
+        PatchedWebSocket.CLOSING = NativeWS.CLOSING;
+        PatchedWebSocket.CLOSED = NativeWS.CLOSED;
+        window.WebSocket = PatchedWebSocket;
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#f4f7fc" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AxyCore" />
+    <link rel="apple-touch-icon" href="/assets/aistudio/image_aea21874.png" />
+    <title>AxyCore — Inteligencia Financiera, Crédito V2 y Recuperación 360°</title>
+    <meta name="description" content="Plataforma financiera empresarial AxyCore: Dashboard Ejecutivo, AxyCore Director, asistente Bela, originación crediticia V2 y recuperación integral de cartera." />
+    <meta property="og:title" content="AxyCore — Inteligencia financiera que transforma decisiones" />
+    <meta property="og:description" content="Plataforma financiera empresarial para originación determinista, evaluación crediticia, desembolsos, cobranza y analítica ejecutiva con IA." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-[#f4f7fc] text-slate-950 antialiased dark:bg-[#030816] dark:text-slate-100 selection:bg-[#0066ff]/15 selection:text-[#041b4e] dark:selection:bg-[#00b8ff]/25 dark:selection:text-sky-100">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
