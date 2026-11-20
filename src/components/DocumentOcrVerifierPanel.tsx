@@ -231,11 +231,11 @@ export function DocumentOcrVerifierPanel({
       : 'border-rose-200 bg-rose-50/70 dark:border-rose-900 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200';
 
   return (
-    <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+    <div className="axy-surface-ai p-5 rounded-2xl space-y-4 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-0.5">
           <h4 className="font-display text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <ScanText className="w-4 h-4 text-sky-700 dark:text-sky-400" />
+            <ScanText className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
             <span>Verificador Automático de Documentos (Gemini OCR)</span>
           </h4>
           <p className="text-slate-500 dark:text-slate-400">
@@ -253,13 +253,13 @@ export function DocumentOcrVerifierPanel({
           <p className="font-semibold text-slate-700 dark:text-slate-300">
             Soportes adjuntos en el expediente ({documents.length})
           </p>
-          <div className="divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="axy-surface-tonal divide-y divide-slate-200/80 dark:divide-[#00B8FF]/15 rounded-xl overflow-hidden">
             {documents.map((docItem) => {
               const isScanning = scanningDocId === docItem.id;
               return (
                 <div
                   key={docItem.id}
-                  className="p-2.5 bg-slate-50/60 dark:bg-slate-800/30 flex flex-wrap items-center justify-between gap-2"
+                  className="p-2.5 flex flex-wrap items-center justify-between gap-2"
                 >
                   <div className="min-w-0">
                     <p className="font-mono font-medium text-slate-800 dark:text-slate-200 truncate">
@@ -274,7 +274,7 @@ export function DocumentOcrVerifierPanel({
                     type="button"
                     disabled={scanningDocId !== null || !docItem.fileDataUrl}
                     onClick={() => handleVerifyAttachedDoc(docItem)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 text-white font-medium whitespace-nowrap cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                    className="axy-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                   >
                     {isScanning ? (
                       <>
@@ -296,18 +296,18 @@ export function DocumentOcrVerifierPanel({
       )}
 
       {/* Direct upload & OCR verification bar */}
-      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-3">
+      <div className="axy-surface-tonal p-3.5 rounded-xl space-y-3">
         <p className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-          <Upload className="w-3.5 h-3.5 text-sky-700 dark:text-sky-400" />
+          <Upload className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00B8FF]" />
           <span>Escanear y validar un documento directamente (PNG, JPG, WEBP o PDF)</span>
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
           <div className="sm:col-span-4">
-            <label className="block text-[11px] text-slate-500 mb-1">Tipo de documento</label>
+            <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Tipo de documento</label>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+              className="axy-input w-full px-2.5 py-1.5 text-slate-900 dark:text-white"
             >
               {OCR_CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -317,14 +317,14 @@ export function DocumentOcrVerifierPanel({
             </select>
           </div>
           <div className="sm:col-span-5">
-            <label className="block text-[11px] text-slate-500 mb-1">
+            <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
               Archivo comprobante (máx. 1.5 MB; ≤ 480 KB para guardar)
             </label>
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,application/pdf"
               onChange={(e) => setAdHocFile(e.target.files?.[0] || null)}
-              className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+              className="axy-input w-full px-2 py-1 text-slate-900 dark:text-white"
             />
           </div>
           <div className="sm:col-span-3 flex justify-end">
@@ -332,7 +332,7 @@ export function DocumentOcrVerifierPanel({
               type="button"
               disabled={!adHocFile || scanningDocId !== null}
               onClick={handleScanUploadedFile}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap"
+              className="axy-btn-primary w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {scanningDocId === '__adhoc__' ? (
                 <>
@@ -374,7 +374,7 @@ export function DocumentOcrVerifierPanel({
 
       {/* OCR Cross-Check Result */}
       {ocrResult && (
-        <div className="space-y-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+        <div className="space-y-4 pt-2 border-t border-slate-200/80 dark:border-[#00B8FF]/15">
           <div className={`p-4 rounded-xl border space-y-2 ${verdictStyle}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-display text-sm font-bold">
@@ -405,18 +405,18 @@ export function DocumentOcrVerifierPanel({
           </div>
 
           {/* Field-by-field comparison table */}
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="axy-surface overflow-x-auto rounded-xl">
             <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300">
-                  <th className="py-2 px-3 font-semibold">Campo Evaluado</th>
-                  <th className="py-2 px-3 font-semibold">Declarado en Solicitud</th>
-                  <th className="py-2 px-3 font-semibold">Extraído por Gemini OCR</th>
-                  <th className="py-2 px-3 font-semibold text-right">Var. %</th>
-                  <th className="py-2 px-3 font-semibold">Validación</th>
+              <thead className="axy-table-head">
+                <tr className="text-slate-600 dark:text-slate-300">
+                  <th className="py-2.5 px-3 font-semibold">Campo Evaluado</th>
+                  <th className="py-2.5 px-3 font-semibold">Declarado en Solicitud</th>
+                  <th className="py-2.5 px-3 font-semibold">Extraído por Gemini OCR</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Var. %</th>
+                  <th className="py-2.5 px-3 font-semibold">Validación</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {ocrResult.comparisons.map((row) => {
                   const statusLabel =
                     row.matchStatus === 'MATCH'
@@ -436,7 +436,7 @@ export function DocumentOcrVerifierPanel({
                       : 'text-slate-500 dark:text-slate-400';
 
                   return (
-                    <tr key={row.fieldKey}>
+                    <tr key={row.fieldKey} className="axy-table-row">
                       <td className="py-2 px-3 font-medium text-slate-900 dark:text-white">
                         {row.fieldLabel}
                       </td>
@@ -463,7 +463,7 @@ export function DocumentOcrVerifierPanel({
           </div>
 
           {ocrResult.extractedFields.rawKeyLines.length > 0 && (
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+            <div className="axy-surface-tonal p-3 rounded-xl">
               <p className="font-semibold text-[11px] text-slate-600 dark:text-slate-300 mb-1">
                 Líneas clave extraídas por OCR
               </p>
@@ -506,7 +506,7 @@ export function DocumentOcrVerifierPanel({
                         'Cifras extraídas aplicadas en "Datos Verificados por Analista". Recuerda recalcular el Motor V2.'
                       );
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-sky-600 text-white font-semibold cursor-pointer"
+                    className="axy-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     Aplicar cifras OCR a Datos Verificados

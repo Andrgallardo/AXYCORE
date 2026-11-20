@@ -95,10 +95,10 @@ export function AxyCoreIntelligencePanel({
   onNavigate: (sec: NavSectionId) => void;
 }) {
   const severityColor: Record<IntelligenceInsightItem['severity'], string> = {
-    CRITICA: 'text-rose-400',
-    ATENCION: 'text-amber-300',
-    OPORTUNIDAD: 'text-[#20C4E8]',
-    OPTIMA: 'text-emerald-400',
+    CRITICA: 'text-rose-600 dark:text-rose-400',
+    ATENCION: 'text-amber-600 dark:text-amber-300',
+    OPORTUNIDAD: 'text-[#0052CC] dark:text-[#00D1FF]',
+    OPTIMA: 'text-emerald-600 dark:text-emerald-400',
   };
 
   const severityLabel: Record<IntelligenceInsightItem['severity'], string> = {
@@ -111,26 +111,20 @@ export function AxyCoreIntelligencePanel({
   return (
     <section
       aria-label="AXYCORE INTELLIGENCE — Centro de inteligencia operativa"
-      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B1F3A] via-[#0E284B] to-[#123B65] text-white border border-[#20C4E8]/25 shadow-[0_20px_50px_-20px_rgba(11,31,58,0.6)]"
+      className="axy-surface-ai rounded-2xl"
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-20 -right-16 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(32,196,232,0.2)_0%,rgba(22,139,255,0.06)_50%,transparent_75%)]"
-      />
-      <div className="axy-infinity-line h-[2px] w-full" />
-
-      <div className="relative p-5 sm:p-6 space-y-5">
+      <div className="p-5 sm:p-6 space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#20C4E8]">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#0052CC] dark:text-[#00D1FF]">
               <BrainCircuit className="w-4 h-4 shrink-0" />
-              <span className="tracking-wider uppercase">AXYCORE INTELLIGENCE</span>
+              <span>AxyCore Intelligence</span>
             </div>
-            <h3 className="font-display text-lg sm:text-xl font-bold text-white tracking-tight">
+            <h3 className="font-display text-base sm:text-lg font-bold text-slate-950 dark:text-white tracking-tight">
               Centro de Inteligencia Operativa y Señales Reales
             </h3>
-            <p className="text-xs text-slate-300">
-              Observaciones auditables generadas directamente desde tu cartera, originación y cobros sin datos simulados.
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Observaciones auditables generadas directamente desde tu cartera, originación y cobros.
             </p>
           </div>
 
@@ -140,7 +134,7 @@ export function AxyCoreIntelligencePanel({
                 type="button"
                 disabled={directorLoading}
                 onClick={onRunDeepDiagnosis}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#168BFF] hover:bg-[#0E7AE8] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap shadow-[0_6px_18px_-4px_rgba(22,139,255,0.55)]"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl axy-btn-primary text-xs cursor-pointer disabled:opacity-60 whitespace-nowrap"
               >
                 {directorLoading ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -154,7 +148,7 @@ export function AxyCoreIntelligencePanel({
               <button
                 type="button"
                 onClick={() => onNavigate('director')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-xs font-semibold text-white transition-colors cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6 text-xs font-semibold text-slate-800 dark:text-white transition-colors cursor-pointer whitespace-nowrap"
               >
                 <span>Abrir AxyCore Director</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -164,24 +158,24 @@ export function AxyCoreIntelligencePanel({
         </div>
 
         {directorAnalysis?.executiveSummary && (
-          <div className="p-4 rounded-xl bg-[#071529]/80 border border-[#20C4E8]/30 space-y-1.5">
-            <div className="flex items-center justify-between gap-2 text-[11px] text-[#20C4E8] font-semibold">
+          <div className="p-4 rounded-xl bg-[#0066FF]/6 dark:bg-[#040C1E]/85 border border-[#0066FF]/20 dark:border-[#00B8FF]/25 space-y-1.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[#0052CC] dark:text-[#00D1FF] font-semibold">
               <span className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Síntesis Ejecutiva IA Verificada</span>
               </span>
-              <span className="font-mono text-slate-400">
+              <span className="font-mono text-slate-500 dark:text-slate-400">
                 {directorAnalysis.generatedAtIso.slice(0, 16).replace('T', ' ')}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-100 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-100 leading-relaxed">
               {directorAnalysis.executiveSummary}
             </p>
           </div>
         )}
 
         {insights.length === 0 ? (
-          <div className="p-6 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-slate-300">
+          <div className="p-6 rounded-xl bg-slate-50 dark:bg-[#040C1E]/60 text-xs text-slate-500 dark:text-slate-400">
             No existen registros suficientes todavía para generar observaciones operativas en esta entidad.
           </div>
         ) : (
@@ -189,30 +183,30 @@ export function AxyCoreIntelligencePanel({
             {insights.map((ins) => (
               <div
                 key={ins.id}
-                className="p-4 rounded-xl bg-[#08172E]/85 border border-white/12 hover:border-[#20C4E8]/40 transition-colors flex flex-col justify-between gap-3"
+                className="p-4 rounded-xl bg-slate-50/85 dark:bg-[#040C1E]/70 flex flex-col justify-between gap-3"
               >
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2 text-[11px]">
                     <span className={`font-semibold ${severityColor[ins.severity]}`}>
                       {severityLabel[ins.severity]}
                     </span>
-                    <span className="text-slate-400 truncate">{ins.area}</span>
+                    <span className="text-slate-500 dark:text-slate-400 truncate">{ins.area}</span>
                   </div>
-                  <h4 className="font-display text-sm font-bold text-white leading-snug">
+                  <h4 className="font-display text-sm font-bold text-slate-950 dark:text-white leading-snug">
                     {ins.headline}
                   </h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">{ins.detail}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{ins.detail}</p>
                 </div>
 
-                <div className="pt-2.5 border-t border-white/10 flex items-center justify-between gap-2">
-                  <span className="font-mono tabular-nums text-[11px] text-[#20C4E8] truncate">
+                <div className="pt-2.5 border-t border-slate-200/70 dark:border-white/8 flex items-center justify-between gap-2">
+                  <span className="font-mono tabular-nums text-[11px] font-semibold text-[#0052CC] dark:text-[#00D1FF] truncate">
                     {ins.evidenceMetric}
                   </span>
                   {ins.targetSection && ins.actionLabel && (
                     <button
                       type="button"
                       onClick={() => onNavigate(ins.targetSection!)}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-white hover:text-[#20C4E8] shrink-0 cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-800 dark:text-white hover:text-[#0052CC] dark:hover:text-[#00D1FF] shrink-0 cursor-pointer"
                     >
                       <span>{ins.actionLabel}</span>
                       <ArrowRight className="w-3 h-3" />
@@ -337,12 +331,12 @@ export function HomeAlertsCenterPanel({
   };
 
   return (
-    <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/16 shadow-[0_1px_2px_rgba(11,31,58,0.04)] flex flex-col">
+    <section className="axy-surface rounded-2xl flex flex-col">
       <div className="p-5 border-b border-slate-100 dark:border-white/[0.06] space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h3 className="font-display text-base font-bold text-[#0B1F3A] dark:text-white flex items-center gap-2">
-              <Bell className="w-4 h-4 text-[#168BFF]" />
+            <h3 className="font-display text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
+              <Bell className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
               <span>Centro de Alertas Inteligentes</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -353,19 +347,19 @@ export function HomeAlertsCenterPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono tabular-nums text-xs font-semibold text-[#123B65] dark:text-[#20C4E8] mr-1">
+            <span className="font-mono tabular-nums text-xs font-semibold text-[#0052CC] dark:text-[#00D1FF] mr-1">
               {scopedAlerts.length} activa(s)
             </span>
 
             {canConfigure && onChangeViewMode && (
-              <div className="inline-flex p-0.5 rounded-lg bg-[#F4F7FB] dark:bg-[#040C1E] border border-slate-200/70 dark:border-white/[0.08]">
+              <div className="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-[#040C1E] border border-slate-200/70 dark:border-white/[0.08]">
                 <button
                   type="button"
                   onClick={() => onChangeViewMode('CARDS')}
                   className={`px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer ${
                     alertsViewMode === 'CARDS'
-                      ? 'bg-[#0B1F3A] dark:bg-[#168BFF] text-white'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-[#0B1F3A] dark:hover:text-white'
+                      ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                   title="Ver como widgets configurables"
                 >
@@ -377,8 +371,8 @@ export function HomeAlertsCenterPanel({
                   onClick={() => onChangeViewMode('FEED')}
                   className={`px-2 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer ${
                     alertsViewMode === 'FEED'
-                      ? 'bg-[#0B1F3A] dark:bg-[#168BFF] text-white'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-[#0B1F3A] dark:hover:text-white'
+                      ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                   title="Ver como flujo priorizado"
                 >
@@ -394,8 +388,8 @@ export function HomeAlertsCenterPanel({
                 onClick={onToggleEditMode}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
                   editMode
-                    ? 'bg-[#168BFF] text-white border-[#168BFF]'
-                    : 'bg-[#F4F7FB] dark:bg-[#040C1E] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-white/10 hover:border-[#168BFF]'
+                    ? 'bg-[#0066FF] text-white border-[#0066FF]'
+                    : 'bg-slate-100 dark:bg-[#040C1E] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-white/10 hover:border-[#0066FF]'
                 }`}
               >
                 {editMode ? 'Listo' : 'Organizar'}
@@ -406,7 +400,7 @@ export function HomeAlertsCenterPanel({
               <button
                 type="button"
                 onClick={onOpenConfigurator}
-                className="p-1.5 rounded-lg bg-[#F4F7FB] dark:bg-[#040C1E] text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/10 hover:border-[#168BFF] hover:text-[#168BFF] cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-100 dark:bg-[#040C1E] text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/10 hover:border-[#0066FF] hover:text-[#0066FF] cursor-pointer"
                 title="Configurar widgets del Centro de Alertas"
                 aria-label="Configurar widgets del Centro de Alertas"
               >
@@ -416,7 +410,7 @@ export function HomeAlertsCenterPanel({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E] border border-slate-200/70 dark:border-white/[0.07]">
+        <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#040C1E] border border-slate-200/70 dark:border-white/[0.07]">
           {PRIORITY_FILTERS.map((pf) => (
             <button
               key={pf.value}
@@ -424,7 +418,7 @@ export function HomeAlertsCenterPanel({
               onClick={() => setFilter(pf.value)}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 filter === pf.value
-                  ? 'bg-[#0B1F3A] dark:bg-[#168BFF] text-white shadow-2xs'
+                  ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
@@ -709,11 +703,11 @@ export function HomeRecentActivityPanel({
   onOpenAudit: () => void;
 }) {
   return (
-    <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/16 shadow-[0_1px_2px_rgba(11,31,58,0.04)] flex flex-col">
+    <section className="axy-surface rounded-2xl flex flex-col">
       <div className="p-5 border-b border-slate-100 dark:border-white/[0.06] flex items-center justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-bold text-[#0B1F3A] dark:text-white flex items-center gap-2">
-            <Clock className="w-4 h-4 text-[#20C4E8]" />
+          <h3 className="font-display text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
+            <Clock className="w-4 h-4 text-[#00B8FF]" />
             <span>Actividad Reciente</span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -724,7 +718,7 @@ export function HomeRecentActivityPanel({
           <button
             type="button"
             onClick={onOpenAudit}
-            className="text-xs font-semibold text-[#168BFF] hover:underline cursor-pointer whitespace-nowrap"
+            className="text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer whitespace-nowrap"
           >
             Ver bitácora
           </button>

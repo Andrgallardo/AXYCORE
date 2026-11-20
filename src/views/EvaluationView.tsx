@@ -365,15 +365,17 @@ export function EvaluationView() {
 
   if (evalInbox.length === 0) {
     return (
-      <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
-        <h2 className="font-display text-lg font-semibold">Bandeja de Evaluación de Créditos vacía</h2>
-        <p className="text-sm text-slate-500">
+      <div className="axy-surface p-8 rounded-2xl text-center space-y-3">
+        <h2 className="font-display text-lg font-semibold text-slate-900 dark:text-white">
+          Bandeja de Evaluación de Créditos vacía
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           No hay solicitudes pendientes de análisis en este momento.
         </p>
         <button
           type="button"
           onClick={() => setActiveSection('applications')}
-          className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-xs font-medium cursor-pointer"
+          className="axy-btn-primary px-4 py-2 text-xs cursor-pointer"
         >
           Ir a Solicitudes Recibidas
         </button>
@@ -396,8 +398,8 @@ export function EvaluationView() {
               onClick={() => setSelectedApplicationId(app.id)}
               className={`w-full text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                 activeApp?.id === app.id
-                  ? 'border-sky-700 bg-sky-50/70 dark:bg-sky-950/40 dark:border-sky-500'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                  ? 'border-[#0066FF] bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/16 dark:border-[#00B8FF]'
+                  : 'axy-surface hover:bg-slate-50/90 dark:hover:bg-[#0E1D40]/70'
               }`}
             >
               <div className="flex items-center justify-between text-xs font-mono text-slate-500">
@@ -408,7 +410,7 @@ export function EvaluationView() {
                 {app.applicantDisplayName}
               </p>
               <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 mt-1">
-                <span className="font-mono">{formatMoney(app.requestedAmount, app.currency)}</span>
+                <span className="font-mono tabular-nums">{formatMoney(app.requestedAmount, app.currency)}</span>
                 <span>{APPLICATION_STATUS_LABELS[app.status]}</span>
               </div>
             </button>
@@ -420,15 +422,15 @@ export function EvaluationView() {
       {activeApp && (
         <div className="lg:col-span-8 space-y-5">
           {/* RBAC Context Banner for Credit Evaluation Flow */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs">
+          <div className="axy-surface p-4 rounded-2xl space-y-2.5 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-semibold text-slate-900 dark:text-white">
-                <ShieldCheck className="w-4 h-4 text-sky-700 dark:text-sky-400" />
+                <ShieldCheck className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                 <span>Control RBAC de Evaluación · Rol activo: {rbac.roleLabel}</span>
               </div>
               <span className="text-slate-500 dark:text-slate-400">{rbac.workflowFocus}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/80 dark:border-[#00B8FF]/14">
               <div className="text-slate-600 dark:text-slate-300">
                 <span className="font-semibold text-slate-800 dark:text-slate-100 block">
                   Analista · {canEditAnalystSection ? 'Habilitado' : 'Solo lectura'}
@@ -463,38 +465,38 @@ export function EvaluationView() {
           )}
 
           {/* Preliminary vs Updated Scoring */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="axy-surface p-5 rounded-2xl space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="font-display text-base font-bold">{activeApp.applicantDisplayName}</h3>
+                <h3 className="font-display text-base font-bold text-slate-950 dark:text-white">{activeApp.applicantDisplayName}</h3>
                 <p className="text-xs text-slate-500 font-mono">
                   {activeApp.applicationNumber} · {activeApp.fileNumber} · {customer?.documentType} {customer?.documentNumber}
                 </p>
               </div>
-              <span className="text-xs font-medium text-sky-700 dark:text-sky-400">
+              <span className="text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF]">
                 {activeApp.prequalificationStatus ? SCORING_STATUS_LABELS[activeApp.prequalificationStatus] : '—'}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+              <div className="axy-surface-tonal p-3.5 rounded-xl">
                 <p className="font-semibold text-slate-700 dark:text-slate-300">Resultado Preliminar (Original)</p>
-                <p className="font-mono text-lg font-bold mt-1">
+                <p className="font-mono text-lg font-bold tabular-nums mt-1 text-slate-950 dark:text-white">
                   {preliminaryExec ? `${preliminaryExec.totalScore}/100 (${preliminaryExec.riskBand.label})` : '—'}
                 </p>
-                <p className="font-mono text-slate-600 dark:text-slate-400">
+                <p className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
                   Rec.: {formatMoney(preliminaryExec?.recommendedAmount ?? 0, activeApp.currency)} ·{' '}
                   {formatRatePct(preliminaryExec?.recommendedRateMonthly)}
                 </p>
               </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+              <div className="axy-surface-tonal p-3.5 rounded-xl">
                 <p className="font-semibold text-slate-700 dark:text-slate-300">
                   Resultado Actualizado ({appExecutions.length} ejecuciones)
                 </p>
-                <p className="font-mono text-lg font-bold mt-1">
+                <p className="font-mono text-lg font-bold tabular-nums mt-1 text-slate-950 dark:text-white">
                   {latestExec ? `${latestExec.totalScore}/100 (${latestExec.riskBand.label})` : '—'}
                 </p>
-                <p className="font-mono text-slate-600 dark:text-slate-400">
+                <p className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
                   Rec.: {formatMoney(latestExec?.recommendedAmount ?? 0, activeApp.currency)} ·{' '}
                   {formatRatePct(latestExec?.recommendedRateMonthly)}
                 </p>
@@ -503,11 +505,11 @@ export function EvaluationView() {
           </div>
 
           {/* Declared vs Verified Financials */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-            <h4 className="font-semibold text-sm">Depuración Financiera: Declarado vs. Verificado</h4>
+          <div className="axy-surface p-5 rounded-2xl space-y-4">
+            <h4 className="font-semibold text-sm text-slate-950 dark:text-white">Depuración Financiera: Declarado vs. Verificado</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="space-y-2 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
-                <p className="font-semibold text-slate-500">Datos Originalmente Declarados (Inmutables)</p>
+              <div className="axy-surface-tonal space-y-2 p-3.5 rounded-xl">
+                <p className="font-semibold text-slate-500 dark:text-slate-400">Datos Originalmente Declarados (Inmutables)</p>
                 <p className="font-mono">Ingreso principal: {activeApp.financialData.primaryNetIncome ?? 'N/D'}</p>
                 <p className="font-mono">Ingresos adicionales: {activeApp.financialData.additionalNetIncome ?? 0}</p>
                 <p className="font-mono">Gastos esenciales: {activeApp.financialData.essentialExpenses ?? 'N/D'}</p>
@@ -518,7 +520,7 @@ export function EvaluationView() {
               </div>
 
               <div className="space-y-2.5">
-                <p className="font-semibold text-sky-700 dark:text-sky-400">Datos Verificados por Analista</p>
+                <p className="font-semibold text-[#0066FF] dark:text-[#00D1FF]">Datos Verificados por Analista</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] text-slate-500">Ingreso Principal Verif.</label>
@@ -527,7 +529,7 @@ export function EvaluationView() {
                       disabled={!canEditAnalystSection}
                       value={verPrimaryIncome}
                       onChange={(e) => setVerPrimaryIncome(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   <div>
@@ -537,7 +539,7 @@ export function EvaluationView() {
                       disabled={!canEditAnalystSection}
                       value={verAddIncome}
                       onChange={(e) => setVerAddIncome(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   <div>
@@ -547,7 +549,7 @@ export function EvaluationView() {
                       disabled={!canEditAnalystSection}
                       value={verExpenses}
                       onChange={(e) => setVerExpenses(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   <div>
@@ -557,7 +559,7 @@ export function EvaluationView() {
                       disabled={!canEditAnalystSection}
                       value={verDebtPayments}
                       onChange={(e) => setVerDebtPayments(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   {activeApp.businessFinancialData && (
@@ -568,7 +570,7 @@ export function EvaluationView() {
                         disabled={!canEditAnalystSection}
                         value={verNetBizFlow}
                         onChange={(e) => setVerNetBizFlow(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                        className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                       />
                     </div>
                   )}
@@ -577,9 +579,9 @@ export function EvaluationView() {
             </div>
 
             {/* Verification Checkboxes: Verificación Financiera y Checklist de Depuración del Cliente */}
-            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3 text-xs">
+            <div className="pt-3 border-t border-slate-200/80 dark:border-[#00B8FF]/14 space-y-3 text-xs">
               {customer && (
-                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/70 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="axy-surface-tonal p-3.5 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <span className="text-[11px] font-semibold text-slate-500 block">Dirección declarada</span>
                     <span className="text-slate-900 dark:text-slate-100">{customer.address || 'No declarada'}</span>
@@ -612,7 +614,7 @@ export function EvaluationView() {
                   Checklist de Depuración del Cliente (Obligatorio para Enviar a Comité)
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <label className="inline-flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 cursor-pointer">
+                  <label className="axy-surface-tonal inline-flex items-center gap-2 p-2.5 rounded-xl cursor-pointer">
                     <input
                       type="checkbox"
                       disabled={!canEditAnalystSection}
@@ -621,7 +623,7 @@ export function EvaluationView() {
                     />
                     <span className="font-medium">Referencias confirmadas *</span>
                   </label>
-                  <label className="inline-flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 cursor-pointer">
+                  <label className="axy-surface-tonal inline-flex items-center gap-2 p-2.5 rounded-xl cursor-pointer">
                     <input
                       type="checkbox"
                       disabled={!canEditAnalystSection}
@@ -630,7 +632,7 @@ export function EvaluationView() {
                     />
                     <span className="font-medium">Dirección confirmada *</span>
                   </label>
-                  <label className="inline-flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 cursor-pointer">
+                  <label className="axy-surface-tonal inline-flex items-center gap-2 p-2.5 rounded-xl cursor-pointer">
                     <input
                       type="checkbox"
                       disabled={!canEditAnalystSection}
@@ -639,7 +641,7 @@ export function EvaluationView() {
                     />
                     <span className="font-medium">Teléfono confirmado *</span>
                   </label>
-                  <label className="inline-flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 cursor-pointer">
+                  <label className="axy-surface-tonal inline-flex items-center gap-2 p-2.5 rounded-xl cursor-pointer">
                     <input
                       type="checkbox"
                       disabled={!canEditAnalystSection}
@@ -683,10 +685,10 @@ export function EvaluationView() {
             </div>
 
             {appDocs.length > 0 && (
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs">
-                <p className="font-semibold">Documentos del Expediente ({appDocs.length})</p>
+              <div className="pt-2 border-t border-slate-200/80 dark:border-[#00B8FF]/14 space-y-2 text-xs">
+                <p className="font-semibold text-slate-900 dark:text-white">Documentos del Expediente ({appDocs.length})</p>
                 {appDocs.map((d) => (
-                  <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+                  <div key={d.id} className="axy-surface-tonal flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl">
                     <span className="truncate font-mono">[{d.category}] {d.fileName}</span>
                     <div className="flex items-center gap-2 shrink-0">
                       {d.fileDataUrl && (
@@ -704,7 +706,7 @@ export function EvaluationView() {
                                 }).catch(() => {});
                               }
                             }}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 cursor-pointer"
+                            className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-slate-700 dark:text-slate-200 cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                             Ver
@@ -728,7 +730,7 @@ export function EvaluationView() {
                               link.click();
                               document.body.removeChild(link);
                             }}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 text-sky-700 dark:text-sky-400 hover:bg-white dark:hover:bg-slate-800 cursor-pointer"
+                            className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-[#0066FF] dark:text-[#00D1FF] cursor-pointer"
                           >
                             <Download className="w-3 h-3" />
                             Descargar
@@ -754,7 +756,7 @@ export function EvaluationView() {
                             applicationId: d.applicationId,
                           })
                         }
-                        className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 disabled:opacity-60"
+                        className="axy-input px-2 py-1 text-slate-900 dark:text-white disabled:opacity-60"
                       >
                         <option value="RECIBIDO">Recibido</option>
                         <option value="VERIFICADO">Verificado</option>
@@ -828,9 +830,9 @@ export function EvaluationView() {
           />
 
           {/* Technical Report & Recommendation (Analyst) */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+          <div className="axy-surface p-5 rounded-2xl space-y-4 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="font-semibold text-sm">Informe Técnico y Recomendación Analítica</h4>
+              <h4 className="font-semibold text-sm text-slate-950 dark:text-white">Informe Técnico y Recomendación Analítica</h4>
               {!canEditAnalystSection && (
                 <span className="text-slate-500 dark:text-slate-400">
                   {workflowAccess?.canEditVerifiedFinancials.reason}
@@ -844,7 +846,7 @@ export function EvaluationView() {
                   disabled={!canEditAnalystSection}
                   value={recommendedDecision}
                   onChange={(e) => setRecommendedDecision(e.target.value as CreditEvaluationRecord['recommendedDecision'])}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                  className="axy-input w-full px-2.5 py-1.5 text-slate-900 dark:text-white disabled:opacity-60"
                 >
                   <option value="APROBAR">Aprobar</option>
                   <option value="MODIFICAR">Modificar condiciones</option>
@@ -859,7 +861,7 @@ export function EvaluationView() {
                   disabled={!canEditAnalystSection}
                   value={recAmount}
                   onChange={(e) => setRecAmount(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                  className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                 />
               </div>
               <div>
@@ -870,7 +872,7 @@ export function EvaluationView() {
                   disabled={!canEditAnalystSection}
                   value={recRatePct}
                   onChange={(e) => setRecRatePct(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                  className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                 />
               </div>
               <div>
@@ -880,7 +882,7 @@ export function EvaluationView() {
                   disabled={!canEditAnalystSection}
                   value={recTerm}
                   onChange={(e) => setRecTerm(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                  className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                 />
               </div>
             </div>
@@ -893,7 +895,7 @@ export function EvaluationView() {
                   disabled={!canEditAnalystSection}
                   value={findings}
                   onChange={(e) => setFindings(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                  className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white disabled:opacity-60"
                 />
               </div>
               <div>
@@ -903,7 +905,7 @@ export function EvaluationView() {
                   disabled={!canEditAnalystSection}
                   value={justification}
                   onChange={(e) => setJustification(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                  className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white disabled:opacity-60"
                 />
               </div>
             </div>
@@ -916,7 +918,7 @@ export function EvaluationView() {
                 value={technicalReport}
                 onChange={(e) => setTechnicalReport(e.target.value)}
                 placeholder="Resumen ejecutivo de capacidad de pago, estabilidad laboral/comercial y mitigantes..."
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white disabled:opacity-60"
               />
             </div>
 
@@ -925,7 +927,7 @@ export function EvaluationView() {
                 type="button"
                 disabled={saving || !canEditAnalystSection}
                 onClick={() => handleSaveEvaluation('RECALC_ONLY')}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 font-medium cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Guardar y Recalcular Motor V2
@@ -936,7 +938,7 @@ export function EvaluationView() {
                   type="button"
                   disabled={saving || !canEditAnalystSection}
                   onClick={() => handleSaveEvaluation('RETURN')}
-                  className="px-3 py-2 rounded-lg border border-amber-300 text-amber-800 dark:border-amber-800 dark:text-amber-300 font-medium cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                  className="px-3 py-2 rounded-xl border border-amber-300 text-amber-800 dark:border-amber-800 dark:text-amber-300 font-medium cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   Devolver por Información
                 </button>
@@ -944,7 +946,7 @@ export function EvaluationView() {
                   type="button"
                   disabled={saving || !canEditAnalystSection}
                   onClick={() => handleSaveEvaluation('TO_COMMITTEE')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg axy-brand-gradient text-white font-semibold cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                  className="axy-btn-primary inline-flex items-center gap-1.5 px-4 py-2 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   <Send className="w-3.5 h-3.5" />
                   Enviar a Comité
@@ -954,10 +956,10 @@ export function EvaluationView() {
           </div>
 
           {/* Independent Risk Officer Opinion (Oficial de Riesgo) */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+          <div className="axy-surface p-5 rounded-2xl space-y-4 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h4 className="font-semibold text-sm">Dictamen Independiente de Riesgo (Segunda Línea)</h4>
+                <h4 className="font-semibold text-sm text-slate-950 dark:text-white">Dictamen Independiente de Riesgo (Segunda Línea)</h4>
                 <p className="text-slate-500 dark:text-slate-400">
                   {existingEval?.riskOfficerName
                     ? `Última revisión por ${existingEval.riskOfficerName} · Estado: ${existingEval.riskOpinionStatus ?? 'PENDIENTE'}`
@@ -978,7 +980,7 @@ export function EvaluationView() {
                   disabled={!canIssueRiskOpinion}
                   value={riskOpinionStatus}
                   onChange={(e) => setRiskOpinionStatus(e.target.value as RiskOpinionStatus)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                  className="axy-input w-full px-2.5 py-1.5 text-slate-900 dark:text-white disabled:opacity-60"
                 >
                   <option value="PENDIENTE">Pendiente de revisión</option>
                   <option value="CONFORME">Conforme con el riesgo</option>
@@ -1007,7 +1009,7 @@ export function EvaluationView() {
                 value={riskOpinionNotes}
                 onChange={(e) => setRiskOpinionNotes(e.target.value)}
                 placeholder="Análisis independiente de riesgo cambiario, concentración, garantías o condiciones sugeridas para el Comité..."
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white disabled:opacity-60"
               />
             </div>
 
@@ -1016,7 +1018,7 @@ export function EvaluationView() {
                 type="button"
                 disabled={saving || !canIssueRiskOpinion}
                 onClick={() => handleSaveRiskOpinion('SAVE_ONLY')}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 font-medium cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Registrar Dictamen de Riesgo
@@ -1027,7 +1029,7 @@ export function EvaluationView() {
                   type="button"
                   disabled={saving || !canIssueRiskOpinion}
                   onClick={() => handleSaveRiskOpinion('RETURN')}
-                  className="px-3 py-2 rounded-lg border border-rose-300 text-rose-800 dark:border-rose-800 dark:text-rose-300 font-medium cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                  className="px-3 py-2 rounded-xl border border-rose-300 text-rose-800 dark:border-rose-800 dark:text-rose-300 font-medium cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   Devolver por Riesgo
                 </button>
@@ -1035,7 +1037,7 @@ export function EvaluationView() {
                   type="button"
                   disabled={saving || !canIssueRiskOpinion}
                   onClick={() => handleSaveRiskOpinion('ESCALATE_COMMITTEE')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                  className="axy-btn-primary inline-flex items-center gap-1.5 px-4 py-2 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   <Send className="w-3.5 h-3.5" />
                   Avalar y Escalar a Comité

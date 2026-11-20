@@ -416,7 +416,7 @@ export function DecisionEngineView() {
                                 [app.id]: { ...draft, amount: e.target.value },
                               }))
                             }
-                            className="w-full px-3 py-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-slate-50 dark:bg-slate-900 font-mono font-semibold"
+                            className="axy-input w-full px-3 py-2 border-amber-300 dark:border-amber-700 font-mono font-semibold text-slate-900 dark:text-white"
                           />
                         </div>
                         <div className="sm:col-span-5">
@@ -433,7 +433,7 @@ export function DecisionEngineView() {
                               }))
                             }
                             placeholder="Ej. Autorizo re-evaluar por monto ajustado a capacidad..."
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                            className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                           />
                         </div>
                         <div className="sm:col-span-4 flex justify-end">
@@ -527,10 +527,10 @@ export function DecisionEngineView() {
       </div>
 
       {/* Interactive Backend Simulator */}
-      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5">
-        <div className="flex items-center justify-between gap-4">
+      <div className="axy-surface p-6 rounded-2xl space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <Cpu className="w-5 h-5 text-sky-700 dark:text-sky-400" />
+            <Cpu className="w-5 h-5 text-[#0066FF] dark:text-[#00D1FF]" />
             <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
               Laboratorio Sandbox — Motor de Decisiones Crediticias V2 (Backend API)
             </h2>
@@ -539,7 +539,7 @@ export function DecisionEngineView() {
             type="button"
             onClick={handleRunSimulation}
             disabled={running}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-xs font-medium cursor-pointer"
+            className="axy-btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs cursor-pointer"
           >
             <Play className="w-3.5 h-3.5" />
             {running ? 'Calculando...' : 'Simular Scoring V2'}
@@ -552,7 +552,7 @@ export function DecisionEngineView() {
             <select
               value={simProduct}
               onChange={(e) => setSimProduct(e.target.value as ProductCode)}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input w-full px-2.5 py-1.5 text-slate-900 dark:text-white"
             >
               <option value="PERSONAL_DOP">Personal DOP</option>
               <option value="EMPRESARIAL_DOP">Empresarial DOP</option>
@@ -566,7 +566,7 @@ export function DecisionEngineView() {
               type="number"
               value={simAmount}
               onChange={(e) => setSimAmount(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+              className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -575,7 +575,7 @@ export function DecisionEngineView() {
               type="number"
               value={simTerm}
               onChange={(e) => setSimTerm(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+              className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -584,7 +584,7 @@ export function DecisionEngineView() {
               type="number"
               value={simIncome}
               onChange={(e) => setSimIncome(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+              className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -593,7 +593,7 @@ export function DecisionEngineView() {
               type="number"
               value={simExpenses}
               onChange={(e) => setSimExpenses(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+              className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -602,7 +602,7 @@ export function DecisionEngineView() {
               type="number"
               value={simDebtPay}
               onChange={(e) => setSimDebtPay(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+              className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -611,13 +611,13 @@ export function DecisionEngineView() {
               type="number"
               value={simEmpMonths}
               onChange={(e) => setSimEmpMonths(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+              className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
             />
           </div>
         </div>
 
         {simResult && (
-          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="space-y-4 pt-4 border-t border-slate-200/80 dark:border-[#00B8FF]/14">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-xs">
               <div>
                 <p className="text-slate-500">Score Total</p>
@@ -629,7 +629,7 @@ export function DecisionEngineView() {
               </div>
               <div>
                 <p className="text-slate-500">Estado Motor</p>
-                <p className="text-sm font-semibold text-sky-700 dark:text-sky-400 mt-1">
+                <p className="text-sm font-semibold text-[#0066FF] dark:text-[#00D1FF] mt-1">
                   {SCORING_STATUS_LABELS[simResult.status]}
                 </p>
               </div>
@@ -649,7 +649,7 @@ export function DecisionEngineView() {
             </div>
 
             {simResult.alerts.length > 0 && (
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-700 dark:text-slate-300">
+              <div className="axy-surface-tonal p-3 rounded-xl text-xs text-slate-700 dark:text-slate-300">
                 {simResult.alerts.map((a, idx) => (
                   <p key={idx}>• {a}</p>
                 ))}
@@ -660,8 +660,8 @@ export function DecisionEngineView() {
       </div>
 
       {/* Historical Scoring Executions */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
+      <div className="axy-surface rounded-2xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/14">
           <h3 className="font-display text-sm font-semibold text-slate-900 dark:text-white">
             Historial Inmutable de Ejecuciones ({scoringExecutions.length})
           </h3>
@@ -669,19 +669,19 @@ export function DecisionEngineView() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-                <th className="py-2.5 px-3">Ejecución</th>
-                <th className="py-2.5 px-3">Disparador</th>
-                <th className="py-2.5 px-3">Política</th>
-                <th className="py-2.5 px-3 text-right">Score</th>
-                <th className="py-2.5 px-3">Banda</th>
-                <th className="py-2.5 px-3">Estado</th>
-                <th className="py-2.5 px-3 text-right">Monto Rec.</th>
-                <th className="py-2.5 px-3">Fecha</th>
-                <th className="py-2.5 px-3 text-right">Expediente</th>
+              <tr className="axy-table-head text-slate-600 dark:text-slate-300">
+                <th className="py-2.5 px-3 font-semibold">Ejecución</th>
+                <th className="py-2.5 px-3 font-semibold">Disparador</th>
+                <th className="py-2.5 px-3 font-semibold">Política</th>
+                <th className="py-2.5 px-3 font-semibold text-right">Score</th>
+                <th className="py-2.5 px-3 font-semibold">Banda</th>
+                <th className="py-2.5 px-3 font-semibold">Estado</th>
+                <th className="py-2.5 px-3 font-semibold text-right">Monto Rec.</th>
+                <th className="py-2.5 px-3 font-semibold">Fecha</th>
+                <th className="py-2.5 px-3 font-semibold text-right">Expediente</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-200/80 dark:divide-[#00B8FF]/12">
               {scoringExecutions.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-slate-500">
@@ -690,7 +690,7 @@ export function DecisionEngineView() {
                 </tr>
               ) : (
                 scoringExecutions.map((ex) => (
-                  <tr key={ex.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                  <tr key={ex.id} className="axy-table-row">
                     <td className="py-2 px-3 font-mono">{ex.id.slice(0, 18)}</td>
                     <td className="py-2 px-3">{ex.executionTrigger}</td>
                     <td className="py-2 px-3 font-mono">{ex.policyVersion}</td>
@@ -710,7 +710,7 @@ export function DecisionEngineView() {
                           setSelectedApplicationId(ex.applicationId);
                           setActiveSection('applications');
                         }}
-                        className="text-sky-700 dark:text-sky-400 hover:underline font-medium cursor-pointer"
+                        className="text-[#0066FF] dark:text-[#00D1FF] hover:underline font-medium cursor-pointer"
                       >
                         Abrir ficha
                       </button>

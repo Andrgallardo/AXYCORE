@@ -221,20 +221,20 @@ export function DocumentsView() {
       {canUploadDocs && (
       <form
         onSubmit={handleUpload}
-        className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs"
+        className="axy-surface p-5 rounded-2xl space-y-4 text-xs"
       >
-        <h3 className="font-display text-sm font-bold flex items-center gap-2">
-          <Upload className="w-4 h-4 text-sky-600" />
+        <h3 className="font-display text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+          <Upload className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
           Cargar Nuevo Documento a Expediente
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div>
-            <label className="block mb-1 text-slate-500">Solicitud *</label>
+            <label className="block mb-1 text-slate-500 dark:text-slate-400">Solicitud *</label>
             <select
               value={uploadAppId || applications[0]?.id || ''}
               onChange={(e) => setUploadAppId(e.target.value)}
-              className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
             >
               {applications.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -244,11 +244,11 @@ export function DocumentsView() {
             </select>
           </div>
           <div>
-            <label className="block mb-1 text-slate-500">Categoría Documental</label>
+            <label className="block mb-1 text-slate-500 dark:text-slate-400">Categoría Documental</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -258,20 +258,20 @@ export function DocumentsView() {
             </select>
           </div>
           <div>
-            <label className="block mb-1 text-slate-500">Archivo (PDF / PNG / JPG ≤ 480 KB)</label>
+            <label className="block mb-1 text-slate-500 dark:text-slate-400">Archivo (PDF / PNG / JPG ≤ 480 KB)</label>
             <input
               type="file"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input w-full px-2 py-1.5 text-slate-900 dark:text-white"
             />
           </div>
           <div>
-            <label className="block mb-1 text-slate-500">Notas</label>
+            <label className="block mb-1 text-slate-500 dark:text-slate-400">Notas</label>
             <input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ej. Cédula vigente ambos lados"
-              className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
             />
           </div>
         </div>
@@ -280,7 +280,7 @@ export function DocumentsView() {
           <button
             type="submit"
             disabled={uploading || applications.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+            className="axy-btn-primary inline-flex items-center gap-2 px-4 py-2 cursor-pointer disabled:opacity-50"
           >
             <FileCheck2 className="w-3.5 h-3.5" />
             {uploading ? 'Subiendo...' : 'Adjuntar al Expediente'}
@@ -290,17 +290,17 @@ export function DocumentsView() {
       )}
 
       {/* Filters & Document Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <span className="font-display text-sm font-semibold flex items-center gap-2">
-            <FolderOpen className="w-4 h-4 text-sky-600" />
+      <div className="axy-surface rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <span className="font-display text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+            <FolderOpen className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
             Documentos Registrados ({filteredDocs.length})
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={filterAppId}
               onChange={(e) => setFilterAppId(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
             >
               <option value="ALL">Todas las solicitudes</option>
               {applications.map((a) => (
@@ -312,7 +312,7 @@ export function DocumentsView() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
             >
               <option value="ALL">Todos los estados</option>
               <option value="PENDIENTE">PENDIENTE</option>
@@ -325,17 +325,17 @@ export function DocumentsView() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
-                <th className="py-2.5 px-4">Archivo</th>
-                <th className="py-2.5 px-4">Expediente</th>
-                <th className="py-2.5 px-4">Categoría</th>
-                <th className="py-2.5 px-4">Cargado por</th>
-                <th className="py-2.5 px-4">Estado Revisión</th>
-                <th className="py-2.5 px-4 text-right">Acciones</th>
+            <thead className="axy-table-head">
+              <tr className="text-slate-500 dark:text-slate-400">
+                <th className="py-2.5 px-4 font-semibold">Archivo</th>
+                <th className="py-2.5 px-4 font-semibold">Expediente</th>
+                <th className="py-2.5 px-4 font-semibold">Categoría</th>
+                <th className="py-2.5 px-4 font-semibold">Cargado por</th>
+                <th className="py-2.5 px-4 font-semibold">Estado Revisión</th>
+                <th className="py-2.5 px-4 text-right font-semibold">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody>
               {filteredDocs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-500">
@@ -344,16 +344,16 @@ export function DocumentsView() {
                 </tr>
               ) : (
                 filteredDocs.map((d) => (
-                  <tr key={d.id}>
+                  <tr key={d.id} className="axy-table-row">
                     <td className="py-2.5 px-4">
                       <p className="font-semibold text-slate-900 dark:text-white">{d.fileName}</p>
-                      <p className="text-[11px] text-slate-500">{d.notes || 'Sin notas'}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">{d.notes || 'Sin notas'}</p>
                     </td>
                     <td className="py-2.5 px-4">
                       <button
                         type="button"
                         onClick={() => setSelectedApplicationId(d.applicationId)}
-                        className="text-sky-700 dark:text-sky-400 hover:underline cursor-pointer text-left"
+                        className="text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer text-left font-medium"
                       >
                         {appMap.get(d.applicationId) || d.applicationId}
                       </button>
@@ -369,7 +369,7 @@ export function DocumentsView() {
                           <button
                             type="button"
                             onClick={() => handlePreviewConfidentialDoc(d)}
-                            className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-200 hover:text-sky-700 dark:hover:text-sky-400 cursor-pointer"
+                            className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-200 hover:text-[#0066FF] dark:hover:text-[#00D1FF] cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>Ver</span>
@@ -377,7 +377,7 @@ export function DocumentsView() {
                           <button
                             type="button"
                             onClick={() => handleDownloadConfidentialDoc(d)}
-                            className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
+                            className="inline-flex items-center gap-1 text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>Descargar</span>
@@ -393,7 +393,7 @@ export function DocumentsView() {
                               e.target.value as ApplicationDocumentRecord['reviewStatus']
                             )
                           }
-                          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                          className="axy-input px-2 py-1 text-slate-900 dark:text-white"
                         >
                           <option value="PENDIENTE">PENDIENTE</option>
                           <option value="RECIBIDO">RECIBIDO</option>

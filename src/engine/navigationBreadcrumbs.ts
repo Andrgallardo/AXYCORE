@@ -40,7 +40,7 @@ const GROUP_LABELS: Record<NavigationGroupKey, string> = {
   contact_center: 'Contact Center',
   operaciones: 'Operaciones Generales',
   reportes: 'Reportes',
-  inteligencia: 'Inteligencia',
+  inteligencia: 'Inteligencia y Control Institucional',
   administracion: 'Administración',
 };
 
@@ -68,7 +68,7 @@ const GROUP_DEFAULT_LANDING_ORDER: Record<NavigationGroupKey, NavSectionId[]> = 
     'register_investor',
   ],
   reportes: ['reports', 'cobranza_reports'],
-  inteligencia: ['director', 'intelligence_dashboard', 'cobranza_sentinel', 'cobranza_anticipate', 'intelligence_altera', 'system_sitemap'],
+  inteligencia: ['director', 'intelligence_dashboard', 'cobranza_sentinel', 'cobranza_anticipate', 'intelligence_altera', 'regula', 'system_sitemap'],
   administracion: [
     'admin_users',
     'policies',
@@ -325,6 +325,7 @@ export const SECTION_HIERARCHY: Record<NavSectionId, SectionHierarchyNode> = {
   cobranza_sentinel: { sectionId: 'cobranza_sentinel', label: 'Centinela', groupKey: 'inteligencia' },
   cobranza_anticipate: { sectionId: 'cobranza_anticipate', label: 'Anticípate', groupKey: 'inteligencia' },
   intelligence_altera: { sectionId: 'intelligence_altera', label: 'Altera', groupKey: 'inteligencia' },
+  regula: { sectionId: 'regula', label: 'REGULA', groupKey: 'inteligencia' },
   intelligence_impulsa: { sectionId: 'intelligence_impulsa', label: 'Impulsa', groupKey: 'inteligencia' },
   system_sitemap: { sectionId: 'system_sitemap', label: 'Mapa del Sistema', groupKey: 'inteligencia' },
 

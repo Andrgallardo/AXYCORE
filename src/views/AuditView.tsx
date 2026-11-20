@@ -146,7 +146,7 @@ export function AuditView() {
         <div className="space-y-1.5">
           <NavigationBreadcrumbs variant="inline" showSiblingSwitcher />
           <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-sky-600" />
+            <ShieldAlert className="w-5 h-5 text-[#0066FF] dark:text-[#00D1FF]" />
             Bitácora de Eventos Críticos y Auditoría Inmutable
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -155,14 +155,14 @@ export function AuditView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5 text-xs">
+          <div className="inline-flex rounded-xl axy-surface p-0.5 text-xs">
             <button
               type="button"
               onClick={() => setViewMode('CRITICAL')}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
                 viewMode === 'CRITICAL'
-                  ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  ? 'axy-brand-gradient text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-[var(--axy-surface-muted)]'
               }`}
             >
               Bitácora Crítica ({summary.totalCritical})
@@ -170,10 +170,10 @@ export function AuditView() {
             <button
               type="button"
               onClick={() => setViewMode('ALL')}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
                 viewMode === 'ALL'
-                  ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  ? 'axy-brand-gradient text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-[var(--axy-surface-muted)]'
               }`}
             >
               Registro Completo ({summary.totalLogs})
@@ -183,7 +183,7 @@ export function AuditView() {
           <button
             type="button"
             onClick={handleExportCsv}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 axy-btn-secondary text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             Exportar Bitácora CSV
@@ -193,10 +193,10 @@ export function AuditView() {
 
       {/* Compliance KPI Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <div className="p-4 rounded-2xl axy-surface">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Eventos Críticos Registrados</span>
-            <ShieldCheck className="w-4 h-4 text-sky-600" />
+            <ShieldCheck className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
           </div>
           <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1.5">
             {summary.totalCritical}
@@ -206,7 +206,7 @@ export function AuditView() {
           </p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <div className="p-4 rounded-2xl axy-surface">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Cambios de Estado</span>
             <Activity className="w-4 h-4 text-amber-600" />
@@ -219,7 +219,7 @@ export function AuditView() {
           </p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <div className="p-4 rounded-2xl axy-surface">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Aprobaciones de Comité</span>
             <Gavel className="w-4 h-4 text-emerald-600" />
@@ -232,7 +232,7 @@ export function AuditView() {
           </p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <div className="p-4 rounded-2xl axy-surface">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Accesos a Docs. Confidenciales</span>
             <FileLock2 className="w-4 h-4 text-rose-600" />
@@ -246,8 +246,8 @@ export function AuditView() {
         </div>
       </div>
 
-      <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-        <Lock className="w-4 h-4 text-sky-600 shrink-0" />
+      <div className="p-3.5 rounded-xl axy-surface-tonal flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+        <Lock className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF] shrink-0" />
         <span>
           <strong>Cumplimiento Normativo &amp; Integridad Append-Only:</strong> Cada cambio de estado crediticio, decisión de Comité y consulta/descarga/inspección OCR de documentos confidenciales se registra automáticamente en <code className="font-mono">audit_logs</code> con sello de tiempo del servidor y bloqueo total de edición o borrado.
         </span>
@@ -255,7 +255,7 @@ export function AuditView() {
 
       {/* Critical Category Navigation Bar */}
       {viewMode === 'CRITICAL' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--axy-border)] pb-3 text-xs">
           <div className="flex flex-wrap items-center gap-1.5">
             {[
               { id: 'ALL_CRITICAL', label: 'Todos los Críticos', count: summary.totalCritical },
@@ -278,8 +278,8 @@ export function AuditView() {
                 onClick={() => setCategoryFilter(tab.id as CriticalCategoryFilter)}
                 className={`px-3 py-1.5 rounded-lg border font-medium transition-colors cursor-pointer tabular-nums ${
                   categoryFilter === tab.id
-                    ? 'border-sky-700 bg-sky-50 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    ? 'border-[#0066FF] dark:border-[#00B8FF] bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0052CC] dark:text-[#00D1FF]'
+                    : 'axy-surface text-slate-600 dark:text-slate-300 hover:bg-[var(--axy-surface-muted)]'
                 }`}
               >
                 {tab.label} ({tab.count})
@@ -290,7 +290,7 @@ export function AuditView() {
           <select
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value as SeverityFilter)}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+            className="px-3 py-1.5 axy-input text-xs text-slate-900 dark:text-white"
           >
             <option value="ALL">Todas las severidades</option>
             <option value="CRITICO">Solo Severidad CRÍTICO</option>
@@ -307,13 +307,13 @@ export function AuditView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por acción, documento confidencial, ID de transacción, usuario o justificación..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+            className="w-full pl-9 pr-3 py-2 axy-input text-slate-900 dark:text-white"
           />
         </div>
         <select
           value={eventFilter}
           onChange={(e) => setEventFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+          className="px-3 py-2 axy-input text-slate-900 dark:text-white"
         >
           <option value="ALL">Todos los códigos de evento</option>
           {eventTypes.map((t) => (
@@ -325,7 +325,7 @@ export function AuditView() {
         <select
           value={entityFilter}
           onChange={(e) => setEntityFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+          className="px-3 py-2 axy-input text-slate-900 dark:text-white"
         >
           <option value="ALL">Todas las entidades</option>
           {entityTypes.map((e) => (
@@ -337,11 +337,11 @@ export function AuditView() {
       </div>
 
       {/* Audit Records Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+      <div className="axy-surface rounded-2xl overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800 z-10">
-              <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+            <thead className="sticky top-0 axy-table-head z-10">
+              <tr className="text-slate-500 dark:text-slate-400">
                 <th className="py-2.5 px-3">Fecha / Hora</th>
                 <th className="py-2.5 px-3">Clasificación Normativa</th>
                 <th className="py-2.5 px-3">Evento / Entidad</th>
@@ -350,7 +350,7 @@ export function AuditView() {
                 <th className="py-2.5 px-3">Transacción</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody>
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-500">
@@ -367,7 +367,7 @@ export function AuditView() {
                       : 'text-slate-500 dark:text-slate-400 font-medium';
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
+                    <tr key={log.id} className="axy-table-row">
                       <td className="py-2.5 px-3 font-mono tabular-nums whitespace-nowrap text-slate-600 dark:text-slate-300">
                         {formatTimestamp(log.timestamp)}
                       </td>
@@ -383,7 +383,7 @@ export function AuditView() {
                         </p>
                       </td>
                       <td className="py-2.5 px-3 font-mono">
-                        <p className="font-semibold text-sky-700 dark:text-sky-400">
+                        <p className="font-semibold text-[#0066FF] dark:text-[#00D1FF]">
                           {log.eventType}
                         </p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400">

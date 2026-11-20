@@ -584,7 +584,7 @@ export function LoginGate() {
               <button
                 type="button"
                 onClick={() => selectPortal('axycore_admin')}
-                className="group relative text-left overflow-hidden rounded-2xl bg-[#07122B]/92 backdrop-blur-2xl border border-[#00B8FF]/20 hover:border-[#E2B35E]/60 p-6 sm:p-7 flex flex-col justify-between gap-6 transition-all shadow-[0_24px_60px_-15px_rgba(0,0,0,0.75)] hover:-translate-y-0.5 cursor-pointer"
+                className="group relative text-left overflow-hidden rounded-2xl bg-[#07122B]/94 backdrop-blur-xl border border-white/12 hover:border-[#E2B35E]/60 p-6 sm:p-7 flex flex-col justify-between gap-6 transition-all duration-150 shadow-xl hover:-translate-y-0.5 cursor-pointer"
               >
                 <div
                   aria-hidden="true"
@@ -592,8 +592,8 @@ export function LoginGate() {
                 />
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-[#E2B35E]/15 border border-[#E2B35E]/35 text-[#E2B35E] flex items-center justify-center">
-                      <ShieldCheck className="w-6 h-6" />
+                    <div className="h-11 w-11 rounded-xl bg-[#E2B35E]/15 border border-[#E2B35E]/30 text-[#E2B35E] flex items-center justify-center">
+                      <ShieldCheck className="w-5 h-5" />
                     </div>
                     <span className="text-[11px] font-mono font-semibold text-[#E2B35E]">
                       SuperAdmin SaaS
@@ -622,13 +622,13 @@ export function LoginGate() {
               <button
                 type="button"
                 onClick={() => selectPortal('corporate')}
-                className="group relative text-left overflow-hidden rounded-2xl bg-[#07122B]/92 backdrop-blur-2xl border border-[#00B8FF]/30 hover:border-[#00D1FF] p-6 sm:p-7 flex flex-col justify-between gap-6 transition-all shadow-[0_24px_60px_-15px_rgba(0,0,0,0.8),0_0_32px_-12px_rgba(0,102,255,0.3)] hover:-translate-y-0.5 cursor-pointer"
+                className="group relative text-left overflow-hidden rounded-2xl bg-[#07122B]/94 backdrop-blur-xl border border-[#00B8FF]/28 hover:border-[#00D1FF] p-6 sm:p-7 flex flex-col justify-between gap-6 transition-all duration-150 shadow-xl hover:-translate-y-0.5 cursor-pointer"
               >
-                <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-infinity-line" />
+                <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-ai-line" />
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-[#0066FF]/20 border border-[#00B8FF]/40 text-[#00D1FF] flex items-center justify-center">
-                      <Building2 className="w-6 h-6" />
+                    <div className="h-11 w-11 rounded-xl bg-[#0066FF]/20 border border-[#00B8FF]/35 text-[#00D1FF] flex items-center justify-center">
+                      <Building2 className="w-5 h-5" />
                     </div>
                     <span className="text-[11px] font-mono font-semibold text-[#00D1FF]">
                       Código de Empresa
@@ -657,7 +657,7 @@ export function LoginGate() {
               <button
                 type="button"
                 onClick={() => selectPortal('client')}
-                className="group relative text-left overflow-hidden rounded-2xl bg-[#07122B]/92 backdrop-blur-2xl border border-[#00B8FF]/20 hover:border-emerald-400/60 p-6 sm:p-7 flex flex-col justify-between gap-6 transition-all shadow-[0_24px_60px_-15px_rgba(0,0,0,0.75)] hover:-translate-y-0.5 cursor-pointer"
+                className="group relative text-left overflow-hidden rounded-2xl bg-[#07122B]/94 backdrop-blur-xl border border-white/12 hover:border-emerald-400/60 p-6 sm:p-7 flex flex-col justify-between gap-6 transition-all duration-150 shadow-xl hover:-translate-y-0.5 cursor-pointer"
               >
                 <div
                   aria-hidden="true"
@@ -665,8 +665,8 @@ export function LoginGate() {
                 />
                 <div className="space-y-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-emerald-400 flex items-center justify-center">
-                      <Wallet className="w-6 h-6" />
+                    <div className="h-11 w-11 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-400 flex items-center justify-center">
+                      <Wallet className="w-5 h-5" />
                     </div>
                     <span className="text-[11px] font-mono font-semibold text-emerald-400">
                       Autogestión 24/7

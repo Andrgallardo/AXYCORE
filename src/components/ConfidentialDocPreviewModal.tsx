@@ -24,11 +24,12 @@ export function ConfidentialDocPreviewModal({
     mime === 'application/pdf' || document.fileDataUrl.startsWith('data:application/pdf');
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+    <div className="fixed inset-0 z-50 bg-[#030816]/75 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl max-h-[90vh] axy-surface rounded-2xl flex flex-col overflow-hidden axy-panel-in">
+        <div className="axy-infinity-line h-0.5 w-full shrink-0" />
+        <div className="px-5 py-3.5 border-b border-[var(--axy-border)] flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-sky-700 dark:text-sky-400 font-medium">
+            <div className="flex items-center gap-2 text-xs text-[#0066FF] dark:text-[#00D1FF] font-medium">
               <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>Acceso auditado a documento confidencial (Ley 172-13)</span>
             </div>
@@ -45,7 +46,7 @@ export function ConfidentialDocPreviewModal({
             <button
               type="button"
               onClick={() => onDownload(document)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 text-white text-xs font-medium cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 axy-btn-primary text-xs cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               Descargar
@@ -53,7 +54,7 @@ export function ConfidentialDocPreviewModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              className="p-1.5 axy-btn-secondary text-slate-600 dark:text-slate-300 cursor-pointer"
               aria-label="Cerrar vista previa"
             >
               <X className="w-4 h-4" />
@@ -61,18 +62,18 @@ export function ConfidentialDocPreviewModal({
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-950 p-4 flex items-center justify-center min-h-[360px]">
+        <div className="flex-1 overflow-auto axy-surface-tonal border-0 p-4 flex items-center justify-center min-h-[360px]">
           {isImage ? (
             <img
               src={document.fileDataUrl}
               alt={document.fileName}
-              className="max-w-full max-h-[70vh] object-contain rounded-lg border border-slate-200 dark:border-slate-800 bg-white"
+              className="max-w-full max-h-[70vh] object-contain rounded-xl border border-[var(--axy-border)] bg-white"
             />
           ) : isPdf ? (
             <object
               data={document.fileDataUrl}
               type="application/pdf"
-              className="w-full h-[70vh] rounded-lg border border-slate-200 dark:border-slate-800 bg-white"
+              className="w-full h-[70vh] rounded-xl border border-[var(--axy-border)] bg-white"
             >
               <div className="p-6 text-center text-xs text-slate-500 space-y-2">
                 <Eye className="w-6 h-6 mx-auto text-slate-400" />
@@ -80,7 +81,7 @@ export function ConfidentialDocPreviewModal({
                 <button
                   type="button"
                   onClick={() => onDownload(document)}
-                  className="px-3 py-1.5 rounded-lg bg-sky-700 text-white font-medium cursor-pointer"
+                  className="px-3 py-1.5 axy-btn-primary text-xs cursor-pointer"
                 >
                   Descargar archivo PDF
                 </button>
@@ -94,7 +95,7 @@ export function ConfidentialDocPreviewModal({
               <button
                 type="button"
                 onClick={() => onDownload(document)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-700 text-white font-medium cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 axy-btn-primary text-xs cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 Descargar copia auditada

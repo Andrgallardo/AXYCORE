@@ -245,14 +245,14 @@ export function CommitteeView() {
       </div>
 
       {committeeInbox.length === 0 ? (
-        <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+        <div className="axy-surface p-8 rounded-2xl text-center space-y-3">
           <p className="text-sm text-slate-600 dark:text-slate-400">
             No hay expedientes pendientes de decisión en Comité.
           </p>
           <button
             type="button"
             onClick={() => setActiveSection('evaluation')}
-            className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-xs font-medium cursor-pointer"
+            className="axy-btn-primary px-4 py-2 text-xs cursor-pointer"
           >
             Ir a Evaluación de Créditos
           </button>
@@ -265,17 +265,17 @@ export function CommitteeView() {
                 key={app.id}
                 type="button"
                 onClick={() => setSelectedApplicationId(app.id)}
-                className={`w-full text-left p-4 rounded-xl border cursor-pointer ${
+                className={`w-full text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                   activeApp?.id === app.id
-                    ? 'border-sky-700 bg-sky-50/70 dark:bg-sky-950/40 dark:border-sky-500'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                    ? 'border-[#0066FF] bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/16 dark:border-[#00B8FF]'
+                    : 'axy-surface hover:bg-slate-50/90 dark:hover:bg-[#0E1D40]/70'
                 }`}
               >
                 <div className="flex justify-between text-xs font-mono text-slate-500">
                   <span>{app.applicationNumber}</span>
                   <span>Score {app.latestScore ?? '—'}</span>
                 </div>
-                <p className="font-semibold text-sm mt-1 truncate">{app.applicantDisplayName}</p>
+                <p className="font-semibold text-sm text-slate-950 dark:text-white mt-1 truncate">{app.applicantDisplayName}</p>
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
                   <span>{PRODUCT_LABELS[app.productCode]}</span>
                   <span>{APPLICATION_STATUS_LABELS[app.status]}</span>
@@ -308,7 +308,7 @@ export function CommitteeView() {
               )}
 
               {/* Panel de Votación Colegiada 2 de 3 */}
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+              <div className="axy-surface p-5 rounded-2xl space-y-4 text-xs">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
@@ -334,7 +334,7 @@ export function CommitteeView() {
                       Rechazos: {voteEval.rejectCount}/2 · Devoluciones: {voteEval.returnCount}/2
                     </span>
                   </div>
-                  <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-[#040C1E] overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-[#0066FF] to-[#00B8FF] transition-all"
                       style={{
@@ -351,7 +351,7 @@ export function CommitteeView() {
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
+                  <div className="axy-surface-tonal p-3.5 rounded-xl space-y-2">
                     <p className="font-semibold text-slate-900 dark:text-white">
                       Votos Emitidos en este Expediente ({voteEval.totalVotes})
                     </p>
@@ -362,7 +362,7 @@ export function CommitteeView() {
                         {voteEval.uniqueVotes.map((v) => (
                           <li
                             key={v.userId}
-                            className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                            className="axy-surface flex items-center justify-between gap-2 p-2 rounded-lg"
                           >
                             <div>
                               <span className="font-semibold text-slate-900 dark:text-white">{v.userName}</span>
@@ -387,7 +387,7 @@ export function CommitteeView() {
                     )}
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
+                  <div className="axy-surface-tonal p-3.5 rounded-xl space-y-2">
                     <p className="font-semibold text-slate-900 dark:text-white">
                       Miembros Autorizados de la Empresa ({registeredVoters.length})
                     </p>
@@ -400,7 +400,7 @@ export function CommitteeView() {
                           return (
                             <li
                               key={voter.id}
-                              className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                              className="axy-surface flex items-center justify-between gap-2 p-2 rounded-lg"
                             >
                               <div className="min-w-0">
                                 <span className="font-semibold text-slate-900 dark:text-white block truncate">
@@ -430,7 +430,7 @@ export function CommitteeView() {
               </div>
 
               {/* Dossier & Analyst Summary */}
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+              <div className="axy-surface p-5 rounded-2xl space-y-4 text-xs">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
@@ -441,7 +441,7 @@ export function CommitteeView() {
                     </p>
                   </div>
                   <div className="text-right font-mono">
-                    <p className="font-bold text-sm">Motor V2: {activeApp.latestScore ?? '—'}/100 ({activeApp.latestRiskBand ?? '—'})</p>
+                    <p className="font-bold text-sm text-slate-950 dark:text-white">Motor V2: {activeApp.latestScore ?? '—'}/100 ({activeApp.latestRiskBand ?? '—'})</p>
                     <p className="text-slate-500">
                       Rec. Motor: {formatMoney(activeApp.recommendedAmount ?? 0, activeApp.currency)} · {formatRatePct(activeApp.recommendedRateMonthly)}
                     </p>
@@ -450,7 +450,7 @@ export function CommitteeView() {
 
                 {activeEval ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-1.5">
+                    <div className="axy-surface-tonal p-3.5 rounded-xl space-y-1.5">
                       <p className="font-semibold text-slate-900 dark:text-white">
                         Informe Analítico ({activeEval.analystName}) · {activeEval.recommendedDecision}
                       </p>
@@ -458,7 +458,7 @@ export function CommitteeView() {
                         {activeEval.technicalReport || activeEval.findings || 'Sin observaciones adicionales.'}
                       </p>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-1.5">
+                    <div className="axy-surface-tonal p-3.5 rounded-xl space-y-1.5">
                       <p className="font-semibold text-slate-900 dark:text-white">
                         Depuración del Cliente y Riesgo · {activeEval.riskOpinionStatus ?? 'CONFORME'}
                       </p>
@@ -495,11 +495,11 @@ export function CommitteeView() {
               )}
 
               {/* Decision Form */}
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+              <div className="axy-surface p-5 rounded-2xl space-y-4 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Gavel className="w-4 h-4 text-sky-700 dark:text-sky-400" />
-                    <h4 className="font-semibold text-sm">Emitir Voto en Comité de Crédito</h4>
+                    <Gavel className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
+                    <h4 className="font-semibold text-sm text-slate-950 dark:text-white">Emitir Voto en Comité de Crédito</h4>
                   </div>
                   <span className="text-slate-500 dark:text-slate-400">Rol activo: {rbac.roleLabel}</span>
                 </div>
@@ -511,7 +511,7 @@ export function CommitteeView() {
                       disabled={!rbac.hasPermission('DECIDE_COMMITTEE') || userAlreadyVoted}
                       value={decision}
                       onChange={(e) => setDecision(e.target.value as typeof decision)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white disabled:opacity-60"
                     >
                       <option value="APROBADO">Aprobado</option>
                       <option value="APROBADO_CONDICIONADO">Aprobado Condicionado</option>
@@ -530,7 +530,7 @@ export function CommitteeView() {
                         userAlreadyVoted ||
                         !['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision)
                       }
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   <div>
@@ -545,7 +545,7 @@ export function CommitteeView() {
                         userAlreadyVoted ||
                         !['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision)
                       }
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                   <div>
@@ -559,7 +559,7 @@ export function CommitteeView() {
                         userAlreadyVoted ||
                         !['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision)
                       }
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono disabled:opacity-60"
+                      className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -575,7 +575,7 @@ export function CommitteeView() {
                       value={conditionsRaw}
                       onChange={(e) => setConditionsRaw(e.target.value)}
                       placeholder="Ej. Presentar carta de trabajo actualizada&#10;Constituir fianza solidaria"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                      className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                 )}
@@ -590,7 +590,7 @@ export function CommitteeView() {
                       disabled={!rbac.hasPermission('DECIDE_COMMITTEE') || userAlreadyVoted}
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-rose-300 dark:border-rose-800 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                      className="axy-input w-full px-3 py-2 border-rose-300 dark:border-rose-800 text-slate-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
                 )}
@@ -602,7 +602,7 @@ export function CommitteeView() {
                     disabled={!rbac.hasPermission('DECIDE_COMMITTEE') || userAlreadyVoted}
                     value={observations}
                     onChange={(e) => setObservations(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 disabled:opacity-60"
+                    className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white disabled:opacity-60"
                   />
                 </div>
 
@@ -614,7 +614,7 @@ export function CommitteeView() {
                     type="button"
                     disabled={submitting || userAlreadyVoted || !authorityCheck?.allowed}
                     onClick={handleSubmitDecision}
-                    className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white font-semibold cursor-pointer disabled:opacity-50"
+                    className="axy-btn-primary px-4 py-2 cursor-pointer disabled:opacity-50"
                   >
                     {submitting
                       ? 'Registrando voto...'
@@ -631,27 +631,27 @@ export function CommitteeView() {
 
       {/* Historical Committee Decisions */}
       {committeeDecisions.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800">
-            <h3 className="font-display text-sm font-semibold">Historial de Votos y Resoluciones de Comité</h3>
+        <div className="axy-surface rounded-2xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/14">
+            <h3 className="font-display text-sm font-semibold text-slate-950 dark:text-white">Historial de Votos y Resoluciones de Comité</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-                  <th className="py-2 px-3">Solicitud</th>
-                  <th className="py-2 px-3">Decisión</th>
-                  <th className="py-2 px-3">Estado Voto</th>
-                  <th className="py-2 px-3 text-right">Monto Aprobado</th>
-                  <th className="py-2 px-3 text-right">Tasa</th>
-                  <th className="py-2 px-3 text-right">Plazo</th>
-                  <th className="py-2 px-3">Votante / Decisor</th>
-                  <th className="py-2 px-3">Facultad</th>
+                <tr className="axy-table-head text-slate-600 dark:text-slate-300">
+                  <th className="py-2.5 px-3 font-semibold">Solicitud</th>
+                  <th className="py-2.5 px-3 font-semibold">Decisión</th>
+                  <th className="py-2.5 px-3 font-semibold">Estado Voto</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Monto Aprobado</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Tasa</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Plazo</th>
+                  <th className="py-2.5 px-3 font-semibold">Votante / Decisor</th>
+                  <th className="py-2.5 px-3 font-semibold">Facultad</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody className="divide-y divide-slate-200/80 dark:divide-[#00B8FF]/12">
                 {committeeDecisions.map((d) => (
-                  <tr key={d.id}>
+                  <tr key={d.id} className="axy-table-row">
                     <td className="py-2 px-3 font-mono">{d.applicationId.slice(0, 14)}</td>
                     <td className="py-2 px-3 font-semibold">{d.decision}</td>
                     <td className="py-2 px-3 font-mono text-[11px]">

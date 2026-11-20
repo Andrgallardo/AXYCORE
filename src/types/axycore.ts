@@ -66,6 +66,7 @@ export type NavSectionId =
   | 'admin_workflow'
   | 'intelligence_altera'
   | 'intelligence_impulsa'
+  | 'regula'
   | 'system_sitemap'
   | 'cobranza_dashboard'
   | 'cobranza_anticipate'
@@ -163,7 +164,12 @@ export type CreditPermission =
   | 'SIMULATE_ALTERA'
   | 'PROPOSE_ALTERA_INTERVENTION'
   | 'APPROVE_ALTERA_INTERVENTION'
-  | 'MANAGE_ALTERA_CONFIG';
+  | 'MANAGE_ALTERA_CONFIG'
+  | 'VIEW_REGULA'
+  | 'MANAGE_REGULA'
+  | 'APPROVE_REGULA'
+  | 'CONFIGURE_REGULA'
+  | 'USE_REGULA_AI';
 
 export type RiskOpinionStatus = 'PENDIENTE' | 'CONFORME' | 'CON_OBSERVACIONES' | 'RECHAZO_RIESGO';
 
@@ -277,6 +283,7 @@ export type AxyCoreModuleCode =
   | 'anticipate'
   | 'impulsa'
   | 'altera'
+  | 'regula'
   | 'analitica_reportes'
   | 'automatizaciones'
   | 'inteligencia_artificial';

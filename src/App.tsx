@@ -1,56 +1,202 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { ArrowLeft, Rocket, Sparkles } from 'lucide-react';
 import { AxyCoreProvider, useAxyCore } from './context/AxyCoreContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginGate } from './components/LoginGate';
 import { AppShell } from './components/AppShell';
 import { ApplicationDetailDrawer } from './components/ApplicationDetailDrawer';
-import { DirectorDedicatedView } from './components/DirectorSection';
 import { ExecutiveDashboardView } from './views/ExecutiveDashboardView';
-import { SystemGuideView } from './views/SystemGuideView';
-import { DashboardView } from './views/DashboardView';
-import { NewApplicationView } from './views/NewApplicationView';
-import { LoanCalculatorView } from './views/LoanCalculatorView';
-import { ApplicationsInboxView } from './views/ApplicationsInboxView';
-import { DecisionEngineView } from './views/DecisionEngineView';
-import { EvaluationView } from './views/EvaluationView';
-import { CommitteeView } from './views/CommitteeView';
-import { FormalizationView } from './views/FormalizationView';
-import { DisbursementsView } from './views/DisbursementsView';
-import { DisbursedLoansView } from './views/DisbursedLoansView';
-import { CustomersView } from './views/CustomersView';
-import { DocumentsView } from './views/DocumentsView';
-import { ReportsView } from './views/ReportsView';
-import { PoliciesView } from './views/PoliciesView';
-import { AuditView } from './views/AuditView';
 import { CustomerLoan360Drawer } from './views/collections/CustomerLoan360Drawer';
-import { CollectionsPortfolioAndQueuesView } from './views/collections/CollectionsPortfolioAndQueuesView';
-import { CollectionsActionsAndAgendaView } from './views/collections/CollectionsActionsAndAgendaView';
-import { PaymentsAndReconciliationView } from './views/collections/PaymentsAndReconciliationView';
-import { RecoveryBotAndSentinelView } from './views/collections/RecoveryBotAndSentinelView';
-import { CollectionsOverviewAndGovernanceView } from './views/collections/CollectionsOverviewAndGovernanceView';
-import { AccountingStatementsView } from './views/operations/AccountingStatementsView';
-import { AccountingLedgersAndBooksView } from './views/operations/AccountingLedgersAndBooksView';
-import { AccountingPaymentValidationView } from './views/operations/AccountingPaymentValidationView';
-import { DgiiDashboardAndDocumentsView } from './views/operations/dgii/DgiiDashboardAndDocumentsView';
-import {
-  DgiiEmitInvoiceView,
-  type EcfAdjustmentPrefill,
-} from './views/operations/dgii/DgiiEmitInvoiceView';
-import { DgiiReceivedEcfView } from './views/operations/dgii/DgiiReceivedEcfView';
-import { DgiiMasterCatalogsView } from './views/operations/dgii/DgiiMasterCatalogsView';
-import { DgiiInfrastructureView } from './views/operations/dgii/DgiiInfrastructureView';
-import { DgiiReportsAndAuditView } from './views/operations/dgii/DgiiReportsAndAuditView';
-import { RegisterPaymentsView } from './views/operations/RegisterPaymentsView';
-import { RegisterExpensesView } from './views/operations/RegisterExpensesView';
-import { RegisterInvestorsView } from './views/operations/RegisterInvestorsView';
-import { PlatformControlView } from './views/PlatformControlView';
-import { ClientPortalView } from './views/ClientPortalView';
-import { IntelligenceDashboardView } from './components/IntelligenceDashboardView';
-import { AlteraIntelligenceView } from './views/intelligence/AlteraIntelligenceView';
 import { AXYCORE_MODULE_CATALOG } from './engine/multiTenantEngine';
 import type { AxyCoreModuleCode, NavSectionId } from './types/axycore';
 import type { DgiiEcfDocumentRecord } from './types/dgiiEcf';
+import type { EcfAdjustmentPrefill } from './views/operations/dgii/DgiiEmitInvoiceView';
+
+// Route-level code splitting for faster initial load and lighter main bundle
+const DirectorDedicatedView = React.lazy(() =>
+  import('./components/DirectorSection').then((m) => ({ default: m.DirectorDedicatedView }))
+);
+const SystemGuideView = React.lazy(() =>
+  import('./views/SystemGuideView').then((m) => ({ default: m.SystemGuideView }))
+);
+const SystemSitemapView = React.lazy(() =>
+  import('./views/intelligence/SystemSitemapView').then((m) => ({ default: m.SystemSitemapView }))
+);
+const DashboardView = React.lazy(() =>
+  import('./views/DashboardView').then((m) => ({ default: m.DashboardView }))
+);
+const NewApplicationView = React.lazy(() =>
+  import('./views/NewApplicationView').then((m) => ({ default: m.NewApplicationView }))
+);
+const LoanCalculatorView = React.lazy(() =>
+  import('./views/LoanCalculatorView').then((m) => ({ default: m.LoanCalculatorView }))
+);
+const ApplicationsInboxView = React.lazy(() =>
+  import('./views/ApplicationsInboxView').then((m) => ({ default: m.ApplicationsInboxView }))
+);
+const DecisionEngineView = React.lazy(() =>
+  import('./views/DecisionEngineView').then((m) => ({ default: m.DecisionEngineView }))
+);
+const EvaluationView = React.lazy(() =>
+  import('./views/EvaluationView').then((m) => ({ default: m.EvaluationView }))
+);
+const CommitteeView = React.lazy(() =>
+  import('./views/CommitteeView').then((m) => ({ default: m.CommitteeView }))
+);
+const FormalizationView = React.lazy(() =>
+  import('./views/FormalizationView').then((m) => ({ default: m.FormalizationView }))
+);
+const DisbursementsView = React.lazy(() =>
+  import('./views/DisbursementsView').then((m) => ({ default: m.DisbursementsView }))
+);
+const DisbursedLoansView = React.lazy(() =>
+  import('./views/DisbursedLoansView').then((m) => ({ default: m.DisbursedLoansView }))
+);
+const CustomersView = React.lazy(() =>
+  import('./views/CustomersView').then((m) => ({ default: m.CustomersView }))
+);
+const DocumentsView = React.lazy(() =>
+  import('./views/DocumentsView').then((m) => ({ default: m.DocumentsView }))
+);
+const ReportsView = React.lazy(() =>
+  import('./views/ReportsView').then((m) => ({ default: m.ReportsView }))
+);
+const PoliciesView = React.lazy(() =>
+  import('./views/PoliciesView').then((m) => ({ default: m.PoliciesView }))
+);
+const AuditView = React.lazy(() =>
+  import('./views/AuditView').then((m) => ({ default: m.AuditView }))
+);
+const CollectionsPortfolioAndQueuesView = React.lazy(() =>
+  import('./views/collections/CollectionsPortfolioAndQueuesView').then((m) => ({
+    default: m.CollectionsPortfolioAndQueuesView,
+  }))
+);
+const CollectionsActionsAndAgendaView = React.lazy(() =>
+  import('./views/collections/CollectionsActionsAndAgendaView').then((m) => ({
+    default: m.CollectionsActionsAndAgendaView,
+  }))
+);
+const PaymentsAndReconciliationView = React.lazy(() =>
+  import('./views/collections/PaymentsAndReconciliationView').then((m) => ({
+    default: m.PaymentsAndReconciliationView,
+  }))
+);
+const RecoveryBotAndSentinelView = React.lazy(() =>
+  import('./views/collections/RecoveryBotAndSentinelView').then((m) => ({
+    default: m.RecoveryBotAndSentinelView,
+  }))
+);
+const CollectionsOverviewAndGovernanceView = React.lazy(() =>
+  import('./views/collections/CollectionsOverviewAndGovernanceView').then((m) => ({
+    default: m.CollectionsOverviewAndGovernanceView,
+  }))
+);
+const AccountingStatementsView = React.lazy(() =>
+  import('./views/operations/AccountingStatementsView').then((m) => ({
+    default: m.AccountingStatementsView,
+  }))
+);
+const AccountingLedgersAndBooksView = React.lazy(() =>
+  import('./views/operations/AccountingLedgersAndBooksView').then((m) => ({
+    default: m.AccountingLedgersAndBooksView,
+  }))
+);
+const AccountingPaymentValidationView = React.lazy(() =>
+  import('./views/operations/AccountingPaymentValidationView').then((m) => ({
+    default: m.AccountingPaymentValidationView,
+  }))
+);
+const DgiiDashboardAndDocumentsView = React.lazy(() =>
+  import('./views/operations/dgii/DgiiDashboardAndDocumentsView').then((m) => ({
+    default: m.DgiiDashboardAndDocumentsView,
+  }))
+);
+const DgiiEmitInvoiceView = React.lazy(() =>
+  import('./views/operations/dgii/DgiiEmitInvoiceView').then((m) => ({
+    default: m.DgiiEmitInvoiceView,
+  }))
+);
+const DgiiReceivedEcfView = React.lazy(() =>
+  import('./views/operations/dgii/DgiiReceivedEcfView').then((m) => ({
+    default: m.DgiiReceivedEcfView,
+  }))
+);
+const DgiiMasterCatalogsView = React.lazy(() =>
+  import('./views/operations/dgii/DgiiMasterCatalogsView').then((m) => ({
+    default: m.DgiiMasterCatalogsView,
+  }))
+);
+const DgiiInfrastructureView = React.lazy(() =>
+  import('./views/operations/dgii/DgiiInfrastructureView').then((m) => ({
+    default: m.DgiiInfrastructureView,
+  }))
+);
+const DgiiReportsAndAuditView = React.lazy(() =>
+  import('./views/operations/dgii/DgiiReportsAndAuditView').then((m) => ({
+    default: m.DgiiReportsAndAuditView,
+  }))
+);
+const RegisterPaymentsView = React.lazy(() =>
+  import('./views/operations/RegisterPaymentsView').then((m) => ({
+    default: m.RegisterPaymentsView,
+  }))
+);
+const RegisterExpensesView = React.lazy(() =>
+  import('./views/operations/RegisterExpensesView').then((m) => ({
+    default: m.RegisterExpensesView,
+  }))
+);
+const RegisterInvestorsView = React.lazy(() =>
+  import('./views/operations/RegisterInvestorsView').then((m) => ({
+    default: m.RegisterInvestorsView,
+  }))
+);
+const PlatformControlView = React.lazy(() =>
+  import('./views/PlatformControlView').then((m) => ({ default: m.PlatformControlView }))
+);
+const ClientPortalView = React.lazy(() =>
+  import('./views/ClientPortalView').then((m) => ({ default: m.ClientPortalView }))
+);
+const IntelligenceDashboardView = React.lazy(() =>
+  import('./components/IntelligenceDashboardView').then((m) => ({
+    default: m.IntelligenceDashboardView,
+  }))
+);
+const AlteraIntelligenceView = React.lazy(() =>
+  import('./views/intelligence/AlteraIntelligenceView').then((m) => ({
+    default: m.AlteraIntelligenceView,
+  }))
+);
+const RegulaWorkspaceView = React.lazy(() =>
+  import('./views/regula/RegulaWorkspaceView').then((m) => ({
+    default: m.RegulaWorkspaceView,
+  }))
+);
+
+function ViewLoadingSkeleton() {
+  return (
+    <div className="space-y-5 max-w-[1440px] mx-auto animate-pulse" aria-busy="true" aria-label="Cargando sección">
+      <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/80 dark:border-[#00B8FF]/16 p-6 space-y-3">
+        <div className="h-3 w-36 rounded bg-slate-200/80 dark:bg-white/10" />
+        <div className="h-6 w-64 rounded bg-slate-200/90 dark:bg-white/12" />
+        <div className="h-3.5 w-96 max-w-full rounded bg-slate-100 dark:bg-white/8" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1, 2, 3].map((k) => (
+          <div
+            key={k}
+            className="h-32 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/80 dark:border-[#00B8FF]/16 p-5 space-y-3"
+          >
+            <div className="h-3 w-24 rounded bg-slate-200/80 dark:bg-white/10" />
+            <div className="h-7 w-32 rounded bg-slate-200/90 dark:bg-white/12" />
+            <div className="h-3 w-40 rounded bg-slate-100 dark:bg-white/8" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function UpcomingIntelligenceModuleView({
   moduleName,
@@ -458,6 +604,10 @@ function AxyCoreRouter() {
         return <RegisterInvestorsView />;
       case 'intelligence_altera':
         return <AlteraIntelligenceView />;
+      case 'regula':
+        return <RegulaWorkspaceView />;
+      case 'system_sitemap':
+        return <SystemSitemapView />;
       case 'intelligence_impulsa':
         return (
           <UpcomingIntelligenceModuleView
@@ -504,7 +654,7 @@ function AxyCoreRouter() {
 
   return (
     <AppShell>
-      {renderSection()}
+      <Suspense fallback={<ViewLoadingSkeleton />}>{renderSection()}</Suspense>
       <ApplicationDetailDrawer
         applicationId={selectedApplicationId}
         onClose={() => setSelectedApplicationId(null)}

@@ -1,0 +1,2213 @@
+DESARROLLO E IMPLEMENTACIÓN INTEGRAL DE AXYCORE REGULA
+
+1. ROL Y OBJETIVO
+
+Actúa como un equipo multidisciplinario integrado por:
+
+Arquitecto de software especializado en plataformas Fintech.
+
+Director de producto de sistemas financieros empresariales.
+
+Especialista en cumplimiento regulatorio dominicano.
+
+Especialista en PLAFTPADM y gestión integral de riesgos.
+
+Auditor interno y consultor de control institucional.
+
+Ingeniero de bases de datos y arquitectura de integraciones.
+
+Especialista en inteligencia artificial aplicada a procesos financieros.
+
+Diseñador UX/UI especializado en plataformas financieras tecnológicas.
+
+Tu misión es diseñar, programar, implementar y dejar completamente funcional AXYCORE REGULA, un nuevo módulo del ecosistema AxyCore.
+
+No quiero una propuesta conceptual, una maqueta, una demostración visual ni un conjunto de pantallas sin funcionalidad.
+
+Quiero el desarrollo real del módulo: frontend, backend, base de datos, relaciones, reglas de negocio, permisos, formularios, validaciones, reportes, automatizaciones, trazabilidad e inteligencia artificial.
+
+No omitas ninguna de las funcionalidades descritas en este documento.
+
+2. IDENTIDAD Y PROPÓSITO DE REGULA
+
+Nombre oficial: AxyCore REGULA.
+
+Denominación: Inteligencia Regulatoria, Cumplimiento y Gestión Integral de Riesgos.
+
+Propósito:
+
+Convertir REGULA en el centro especializado desde el cual una institución financiera pueda identificar, administrar, evaluar y monitorear sus obligaciones regulatorias, riesgos institucionales, controles internos, auditorías, evidencias, incidentes y planes de acción.
+
+REGULA debe permitir que una financiera tenga una visión organizada y verificable de:
+
+Qué obligaciones debe cumplir.
+
+Qué normativas le son aplicables.
+
+Qué riesgos enfrenta.
+
+Qué controles tiene establecidos.
+
+Qué controles están funcionando.
+
+Qué documentos y evidencias respaldan su cumplimiento.
+
+Qué incumplimientos o debilidades se han identificado.
+
+Quién es responsable de cada obligación.
+
+Qué acciones correctivas están pendientes.
+
+Qué situaciones requieren atención inmediata.
+
+Cuál es su nivel de cumplimiento institucional.
+
+El módulo debe funcionar como una herramienta de gobierno, prevención, supervisión y seguimiento institucional.
+
+No debe prometer cumplimiento regulatorio automático ni sustituir la responsabilidad de los órganos de dirección, responsables de cumplimiento, auditores o asesores legales.
+
+3. UBICACIÓN EXACTA DENTRO DEL MENÚ DE AXYCORE
+
+REGULA debe incorporarse como una opción principal e independiente del menú lateral izquierdo de AxyCore.
+
+Ubicación requerida
+
+INTELIGENCIA Y CONTROL INSTITUCIONAL
+
+Dentro de esta sección deben aparecer las siguientes opciones:
+
+Altera
+
+Centinela
+
+Anticípate
+
+REGULA
+
+Si estos módulos ya existen en otras secciones del menú, no los dupliques ni cambies sus ubicaciones automáticamente. Reorganiza únicamente lo necesario para que REGULA tenga una ubicación clara, manteniendo los accesos existentes.
+
+REGULA debe tener su propio icono, nombre, navegación, dashboard, páginas internas y permisos.
+
+Al hacer clic en REGULA, se debe abrir su propio entorno de trabajo.
+
+Estructura interna del menú de REGULA
+
+El menú interno debe tener esta estructura:
+
+AXYCORE REGULA
+
+Dashboard Ejecutivo
+
+Cumplimiento Regulatorio
+
+Radar Regulatorio
+
+Biblioteca Normativa
+
+Obligaciones y Requerimientos
+
+Calendario de Cumplimiento
+
+Matriz de Aplicabilidad
+
+PLAFTPADM
+
+Debida Diligencia
+
+Conocimiento del Cliente (KYC)
+
+Beneficiarios Finales
+
+Perfil de Riesgo
+
+Monitoreo y Revisiones
+
+Alertas y Casos
+
+Gestión Integral de Riesgos
+
+Matriz de Riesgos
+
+Evaluación de Riesgos
+
+Riesgo Operacional
+
+Riesgo Crediticio
+
+Riesgo de Liquidez
+
+Riesgo Tecnológico y Ciberseguridad
+
+Riesgo Legal y Regulatorio
+
+Riesgo Reputacional
+
+Planes de Mitigación
+
+Control Interno
+
+Matriz de Controles
+
+Evaluación de Controles
+
+Pruebas de Control
+
+Debilidades Identificadas
+
+Auditoría
+
+Plan Anual de Auditoría
+
+Programas de Auditoría
+
+Ejecución de Auditorías
+
+Hallazgos
+
+Recomendaciones
+
+Seguimiento de Auditoría
+
+Evidencias y Documentación
+
+Centro de Evidencias
+
+Políticas
+
+Manuales y Procedimientos
+
+Documentos Normativos
+
+Historial de Versiones
+
+Documentos Pendientes
+
+Incidentes y Eventos de Riesgo
+
+Registro de Incidentes
+
+Clasificación
+
+Investigación
+
+Análisis de Causa
+
+Resolución
+
+Historial
+
+Planes de Acción
+
+Acciones Correctivas
+
+Acciones Preventivas
+
+Responsables
+
+Seguimiento
+
+Vencimientos
+
+Verificación de Efectividad
+
+Cultura de Cumplimiento
+
+Plan de Capacitación
+
+Capacitaciones
+
+Evaluaciones
+
+Certificaciones Internas
+
+Historial de Participación
+
+REGULA AI
+
+Asistente Inteligente
+
+Análisis Normativo
+
+Diagnóstico de Brechas
+
+Evaluación de Documentos
+
+Recomendaciones
+
+Generación de Informes
+
+Reportes e Indicadores
+
+Configuración del Módulo
+
+No conviertas cada subopción en una pantalla aislada sin conexión. Todas deben compartir información y relaciones.
+
+4. DASHBOARD EJECUTIVO DE REGULA
+
+Al ingresar a REGULA, el usuario debe visualizar un dashboard profesional, tecnológico, moderno y ejecutivo.
+
+Debe mostrar información real proveniente de los registros del módulo.
+
+Indicadores principales
+
+Implementa tarjetas de indicadores para:
+
+Índice General de Cumplimiento.
+
+Obligaciones regulatorias totales.
+
+Obligaciones cumplidas.
+
+Obligaciones pendientes.
+
+Obligaciones vencidas.
+
+Obligaciones próximas a vencer.
+
+Riesgos institucionales identificados.
+
+Riesgos críticos.
+
+Controles efectivos.
+
+Controles deficientes.
+
+Hallazgos abiertos.
+
+Hallazgos pendientes de cierre.
+
+Planes de acción activos.
+
+Acciones vencidas.
+
+Incidentes registrados.
+
+Evidencias pendientes de actualización.
+
+Visualizaciones
+
+Incorpora:
+
+Gráfico de evolución del cumplimiento.
+
+Distribución de riesgos por nivel.
+
+Cumplimiento por área o departamento.
+
+Obligaciones por estado.
+
+Hallazgos por clasificación.
+
+Acciones correctivas por estado.
+
+Calendario de próximos vencimientos.
+
+Mapa de calor de riesgos.
+
+Indicador de exposición institucional.
+
+Tendencia de incidentes.
+
+Panel de alertas prioritarias
+
+Debe identificar visualmente:
+
+Obligaciones vencidas.
+
+Riesgos críticos.
+
+Controles que requieren revisión.
+
+Documentos próximos a vencer.
+
+Hallazgos sin resolver.
+
+Acciones correctivas atrasadas.
+
+Revisiones de debida diligencia pendientes.
+
+Incidentes de alto impacto.
+
+Cada indicador debe permitir hacer clic y acceder al registro correspondiente.
+
+No utilices datos ficticios para mostrar resultados como si fueran reales. Si no existen registros, presenta estados vacíos bien diseñados y opciones para crear o importar información.
+
+5. CUMPLIMIENTO REGULATORIO
+
+Desarrolla un sistema completo para administrar el marco regulatorio aplicable a cada institución.
+
+5.1 Radar Regulatorio
+
+Debe permitir:
+
+Registrar nuevas disposiciones regulatorias.
+
+Registrar circulares, resoluciones, leyes, reglamentos, instructivos y otras disposiciones.
+
+Identificar el organismo emisor.
+
+Registrar número de disposición.
+
+Registrar fecha de publicación.
+
+Registrar fecha de entrada en vigor.
+
+Registrar fecha de última actualización.
+
+Clasificar por categoría.
+
+Registrar descripción y alcance.
+
+Adjuntar documentos originales.
+
+Relacionar cada disposición con obligaciones.
+
+Identificar áreas afectadas.
+
+Asignar responsables.
+
+Establecer fechas de cumplimiento.
+
+Registrar el estado de implementación.
+
+Mantener historial de cambios.
+
+Incluye un sistema de alertas para nuevas disposiciones, actualizaciones y vencimientos.
+
+La consulta de fuentes externas debe implementarse mediante integraciones autorizadas cuando estén disponibles. No simules una conexión automática con organismos reguladores.
+
+5.2 Biblioteca Normativa
+
+Debe permitir organizar y consultar:
+
+Leyes.
+
+Reglamentos.
+
+Circulares.
+
+Resoluciones.
+
+Normativas internas.
+
+Políticas institucionales.
+
+Manuales.
+
+Procedimientos.
+
+Instructivos.
+
+Documentos de referencia.
+
+Incluir buscador, filtros, categorías, etiquetas, versiones, fechas y archivos adjuntos.
+
+5.3 Obligaciones y Requerimientos
+
+Cada obligación debe tener:
+
+Código único.
+
+Nombre.
+
+Descripción.
+
+Norma de origen.
+
+Artículo o referencia normativa.
+
+Organismo emisor.
+
+Área responsable.
+
+Responsable asignado.
+
+Frecuencia de cumplimiento.
+
+Fecha de inicio.
+
+Próxima fecha de vencimiento.
+
+Nivel de criticidad.
+
+Evidencia requerida.
+
+Estado.
+
+Observaciones.
+
+Historial de cumplimiento.
+
+Estados:
+
+No iniciada.
+
+En proceso.
+
+Pendiente de evidencia.
+
+En revisión.
+
+Cumplida.
+
+Vencida.
+
+No aplicable, con justificación y aprobación.
+
+5.4 Calendario de Cumplimiento
+
+Crear un calendario interactivo:
+
+Mensual.
+
+Semanal.
+
+Anual.
+
+Por departamento.
+
+Por responsable.
+
+Por categoría normativa.
+
+Debe generar recordatorios previos al vencimiento y alertas por incumplimiento.
+
+5.5 Matriz de Aplicabilidad
+
+Crear una matriz que permita determinar qué normativas y obligaciones aplican a cada institución, considerando:
+
+Tipo de entidad.
+
+Actividad económica.
+
+Productos y servicios.
+
+Tamaño y características de la operación.
+
+Jurisdicción.
+
+Autoridad supervisora.
+
+Condiciones específicas.
+
+No marques una norma como obligatoria para todas las entidades por defecto. La aplicabilidad debe poder ser evaluada, documentada, justificada y aprobada.
+
+6. PLAFTPADM
+
+Desarrolla un submódulo especializado para la gestión de prevención de lavado de activos, financiamiento del terrorismo y proliferación de armas de destrucción masiva, de acuerdo con el marco que corresponda a la institución.
+
+Debe incluir:
+
+6.1 Conocimiento del Cliente (KYC)
+
+Registro de información de identificación.
+
+Documentos de identidad.
+
+Información personal o empresarial.
+
+Actividad económica.
+
+Origen de fondos.
+
+Información financiera pertinente.
+
+Perfil transaccional.
+
+Fecha de actualización.
+
+Responsable de revisión.
+
+Historial de cambios.
+
+Documentación de respaldo.
+
+Permitir asociar el expediente KYC con el registro de cliente de AxyCore, sin duplicar innecesariamente la información maestra.
+
+6.2 Debida Diligencia
+
+Clasificar los procesos de debida diligencia según el nivel que corresponda:
+
+Simplificada, cuando sea legalmente procedente.
+
+Estándar.
+
+Ampliada o reforzada.
+
+Incluir:
+
+Requisitos documentales.
+
+Validaciones.
+
+Fecha de revisión.
+
+Responsable.
+
+Resultado.
+
+Justificación.
+
+Próxima revisión.
+
+Evidencias.
+
+6.3 Beneficiarios Finales
+
+Permitir registrar:
+
+Persona beneficiaria final.
+
+Porcentaje de participación.
+
+Relación con la entidad.
+
+Estructura de propiedad.
+
+Documentos de respaldo.
+
+Fecha de verificación.
+
+Historial de modificaciones.
+
+6.4 Perfil de Riesgo
+
+Crear una evaluación configurable con factores como:
+
+Tipo de cliente.
+
+Actividad económica.
+
+Ubicación geográfica.
+
+Productos utilizados.
+
+Canal de vinculación.
+
+Comportamiento transaccional.
+
+Información de debida diligencia.
+
+Factores de riesgo adicionales definidos por la institución.
+
+Clasificación configurable:
+
+Bajo.
+
+Medio.
+
+Alto.
+
+Crítico.
+
+El cálculo debe estar basado en reglas configurables, ponderaciones y evidencia. Mostrar los factores que explican el resultado.
+
+6.5 Monitoreo y Revisiones
+
+Programar revisiones periódicas.
+
+Identificar expedientes desactualizados.
+
+Generar alertas.
+
+Registrar resultados.
+
+Mantener historial.
+
+Documentar decisiones y justificaciones.
+
+6.6 Alertas y Casos
+
+Permitir crear casos derivados de:
+
+Información incompleta.
+
+Inconsistencias.
+
+Cambios en el perfil de riesgo.
+
+Alertas internas.
+
+Coincidencias que requieren revisión.
+
+Operaciones o comportamientos inusuales detectados mediante fuentes autorizadas.
+
+Cada caso debe tener:
+
+Código.
+
+Cliente relacionado.
+
+Motivo.
+
+Clasificación.
+
+Nivel de prioridad.
+
+Responsable.
+
+Fecha de apertura.
+
+Investigación.
+
+Evidencias.
+
+Comentarios.
+
+Decisiones.
+
+Fecha de cierre.
+
+Historial completo.
+
+No generes declaraciones automáticas de culpabilidad ni reportes oficiales sin revisión y aprobación de personal autorizado.
+
+7. GESTIÓN INTEGRAL DE RIESGOS
+
+Implementa una herramienta completa para identificar, evaluar, controlar y monitorear riesgos institucionales.
+
+7.1 Matriz de Riesgos
+
+Cada riesgo debe contener:
+
+Código.
+
+Nombre.
+
+Descripción.
+
+Categoría.
+
+Proceso afectado.
+
+Área responsable.
+
+Causa.
+
+Consecuencia.
+
+Probabilidad.
+
+Impacto.
+
+Nivel de riesgo inherente.
+
+Controles existentes.
+
+Efectividad de controles.
+
+Nivel de riesgo residual.
+
+Responsable del riesgo.
+
+Fecha de identificación.
+
+Fecha de evaluación.
+
+Próxima revisión.
+
+Estado.
+
+Plan de tratamiento.
+
+7.2 Categorías
+
+Incluir como mínimo:
+
+Riesgo operacional.
+
+Riesgo crediticio.
+
+Riesgo financiero.
+
+Riesgo de liquidez.
+
+Riesgo de mercado, cuando aplique.
+
+Riesgo tecnológico.
+
+Riesgo de ciberseguridad.
+
+Riesgo legal.
+
+Riesgo regulatorio.
+
+Riesgo reputacional.
+
+Riesgo estratégico.
+
+Riesgo de fraude.
+
+Riesgo de continuidad del negocio.
+
+Riesgo de terceros y proveedores.
+
+7.3 Evaluación
+
+Implementar matrices configurables de probabilidad e impacto.
+
+Permitir:
+
+Escalas de evaluación.
+
+Ponderaciones.
+
+Cálculo de riesgo inherente.
+
+Evaluación de controles.
+
+Cálculo de riesgo residual.
+
+Umbrales de criticidad.
+
+Justificaciones.
+
+Historial de evaluaciones.
+
+7.4 Mapa de Calor
+
+Crear un mapa de calor interactivo que muestre los riesgos por probabilidad e impacto.
+
+Al seleccionar un riesgo, abrir su expediente completo.
+
+7.5 Planes de Mitigación
+
+Cada riesgo debe poder generar un plan de mitigación con:
+
+Actividades.
+
+Responsables.
+
+Fechas.
+
+Recursos.
+
+Evidencias.
+
+Indicadores.
+
+Estado.
+
+Resultado.
+
+Riesgo residual posterior.
+
+8. CONTROL INTERNO
+
+Desarrolla un sistema para administrar el ambiente de control institucional.
+
+8.1 Matriz de Controles
+
+Cada control debe incluir:
+
+Código.
+
+Nombre.
+
+Descripción.
+
+Riesgo asociado.
+
+Proceso.
+
+Objetivo.
+
+Tipo de control.
+
+Frecuencia.
+
+Responsable.
+
+Evidencia requerida.
+
+Método de verificación.
+
+Fecha de última prueba.
+
+Resultado.
+
+Efectividad.
+
+Próxima revisión.
+
+Clasificar controles por:
+
+Preventivos.
+
+Detectivos.
+
+Correctivos.
+
+Manuales.
+
+Automatizados.
+
+8.2 Evaluación de Controles
+
+Permitir realizar pruebas y registrar:
+
+Control evaluado.
+
+Período.
+
+Muestra.
+
+Procedimiento de prueba.
+
+Resultado.
+
+Evidencias.
+
+Excepciones.
+
+Conclusión.
+
+Evaluador.
+
+Recomendación.
+
+Clasificar resultados:
+
+Efectivo.
+
+Parcialmente efectivo.
+
+Inefectivo.
+
+No evaluado.
+
+8.3 Debilidades
+
+Registrar debilidades de control y relacionarlas con:
+
+Riesgos.
+
+Procesos.
+
+Hallazgos.
+
+Incidentes.
+
+Planes de acción.
+
+9. AUDITORÍA
+
+Implementa un módulo de auditoría interna con trazabilidad integral.
+
+9.1 Plan Anual de Auditoría
+
+Permitir:
+
+Crear plan anual.
+
+Definir áreas y procesos.
+
+Establecer objetivos.
+
+Asignar auditores.
+
+Definir alcance.
+
+Establecer fechas.
+
+Priorizar según riesgos.
+
+Registrar aprobación.
+
+Monitorear ejecución.
+
+9.2 Programas de Auditoría
+
+Cada auditoría debe contener:
+
+Objetivo.
+
+Alcance.
+
+Criterios.
+
+Procedimientos.
+
+Lista de verificación.
+
+Muestras.
+
+Evidencias requeridas.
+
+Responsable.
+
+Fechas.
+
+9.3 Ejecución
+
+Registrar:
+
+Actividades realizadas.
+
+Pruebas ejecutadas.
+
+Documentos revisados.
+
+Entrevistas.
+
+Evidencias.
+
+Observaciones.
+
+Resultados.
+
+9.4 Hallazgos
+
+Cada hallazgo debe incluir:
+
+Código.
+
+Auditoría relacionada.
+
+Área.
+
+Proceso.
+
+Descripción.
+
+Criterio.
+
+Condición.
+
+Causa.
+
+Efecto o consecuencia.
+
+Nivel de severidad.
+
+Evidencias.
+
+Recomendación.
+
+Responsable de respuesta.
+
+Fecha compromiso.
+
+Estado.
+
+9.5 Seguimiento
+
+Permitir:
+
+Registrar respuesta del área.
+
+Adjuntar evidencias.
+
+Evaluar implementación.
+
+Verificar efectividad.
+
+Reabrir hallazgos cuando corresponda.
+
+Cerrar con autorización.
+
+Mantener historial.
+
+10. CENTRO DE EVIDENCIAS Y DOCUMENTACIÓN
+
+Este submódulo debe ser un repositorio organizado de documentos y evidencias que respaldan el cumplimiento institucional.
+
+Funciones:
+
+Cargar documentos.
+
+Adjuntar archivos.
+
+Clasificar por categoría.
+
+Relacionar con obligaciones.
+
+Relacionar con controles.
+
+Relacionar con riesgos.
+
+Relacionar con auditorías.
+
+Relacionar con hallazgos.
+
+Relacionar con incidentes.
+
+Relacionar con planes de acción.
+
+Registrar responsables.
+
+Controlar versiones.
+
+Establecer fechas de vigencia.
+
+Alertar sobre documentos vencidos.
+
+Mantener historial de modificaciones.
+
+Controlar acceso.
+
+Registrar descargas y consultas cuando corresponda.
+
+Cada documento debe tener:
+
+Código.
+
+Nombre.
+
+Categoría.
+
+Descripción.
+
+Versión.
+
+Fecha de emisión.
+
+Fecha de vigencia.
+
+Fecha de vencimiento.
+
+Responsable.
+
+Estado.
+
+Archivo.
+
+Relaciones.
+
+Historial.
+
+Implementar controles de acceso y protección de documentos confidenciales.
+
+11. INCIDENTES Y EVENTOS DE RIESGO
+
+Desarrollar un sistema para registrar y administrar eventos que puedan afectar la operación o el cumplimiento institucional.
+
+Tipos:
+
+Errores operativos.
+
+Fraude sospechado o confirmado según investigación.
+
+Incumplimientos.
+
+Fallas tecnológicas.
+
+Pérdidas financieras.
+
+Errores de procesamiento.
+
+Incidentes de seguridad.
+
+Fallas de control.
+
+Quejas con impacto institucional.
+
+Eventos regulatorios.
+
+Incidentes de terceros.
+
+Cada incidente debe permitir:
+
+Registro.
+
+Clasificación.
+
+Fecha y hora.
+
+Área.
+
+Proceso.
+
+Descripción.
+
+Nivel de impacto.
+
+Probabilidad de recurrencia.
+
+Pérdida estimada y real, si aplica.
+
+Responsable.
+
+Investigación.
+
+Análisis de causa raíz.
+
+Acciones correctivas.
+
+Evidencias.
+
+Fecha de cierre.
+
+Aprobación.
+
+Lecciones aprendidas.
+
+Debe permitir vincular incidentes con riesgos, controles, auditorías y planes de acción.
+
+12. PLANES DE ACCIÓN
+
+Crear un administrador central de acciones correctivas, preventivas y de mejora.
+
+Los planes pueden originarse desde:
+
+Riesgos.
+
+Hallazgos.
+
+Auditorías.
+
+Incidentes.
+
+Obligaciones regulatorias.
+
+Evaluaciones de control.
+
+Diagnósticos de REGULA AI.
+
+Cada acción debe incluir:
+
+Código.
+
+Origen.
+
+Descripción.
+
+Objetivo.
+
+Responsable.
+
+Área.
+
+Fecha de creación.
+
+Fecha compromiso.
+
+Prioridad.
+
+Actividades.
+
+Recursos.
+
+Evidencias.
+
+Indicador de avance.
+
+Porcentaje de ejecución.
+
+Estado.
+
+Verificación.
+
+Aprobación de cierre.
+
+Estados:
+
+Pendiente.
+
+En proceso.
+
+En revisión.
+
+Implementada.
+
+Pendiente de verificación.
+
+Cerrada.
+
+Vencida.
+
+Reabierta.
+
+Implementar alertas y escalamiento para acciones atrasadas.
+
+No cerrar automáticamente una acción solo porque el usuario haya marcado el porcentaje de avance en 100 %. Exigir verificación y aprobación cuando corresponda.
+
+13. CULTURA DE CUMPLIMIENTO
+
+Implementar una sección para fortalecer el conocimiento institucional.
+
+Debe incluir:
+
+Plan anual de capacitación.
+
+Calendario.
+
+Temas.
+
+Departamentos participantes.
+
+Facilitadores.
+
+Materiales.
+
+Registro de asistencia.
+
+Evaluaciones.
+
+Calificaciones.
+
+Certificaciones internas.
+
+Fecha de vencimiento de certificaciones, si aplica.
+
+Historial individual.
+
+Reporte de cobertura.
+
+Permitir medir qué porcentaje del personal ha recibido las capacitaciones requeridas.
+
+14. REGULA AI — INTELIGENCIA ARTIFICIAL
+
+Este debe ser uno de los componentes diferenciadores del módulo.
+
+Implementa un asistente inteligente integrado con los datos y documentos autorizados de REGULA.
+
+14.1 Asistente Inteligente
+
+Debe permitir preguntas en lenguaje natural, por ejemplo:
+
+¿Cuáles son las obligaciones que tenemos pendientes?
+
+¿Qué riesgos críticos tiene la institución?
+
+¿Qué controles están fallando?
+
+¿Qué hallazgos están vencidos?
+
+¿Qué documentos necesitan actualización?
+
+¿Qué áreas presentan mayores debilidades?
+
+¿Qué acciones correctivas requieren atención?
+
+¿Cuál es nuestro nivel de cumplimiento?
+
+¿Qué evidencias faltan para respaldar esta obligación?
+
+Las respuestas deben basarse en información disponible, mostrar los registros relacionados y señalar cuando no existan datos suficientes.
+
+14.2 Análisis Normativo
+
+Permitir cargar documentos regulatorios para que la IA pueda:
+
+Identificar temas relevantes.
+
+Extraer posibles obligaciones.
+
+Detectar fechas.
+
+Identificar áreas afectadas.
+
+Proponer responsables.
+
+Relacionar obligaciones con controles.
+
+Comparar versiones documentales.
+
+Identificar posibles cambios.
+
+Proponer tareas de cumplimiento.
+
+Toda obligación detectada debe pasar por validación humana antes de convertirse en obligación oficial.
+
+14.3 Diagnóstico de Brechas
+
+La IA debe comparar:
+
+Obligaciones aplicables.
+
+Políticas institucionales.
+
+Manuales.
+
+Procedimientos.
+
+Controles.
+
+Evidencias disponibles.
+
+Debe identificar posibles brechas y clasificarlas por prioridad.
+
+Cada brecha debe incluir:
+
+Descripción.
+
+Fuente.
+
+Obligación relacionada.
+
+Documento o control afectado.
+
+Evidencia analizada.
+
+Nivel de prioridad.
+
+Recomendación.
+
+Acción sugerida.
+
+14.4 Evaluación Documental
+
+Permitir analizar manuales, políticas y procedimientos para identificar:
+
+Documentos incompletos.
+
+Información desactualizada.
+
+Inconsistencias.
+
+Falta de responsables.
+
+Ausencia de controles.
+
+Posibles contradicciones.
+
+Secciones que requieren revisión.
+
+14.5 Generación de Informes
+
+REGULA AI debe ayudar a preparar:
+
+Informes ejecutivos.
+
+Informes de cumplimiento.
+
+Informes de riesgos.
+
+Informes de auditoría.
+
+Informes de hallazgos.
+
+Diagnósticos de brechas.
+
+Informes de seguimiento.
+
+Resúmenes para la gerencia.
+
+La IA podrá generar borradores, pero los informes oficiales deben contar con revisión y aprobación humana.
+
+14.6 Seguridad y transparencia de IA
+
+Mostrar qué fuentes utilizó.
+
+Identificar información no disponible.
+
+Evitar inventar referencias normativas.
+
+No afirmar que una institución cumple una obligación sin evidencia suficiente.
+
+Mantener confidencialidad.
+
+Respetar permisos de acceso.
+
+Registrar las interacciones relevantes.
+
+Solicitar aprobación humana para acciones sensibles.
+
+No enviar datos confidenciales a servicios externos sin autorización y controles adecuados.
+
+15. INTEGRACIÓN CON LOS DEMÁS MÓDULOS DE AXYCORE
+
+REGULA debe ser independiente, pero debe integrarse con el ecosistema AxyCore.
+
+No debe convertirse en administrador general del sistema ni sustituir otros módulos.
+
+Implementa las siguientes relaciones:
+
+Centinela
+
+Debe recibir eventos y alertas autorizadas para evaluar si representan riesgos, debilidades de control o posibles incumplimientos.
+
+Altera
+
+Debe aprovechar análisis e información autorizada para apoyar la evaluación de riesgos y generar recomendaciones.
+
+Anticípate
+
+Debe utilizar escenarios y alertas predictivas para anticipar exposiciones institucionales y alimentar la evaluación de riesgos.
+
+Motor de Decisiones
+
+Debe permitir relacionar reglas, criterios y controles de decisión crediticia con el marco de control institucional.
+
+Créditos y Cobros
+
+Debe permitir identificar riesgos asociados a procesos de originación, evaluación, formalización, desembolso, gestión de cartera y recuperación.
+
+Contabilidad y Finanzas
+
+Debe permitir relacionar diferencias, inconsistencias, controles financieros, conciliaciones y hallazgos.
+
+Gestión Documental
+
+Debe permitir vincular manuales, políticas, procedimientos y documentos institucionales como evidencias.
+
+Cliente 360
+
+Debe consultar la información autorizada necesaria para debida diligencia y conocimiento del cliente, evitando crear registros maestros duplicados.
+
+AxyCore Director
+
+Debe enviar indicadores ejecutivos consolidados para que la dirección pueda visualizar el estado general de cumplimiento y riesgos.
+
+Regla fundamental: REGULA puede consultar, evaluar, generar alertas, registrar observaciones y proponer acciones. No puede modificar automáticamente operaciones, clientes, préstamos, pagos, contabilidad ni decisiones de otros módulos.
+
+Las acciones que impliquen cambios en otros módulos deben ejecutarse mediante permisos, aprobaciones y mecanismos de integración controlados.
+
+16. BASE DE DATOS Y ARQUITECTURA
+
+No construyas REGULA como un conjunto de pantallas independientes con información desconectada.
+
+Diseña una arquitectura de datos relacional, segura, escalable y preparada para integrarse con AxyCore.
+
+Crea las entidades necesarias, incluyendo como mínimo:
+
+regula_configuracion
+
+regula_normativas
+
+regula_normativa_versiones
+
+regula_obligaciones
+
+regula_aplicabilidad
+
+regula_calendario
+
+regula_responsables
+
+regula_kyc
+
+regula_debida_diligencia
+
+regula_beneficiarios_finales
+
+regula_perfiles_riesgo
+
+regula_casos_plaft
+
+regula_matriz_riesgos
+
+regula_evaluaciones_riesgo
+
+regula_controles
+
+regula_pruebas_control
+
+regula_auditorias
+
+regula_programas_auditoria
+
+regula_hallazgos
+
+regula_evidencias
+
+regula_documentos
+
+regula_incidentes
+
+regula_planes_accion
+
+regula_actividades
+
+regula_capacitaciones
+
+regula_participantes
+
+regula_evaluaciones_capacitacion
+
+regula_alertas
+
+regula_notificaciones
+
+regula_aprobaciones
+
+regula_historial
+
+regula_ai_consultas
+
+Cada tabla debe tener identificador único, fechas de creación y actualización, usuario creador, estado y relaciones correspondientes.
+
+Implementa:
+
+Integridad referencial.
+
+Índices.
+
+Validaciones.
+
+Restricciones.
+
+Control de duplicados.
+
+Eliminación lógica cuando corresponda.
+
+Historial de modificaciones.
+
+Auditoría de operaciones.
+
+Manejo de errores.
+
+Control de concurrencia cuando sea necesario.
+
+Si AxyCore es multiempresa, todas las entidades de REGULA deben estar aisladas por empresa o tenant. Un usuario de una financiera nunca debe visualizar información de otra.
+
+No inventes ni sustituyas la infraestructura existente. Primero inspecciona la arquitectura y utiliza las tecnologías, patrones y convenciones que realmente tenga el proyecto. Si existe una base de datos y un backend, intégrate correctamente. Si hace falta crear componentes nuevos, hazlo respetando la arquitectura actual.
+
+17. ROLES, PERMISOS Y SEGURIDAD
+
+Implementa permisos por módulo, submódulo y acción.
+
+Roles sugeridos:
+
+Administrador de AxyCore.
+
+Administrador de REGULA.
+
+Gerencia General.
+
+Responsable de Cumplimiento.
+
+Oficial de Cumplimiento.
+
+Auditor Interno.
+
+Responsable de Riesgos.
+
+Responsable de Control Interno.
+
+Encargado de Área.
+
+Colaborador.
+
+Consulta Ejecutiva.
+
+Permitir configurar roles y permisos sin depender exclusivamente de los roles predeterminados.
+
+Acciones controlables:
+
+Ver.
+
+Crear.
+
+Editar.
+
+Eliminar o anular.
+
+Aprobar.
+
+Rechazar.
+
+Asignar.
+
+Cerrar.
+
+Exportar.
+
+Descargar.
+
+Configurar.
+
+Implementar:
+
+Autenticación integrada con AxyCore.
+
+Autorización en frontend y backend.
+
+Aislamiento por empresa.
+
+Registro de accesos.
+
+Registro de operaciones.
+
+Protección de archivos.
+
+Validación de sesiones.
+
+Gestión de permisos sensibles.
+
+Registro de aprobaciones.
+
+Trazabilidad inalterable para eventos críticos.
+
+No confíes únicamente en ocultar botones en el frontend. Valida permisos en el servidor.
+
+18. AUTOMATIZACIONES Y NOTIFICACIONES
+
+Implementa un motor de automatizaciones para:
+
+Alertar obligaciones próximas a vencer.
+
+Notificar obligaciones vencidas.
+
+Recordar revisiones periódicas.
+
+Alertar riesgos críticos.
+
+Alertar controles inefectivos.
+
+Notificar hallazgos pendientes.
+
+Alertar planes de acción atrasados.
+
+Recordar documentos por actualizar.
+
+Notificar revisiones KYC pendientes.
+
+Alertar incidentes de alta prioridad.
+
+Escalar asuntos no atendidos.
+
+Recordar capacitaciones.
+
+Generar resúmenes periódicos.
+
+Permitir configurar:
+
+Anticipación de alertas.
+
+Frecuencia.
+
+Destinatarios.
+
+Canales disponibles.
+
+Escalamiento.
+
+Prioridad.
+
+Condiciones de activación.
+
+Las notificaciones deben integrarse con el sistema de notificaciones existente de AxyCore cuando esté disponible.
+
+No simules envíos por correo, WhatsApp o servicios externos si no hay una integración real configurada.
+
+19. REPORTES E INDICADORES
+
+Desarrolla un centro de reportes con filtros por:
+
+Empresa.
+
+Sucursal.
+
+Departamento.
+
+Responsable.
+
+Período.
+
+Categoría.
+
+Nivel de riesgo.
+
+Estado.
+
+Reportes mínimos:
+
+Informe general de cumplimiento.
+
+Matriz de obligaciones regulatorias.
+
+Obligaciones vencidas y próximas a vencer.
+
+Informe de aplicabilidad normativa.
+
+Matriz institucional de riesgos.
+
+Riesgos inherentes y residuales.
+
+Informe de controles internos.
+
+Evaluaciones de controles.
+
+Plan anual de auditoría.
+
+Informe de hallazgos.
+
+Seguimiento de recomendaciones.
+
+Informe de incidentes.
+
+Planes de acción.
+
+Expedientes de debida diligencia.
+
+Estado de actualización documental.
+
+Cobertura de capacitación.
+
+Informe ejecutivo para gerencia.
+
+Diagnóstico de brechas generado por REGULA AI.
+
+Permitir exportar a PDF y Excel cuando la infraestructura existente lo permita.
+
+Los informes deben incluir filtros, fecha de generación, usuario responsable y fuentes de datos.
+
+20. DISEÑO VISUAL Y EXPERIENCIA DE USUARIO
+
+REGULA debe sentirse como una plataforma Fintech internacional de alto nivel.
+
+No quiero una apariencia de sistema administrativo antiguo.
+
+Utiliza la identidad visual actual de AxyCore:
+
+Azul marino profundo.
+
+Azul corporativo.
+
+Azul eléctrico.
+
+Cian tecnológico.
+
+Blanco.
+
+Grises fríos.
+
+Verde para estados positivos.
+
+Ámbar para advertencias.
+
+Rojo para riesgos críticos.
+
+Mantén coherencia con el resto de AxyCore.
+
+Diseña:
+
+Dashboard ejecutivo moderno.
+
+Navegación clara.
+
+Tablas profesionales.
+
+Formularios intuitivos.
+
+Filtros avanzados.
+
+Buscador global dentro de REGULA.
+
+Paneles laterales de detalle cuando mejoren la experiencia.
+
+Indicadores visuales.
+
+Gráficos interactivos.
+
+Estados vacíos elegantes.
+
+Alertas contextuales.
+
+Confirmaciones para acciones sensibles.
+
+Diseño responsive.
+
+Evita:
+
+Tarjetas repetitivas.
+
+Información duplicada.
+
+Exceso de colores.
+
+Pantallas sobrecargadas.
+
+Menús interminables.
+
+Formularios desorganizados.
+
+Elementos decorativos sin utilidad.
+
+Botones que no ejecutan acciones.
+
+Datos ficticios presentados como reales.
+
+La interfaz debe priorizar la información importante y permitir que un usuario encuentre rápidamente lo que necesita.
+
+21. EXPERIENCIA MULTIEMPRESA
+
+AxyCore debe poder prestar servicios a distintas instituciones financieras.
+
+REGULA debe soportar esta modalidad.
+
+Cada empresa tendrá:
+
+Su propia configuración.
+
+Su marco de aplicabilidad.
+
+Sus normativas y obligaciones.
+
+Sus matrices de riesgos.
+
+Sus responsables.
+
+Sus auditorías.
+
+Sus evidencias.
+
+Sus planes de acción.
+
+Sus indicadores.
+
+Sus usuarios y permisos.
+
+El administrador de AxyCore podrá habilitar o deshabilitar REGULA para cada empresa desde el mecanismo de administración de licencias o módulos existente.
+
+La habilitación debe respetar la arquitectura multiempresa real del sistema.
+
+Una empresa no debe poder acceder a los datos de otra bajo ninguna circunstancia.
+
+22. CONFIGURACIÓN DEL MÓDULO
+
+Crear una sección de configuración que permita administrar:
+
+Datos generales.
+
+Categorías regulatorias.
+
+Tipos de obligaciones.
+
+Frecuencias.
+
+Niveles de criticidad.
+
+Escalas de riesgos.
+
+Matrices de impacto y probabilidad.
+
+Tipos de controles.
+
+Tipos de auditoría.
+
+Clasificación de hallazgos.
+
+Tipos de incidentes.
+
+Estados.
+
+Reglas de notificación.
+
+Responsables.
+
+Roles.
+
+Permisos.
+
+Parámetros de REGULA AI.
+
+Plantillas de reportes.
+
+Configuración de integraciones.
+
+No permitas que la configuración de una empresa altere la de otra.
+
+23. REGLAS FUNCIONALES OBLIGATORIAS
+
+Toda obligación debe poder relacionarse con su fuente normativa.
+
+Toda evaluación de riesgo debe conservar su historial.
+
+Todo control debe poder relacionarse con uno o más riesgos.
+
+Todo hallazgo debe tener trazabilidad y responsable.
+
+Toda acción correctiva debe tener fecha y responsable.
+
+Toda evidencia debe poder vincularse con el registro que respalda.
+
+Toda aprobación debe registrar usuario, fecha y decisión.
+
+Toda modificación importante debe quedar registrada.
+
+Toda alerta debe tener origen identificable.
+
+Toda obligación marcada como no aplicable debe tener justificación.
+
+Ningún resultado de IA debe convertirse automáticamente en una conclusión oficial.
+
+Ningún módulo externo debe ser modificado sin autorización.
+
+Ninguna empresa debe visualizar información de otra.
+
+Ninguna operación crítica debe desaparecer del historial.
+
+Todo indicador del dashboard debe calcularse con información real.
+
+Los registros cerrados deben poder consultarse históricamente.
+
+Las acciones reabiertas deben conservar su historial anterior.
+
+Los vencimientos deben calcularse según la frecuencia y reglas configuradas.
+
+Las notificaciones deben evitar duplicados innecesarios.
+
+Los permisos deben validarse tanto en la interfaz como en el backend.
+
+24. PLAN DE DESARROLLO E IMPLEMENTACIÓN
+
+Antes de programar:
+
+Inspecciona todo el proyecto AxyCore.
+
+Identifica su arquitectura.
+
+Identifica su framework y estructura.
+
+Identifica sus módulos existentes.
+
+Identifica el menú principal.
+
+Identifica su autenticación.
+
+Identifica su modelo de permisos.
+
+Identifica su base de datos.
+
+Identifica su sistema de notificaciones.
+
+Identifica sus componentes visuales.
+
+Identifica sus integraciones.
+
+Identifica cómo se gestiona el acceso por empresa.
+
+Después desarrolla REGULA en estas etapas:
+
+ETAPA 1 — Arquitectura y estructura
+
+Preparar estructura del módulo.
+
+Crear navegación.
+
+Crear entidades y relaciones.
+
+Preparar permisos.
+
+Preparar integración multiempresa.
+
+ETAPA 2 — Cumplimiento y normativa
+
+Radar regulatorio.
+
+Biblioteca normativa.
+
+Obligaciones.
+
+Aplicabilidad.
+
+Calendario.
+
+ETAPA 3 — Riesgos y control
+
+Matriz de riesgos.
+
+Evaluaciones.
+
+Mapa de calor.
+
+Matriz de controles.
+
+Pruebas de control.
+
+ETAPA 4 — PLAFTPADM
+
+KYC.
+
+Debida diligencia.
+
+Beneficiarios finales.
+
+Perfiles de riesgo.
+
+Monitoreo.
+
+Alertas y casos.
+
+ETAPA 5 — Auditoría y evidencias
+
+Plan anual.
+
+Programas.
+
+Ejecución.
+
+Hallazgos.
+
+Evidencias.
+
+Seguimiento.
+
+ETAPA 6 — Incidentes y acciones
+
+Registro de incidentes.
+
+Investigación.
+
+Causas.
+
+Planes correctivos.
+
+Verificación de efectividad.
+
+ETAPA 7 — REGULA AI
+
+Asistente.
+
+Análisis normativo.
+
+Diagnóstico de brechas.
+
+Evaluación documental.
+
+Informes inteligentes.
+
+ETAPA 8 — Automatización y reportes
+
+Alertas.
+
+Notificaciones.
+
+Indicadores.
+
+Reportes.
+
+Exportaciones.
+
+ETAPA 9 — Validación
+
+Pruebas funcionales.
+
+Pruebas de permisos.
+
+Pruebas de aislamiento por empresa.
+
+Pruebas de integridad de datos.
+
+Pruebas de navegación.
+
+Pruebas de rendimiento.
+
+Pruebas de integraciones.
+
+25. RESTRICCIONES CRÍTICAS: PROTEGER AXYCORE
+
+Esta es una instrucción fundamental.
+
+REGULA es un módulo nuevo. Su desarrollo no puede destruir, reemplazar, alterar ni perjudicar los módulos existentes de AxyCore.
+
+Por tanto:
+
+No reconstruyas AxyCore desde cero.
+
+No cambies la identidad visual global.
+
+No elimines módulos.
+
+No elimines funcionalidades.
+
+No cambies rutas existentes sin necesidad justificada.
+
+No alteres reglas de negocio de otros módulos.
+
+No cambies tablas existentes de forma destructiva.
+
+No borres información.
+
+No sustituyas datos reales por datos de demostración.
+
+No reutilices credenciales productivas.
+
+No modifiques integraciones existentes sin autorización.
+
+No introduzcas dependencias innecesarias.
+
+No rompas la autenticación.
+
+No alteres el funcionamiento de la aplicación fuera del alcance de REGULA.
+
+Antes de realizar cualquier cambio estructural, identifica sus dependencias y riesgos.
+
+Si necesitas modificar un componente compartido, conserva su compatibilidad con los módulos existentes.
+
+Utiliza migraciones reversibles cuando corresponda y prepara mecanismos de respaldo antes de cambios en base de datos.
+
+26. CRITERIOS DE ACEPTACIÓN: REGULA DEBE QUEDAR REALMENTE TERMINADO
+
+No consideres terminado el trabajo porque el menú aparezca o porque las pantallas se vean bonitas.
+
+El módulo solo podrá considerarse implementado cuando:
+
+REGULA aparezca en el menú principal en la ubicación solicitada.
+
+Todas sus opciones de navegación funcionen.
+
+Todos sus formularios permitan guardar información.
+
+Los registros se almacenen realmente en la base de datos.
+
+Las relaciones entre entidades funcionen.
+
+Los indicadores se alimenten de registros reales.
+
+Los filtros y búsquedas funcionen.
+
+Las alertas respondan a condiciones reales.
+
+Los permisos se apliquen correctamente.
+
+Los archivos se puedan cargar y consultar de forma segura.
+
+Los reportes se puedan generar.
+
+Las integraciones existentes funcionen.
+
+REGULA AI trabaje con información autorizada.
+
+La información esté aislada por empresa.
+
+Las operaciones críticas mantengan trazabilidad.
+
+No existan botones decorativos sin acción.
+
+No existan formularios que simulen guardar sin persistencia.
+
+No se afecten las funcionalidades preexistentes de AxyCore.
+
+Realiza pruebas y corrige los errores encontrados.
+
+Al finalizar, entrega un resumen técnico que indique:
+
+Funcionalidades implementadas.
+
+Tablas y relaciones creadas.
+
+Componentes y pantallas desarrolladas.
+
+Integraciones realizadas.
+
+Automatizaciones activas.
+
+Permisos configurados.
+
+Pruebas ejecutadas y resultados.
+
+Funcionalidades que requieren credenciales, servicios externos o autorizaciones para activarse.
+
+Limitaciones pendientes, si existen.
+
+No declares implementada una funcionalidad que solamente tenga interfaz visual.
+
+INSTRUCCIÓN FINAL
+
+Quiero que AxyCore REGULA se convierta en uno de los módulos más completos y diferenciadores de AxyCore.
+
+Debe ser un verdadero centro de inteligencia regulatoria, cumplimiento, PLAFTPADM, gestión de riesgos, control interno, auditoría y supervisión institucional.
+
+Debe trabajar conectado con el ecosistema AxyCore, pero conservar su propia identidad funcional y operativa.
+
+Ubícalo como módulo principal e independiente dentro de INTELIGENCIA Y CONTROL INSTITUCIONAL, en el menú lateral izquierdo.
+
+No te limites a diseñar. Programa, integra, valida y deja funcionando todo lo que permita la infraestructura actual.
+
+Si alguna integración requiere una credencial, autorización, servicio externo o decisión regulatoria, implementa la estructura técnica correspondiente, identifica claramente el requisito y no simules que ya está conectado.
+
+La prioridad es entregar un módulo robusto, seguro, escalable, profesional, verdaderamente funcional y preparado para comercializarse a distintas instituciones financieras.

@@ -250,7 +250,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
     <section className="space-y-5" aria-label="Resumen ejecutivo de KPIs y gráficos">
       {/* Executive KPI Summary Strip — The Verdict Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(4,12,30,0.04)]">
+        <div className="p-5 rounded-2xl axy-surface">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:text-slate-400">
             Tasa de Aprobación (Decididas)
           </p>
@@ -264,7 +264,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
           </p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(4,12,30,0.04)]">
+        <div className="p-5 rounded-2xl axy-surface">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:text-slate-400">
             Conversión Total a Aprobación
           </p>
@@ -276,7 +276,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
           </p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(4,12,30,0.04)]">
+        <div className="p-5 rounded-2xl axy-surface">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:text-slate-400">
             Originación Mes en Curso
           </p>
@@ -289,7 +289,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
           </p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(4,12,30,0.04)]">
+        <div className="p-5 rounded-2xl axy-surface">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:text-slate-400">
             Preoferta V2 · Ticket Promedio
           </p>
@@ -305,7 +305,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
       {/* Interactive Recharts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Monthly Origination Volume Chart */}
-        <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(4,12,30,0.04)] space-y-4">
+        <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl axy-surface space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-display text-sm font-semibold text-slate-950 dark:text-white flex items-center gap-2">
@@ -317,13 +317,13 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-white/[0.05] border border-slate-200/60 dark:border-white/[0.06] text-xs">
+            <div className="inline-flex items-center gap-1 p-1 rounded-xl axy-surface-tonal text-xs">
               <button
                 type="button"
                 onClick={() => setVolumeMetric('COUNT')}
                 className={`px-2.5 py-1 rounded-lg font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   volumeMetric === 'COUNT'
-                    ? 'bg-white dark:bg-[#0E1D40] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
+                    ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
@@ -334,7 +334,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
                 onClick={() => setVolumeMetric('DOP')}
                 className={`px-2.5 py-1 rounded-lg font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   volumeMetric === 'DOP'
-                    ? 'bg-white dark:bg-[#0E1D40] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
+                    ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
@@ -345,7 +345,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
                 onClick={() => setVolumeMetric('USD')}
                 className={`px-2.5 py-1 rounded-lg font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   volumeMetric === 'USD'
-                    ? 'bg-white dark:bg-[#0E1D40] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
+                    ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
@@ -383,7 +383,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
                   content={({ active, payload, label }) => {
                     if (!active || !payload || payload.length === 0) return null;
                     return (
-                      <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-xs space-y-1">
+                      <div className="p-3 rounded-xl axy-surface text-xs space-y-1">
                         <p className="font-semibold text-slate-900 dark:text-white">{label}</p>
                         {payload.map((entry) => {
                           const raw = Number(entry.value ?? 0);
@@ -468,7 +468,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
         </div>
 
         {/* Credit Approval Rate Chart */}
-        <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(4,12,30,0.04)] space-y-4">
+        <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl axy-surface space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-display text-sm font-semibold text-slate-950 dark:text-white flex items-center gap-2">
@@ -480,13 +480,13 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-white/[0.05] border border-slate-200/60 dark:border-white/[0.06] text-xs">
+            <div className="inline-flex items-center gap-1 p-1 rounded-xl axy-surface-tonal text-xs">
               <button
                 type="button"
                 onClick={() => setApprovalView('TREND')}
                 className={`px-2.5 py-1 rounded-lg font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   approvalView === 'TREND'
-                    ? 'bg-white dark:bg-[#0E1D40] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
+                    ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
@@ -497,7 +497,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
                 onClick={() => setApprovalView('BREAKDOWN')}
                 className={`px-2.5 py-1 rounded-lg font-medium transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   approvalView === 'BREAKDOWN'
-                    ? 'bg-white dark:bg-[#0E1D40] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
+                    ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
@@ -539,7 +539,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
                       const pt = payload[0]?.payload as MonthlyOriginationPoint | undefined;
                       if (!pt) return null;
                       return (
-                        <div className="p-3 rounded-lg bg-white dark:bg-[#040C1E] border border-slate-200 dark:border-[#00B8FF]/25 shadow-md text-xs space-y-1 font-mono tabular-nums">
+                        <div className="p-3 rounded-xl axy-surface text-xs space-y-1 font-mono tabular-nums">
                           <p className="font-sans font-semibold text-slate-900 dark:text-white">
                             {label}
                           </p>
@@ -601,7 +601,7 @@ export function DashboardKpiSummary({ applications, loans }: DashboardKpiSummary
                               ? ((val / summary.submittedCount) * 100).toFixed(1)
                               : '0.0';
                           return (
-                            <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-xs font-mono tabular-nums">
+                            <div className="p-2.5 rounded-xl axy-surface text-xs font-mono tabular-nums">
                               <p className="font-sans font-semibold text-slate-900 dark:text-white">
                                 {item.name}
                               </p>

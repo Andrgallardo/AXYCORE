@@ -214,11 +214,11 @@ export function OriginationLoanSimulator({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#091020] p-4 sm:p-5 space-y-4">
+    <div className="rounded-2xl axy-surface-tonal p-4 sm:p-5 space-y-4">
       {/* Simulator Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3.5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[var(--axy-border)] pb-3.5">
         <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-xl bg-[#e7f0ff] dark:bg-[#0A1D3D] border border-[#c8dcfa] dark:border-[#1D4ED8]/40 text-[#175cb9] dark:text-[#60A5FA] grid place-items-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 border border-[#0066FF]/20 dark:border-[#00B8FF]/25 text-[#0066FF] dark:text-[#00D1FF] grid place-items-center shrink-0">
             <Calculator className="w-4 h-4" />
           </div>
           <div>
@@ -226,8 +226,8 @@ export function OriginationLoanSimulator({
               <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Simulador Integrado · Parámetros Motor V2
               </h3>
-              <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-300">
-                <Cpu className="w-3 h-3 text-[#175cb9] dark:text-[#38BDF8]" />
+              <span className="inline-flex items-center gap-1 rounded-md axy-surface px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-700 dark:text-slate-300">
+                <Cpu className="w-3 h-3 text-[#0066FF] dark:text-[#00D1FF]" />
                 v{policy.version} · {policy.status}
               </span>
             </div>
@@ -240,13 +240,13 @@ export function OriginationLoanSimulator({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <div className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#0D1628] border border-slate-200 dark:border-slate-700 font-mono tabular-nums">
+          <div className="px-2.5 py-1.5 rounded-lg axy-surface font-mono tabular-nums">
             <span className="text-slate-500 dark:text-slate-400 mr-1.5">Score Vivo:</span>
             <strong className="text-slate-900 dark:text-slate-100">
               {scoring.totalScore}/100
             </strong>
             <span className="mx-1.5 text-slate-300 dark:text-slate-700">|</span>
-            <span className="font-sans font-semibold text-[#175cb9] dark:text-[#60A5FA]">
+            <span className="font-sans font-semibold text-[#0066FF] dark:text-[#00D1FF]">
               {scoring.riskBand.label}
             </span>
           </div>
@@ -273,7 +273,7 @@ export function OriginationLoanSimulator({
                 onApplyConditions({ paymentFrequency: mapped });
               }
             }}
-            className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full h-9 axy-input px-2.5 text-xs text-slate-900 dark:text-slate-100"
           >
             <option value="Mensual">Mensual (×1 cuota/mes)</option>
             <option value="Quincenal">Quincenal (×2 cuotas/mes)</option>
@@ -299,7 +299,7 @@ export function OriginationLoanSimulator({
                 amortizationMethod: next === 'Fija' ? 'INTERES_FIJO' : 'SALDO_INSOLUTO',
               });
             }}
-            className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full h-9 axy-input px-2.5 text-xs text-slate-900 dark:text-slate-100"
           >
             <option value="Insoluta">Insoluta (Política Motor V2)</option>
             <option value="Fija">Fija (Comparativa)</option>
@@ -317,7 +317,7 @@ export function OriginationLoanSimulator({
             id="orig-sim-gastos"
             value={gastosMode}
             onChange={(e) => setGastosMode(e.target.value as CalculatorExpensesMode)}
-            className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full h-9 axy-input px-2.5 text-xs text-slate-900 dark:text-slate-100"
           >
             <option value="Descontar">Descontar del desembolso</option>
             <option value="Financiar">Financiar gastos legales</option>
@@ -335,7 +335,7 @@ export function OriginationLoanSimulator({
             id="orig-sim-modalidad"
             value={modalidadPago}
             onChange={(e) => setModalidadPago(e.target.value as CalculatorPaymentMode)}
-            className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full h-9 axy-input px-2.5 text-xs text-slate-900 dark:text-slate-100"
           >
             <option value="Normal">Normal</option>
             <option value="SoloInteresesInicial">Por período (solo intereses inicio)</option>
@@ -362,7 +362,7 @@ export function OriginationLoanSimulator({
                 setTasaPersonalizada(String(motorConfig.appliedMonthlyRatePct));
               }
             }}
-            className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full h-9 axy-input px-2.5 text-xs text-slate-900 dark:text-slate-100"
           >
             <option value="AUTO">
               Motor V2 ({fmtPct(motorConfig.appliedMonthlyRatePct)}/mes)
@@ -386,7 +386,7 @@ export function OriginationLoanSimulator({
               step="0.01"
               value={tasaPersonalizada}
               onChange={(e) => setTasaPersonalizada(e.target.value)}
-              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
+              className="w-full h-9 axy-input px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
             />
           </div>
         )}
@@ -407,7 +407,7 @@ export function OriginationLoanSimulator({
               step="1"
               value={cuotasSoloInteres}
               onChange={(e) => setCuotasSoloInteres(e.target.value)}
-              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
+              className="w-full h-9 axy-input px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
             />
           </div>
         )}
@@ -424,7 +424,7 @@ export function OriginationLoanSimulator({
             type="date"
             value={fechaDesembolso}
             onChange={(e) => setFechaDesembolso(e.target.value)}
-            className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
+            className="w-full h-9 axy-input px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
           />
         </div>
 
@@ -441,7 +441,7 @@ export function OriginationLoanSimulator({
                 type="button"
                 onClick={handleLoadBcrdFx}
                 disabled={loadingBcrd}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#175cb9] dark:text-[#38BDF8] hover:underline cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-2.5 h-2.5 ${loadingBcrd ? 'animate-spin' : ''}`} />
                 <span>Cargar BCRD</span>
@@ -455,7 +455,7 @@ export function OriginationLoanSimulator({
               placeholder={String(policy.exchangeRateConfig.dopPerUsd)}
               value={customFxRate}
               onChange={(e) => setCustomFxRate(e.target.value)}
-              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
+              className="w-full h-9 axy-input px-2.5 text-xs font-mono tabular-nums text-slate-900 dark:text-slate-100"
             />
             {bcrdNote && (
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{bcrdNote}</p>
@@ -478,14 +478,14 @@ export function OriginationLoanSimulator({
       {/* Key Metrics Grid */}
       {selectedSimulation && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="rounded-xl bg-[#103b78] text-white p-3.5">
-            <div className="text-[11px] font-medium text-[#d2e5ff]">
+          <div className="rounded-xl axy-brand-gradient text-white p-3.5 shadow-sm">
+            <div className="text-[11px] font-medium text-white/85">
               {selectedSimulation.cuotasIguales ? 'Cuota simulada' : 'Cuota inicial'}
             </div>
             <div className="text-xl font-extrabold font-mono tabular-nums mt-0.5">
               {fmtMoney(selectedSimulation.cuotaInicial, currency)}
             </div>
-            <div className="text-[11px] text-[#d8e9ff] mt-0.5 font-mono tabular-nums">
+            <div className="text-[11px] text-white/85 mt-0.5 font-mono tabular-nums">
               {selectedSimulation.numeroCuotas} cuotas ({fmtPct(selectedSimulation.tasaAplicada)}/mes)
               {selectedSimulation.equivalenteDOP
                 ? ` · ${fmtMoney(selectedSimulation.equivalenteDOP.cuotaInicial, 'DOP')}`
@@ -493,7 +493,7 @@ export function OriginationLoanSimulator({
             </div>
           </div>
 
-          <div className="rounded-xl bg-white dark:bg-[#0D1628] border border-slate-200 dark:border-slate-800 p-3.5">
+          <div className="rounded-xl axy-surface p-3.5">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Neto a recibir ({selectedSimulation.modalidadGastos})
             </div>
@@ -505,7 +505,7 @@ export function OriginationLoanSimulator({
             </div>
           </div>
 
-          <div className="rounded-xl bg-white dark:bg-[#0D1628] border border-slate-200 dark:border-slate-800 p-3.5">
+          <div className="rounded-xl axy-surface p-3.5">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Total intereses / Total a pagar
             </div>
@@ -517,7 +517,7 @@ export function OriginationLoanSimulator({
             </div>
           </div>
 
-          <div className="rounded-xl bg-white dark:bg-[#0D1628] border border-slate-200 dark:border-slate-800 p-3.5">
+          <div className="rounded-xl axy-surface p-3.5">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Capacidad Motor V2 / DTI
             </div>
@@ -541,10 +541,10 @@ export function OriginationLoanSimulator({
 
       {/* Motor V2 Sustainable Recommendation Callout */}
       {scoring.recommendedAmount > 0 && (
-        <div className="rounded-xl bg-white dark:bg-[#0D1628] border border-sky-200 dark:border-sky-900/60 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="rounded-xl axy-surface-ai px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-100">
-              <Sparkles className="w-3.5 h-3.5 text-[#175cb9] dark:text-[#38BDF8]" />
+              <Sparkles className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00D1FF]" />
               <span>
                 Precalificación Motor V2: {SCORING_STATUS_LABELS[scoring.status]}
               </span>
@@ -565,7 +565,7 @@ export function OriginationLoanSimulator({
                   requestedTermMonths: scoring.recommendedTermMonths,
                 })
               }
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#175cb9] hover:bg-[#104f9e] text-white text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 py-2 axy-btn-primary text-xs whitespace-nowrap cursor-pointer shrink-0"
             >
               <span>Aplicar condiciones recomendadas</span>
             </button>
@@ -574,7 +574,7 @@ export function OriginationLoanSimulator({
       )}
 
       {/* Compliance Checks Grid */}
-      <div className="rounded-xl bg-white dark:bg-[#0D1628] border border-slate-200 dark:border-slate-800 p-3.5 space-y-2.5">
+      <div className="rounded-xl axy-surface p-3.5 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
             Validación contra Política Crediticia Motor V2
@@ -625,7 +625,7 @@ export function OriginationLoanSimulator({
                 onClick={() =>
                   setDetailsTab((prev) => (prev === 'COMPARISON' ? 'NONE' : 'COMPARISON'))
                 }
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 axy-btn-secondary text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 <span>Comparar Fija vs. Insoluta</span>
                 {detailsTab === 'COMPARISON' ? (
@@ -640,7 +640,7 @@ export function OriginationLoanSimulator({
                 onClick={() =>
                   setDetailsTab((prev) => (prev === 'SCHEDULE' ? 'NONE' : 'SCHEDULE'))
                 }
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0D1628] text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 axy-btn-secondary text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 <span>Ver Tabla de Amortización ({selectedSimulation.numeroCuotas} cuotas)</span>
                 {detailsTab === 'SCHEDULE' ? (
@@ -657,16 +657,16 @@ export function OriginationLoanSimulator({
           </div>
 
           {detailsTab === 'COMPARISON' && (
-            <div className="rounded-xl bg-white dark:bg-[#0D1628] border border-slate-200 dark:border-slate-800 p-4 overflow-x-auto">
+            <div className="rounded-xl axy-surface p-4 overflow-x-auto">
               <table className="w-full border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                  <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                     <th className="py-2 px-3 text-left font-semibold">Concepto</th>
                     <th className="py-2 px-3 text-right font-semibold">Fija</th>
                     <th className="py-2 px-3 text-right font-semibold">Insoluta</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody>
                   {(
                     [
                       ['Monto financiado', 'montoFinanciado'],
@@ -677,14 +677,14 @@ export function OriginationLoanSimulator({
                       ['Total a pagar', 'totalAPagar'],
                     ] as const
                   ).map(([label, key]) => (
-                    <tr key={key}>
+                    <tr key={key} className="axy-table-row">
                       <td className="py-2 px-3 text-slate-700 dark:text-slate-300 font-medium">
                         {label}
                       </td>
                       <td
                         className={`py-2 px-3 text-right font-mono tabular-nums ${
                           interestType === 'Fija'
-                            ? 'bg-[#eef4ff] dark:bg-[#0A1D3D] font-bold text-[#175cb9] dark:text-[#60A5FA]'
+                            ? 'bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 font-bold text-[#0052CC] dark:text-[#00D1FF]'
                             : 'text-slate-700 dark:text-slate-300'
                         }`}
                       >
@@ -693,7 +693,7 @@ export function OriginationLoanSimulator({
                       <td
                         className={`py-2 px-3 text-right font-mono tabular-nums ${
                           interestType === 'Insoluta'
-                            ? 'bg-[#eef4ff] dark:bg-[#0A1D3D] font-bold text-[#175cb9] dark:text-[#60A5FA]'
+                            ? 'bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 font-bold text-[#0052CC] dark:text-[#00D1FF]'
                             : 'text-slate-700 dark:text-slate-300'
                         }`}
                       >
@@ -707,7 +707,7 @@ export function OriginationLoanSimulator({
           )}
 
           {detailsTab === 'SCHEDULE' && (
-            <div className="rounded-xl bg-white dark:bg-[#0D1628] border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+            <div className="rounded-xl axy-surface p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                   Calendario proyectado ({selectedSimulation.tipo} · {selectedSimulation.numeroCuotas} cuotas)
@@ -720,7 +720,7 @@ export function OriginationLoanSimulator({
                       onChange={(e) =>
                         setScheduleCurrencyView(e.target.value as 'original' | 'DOP')
                       }
-                      className="h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#091020] px-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                      className="h-8 axy-input px-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
                     >
                       <option value="original">USD</option>
                       <option value="DOP">Equivalente DOP</option>
@@ -729,7 +729,7 @@ export function OriginationLoanSimulator({
                   <button
                     type="button"
                     onClick={handleExportCsv}
-                    className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-[#eaf1fc] hover:bg-[#dce9fc] dark:bg-[#0A1D3D] dark:hover:bg-[#102952] text-[#175cb9] dark:text-[#7CE4FF] text-xs font-semibold cursor-pointer"
+                    className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-[#0066FF]/10 hover:bg-[#0066FF]/20 text-[#0052CC] dark:text-[#00D1FF] text-xs font-semibold cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>CSV</span>
@@ -737,34 +737,20 @@ export function OriginationLoanSimulator({
                 </div>
               </div>
 
-              <div className="overflow-auto max-h-72 rounded-lg border border-slate-200 dark:border-slate-800">
+              <div className="overflow-auto max-h-72 rounded-xl border border-[var(--axy-border)]">
                 <table className="w-full border-collapse whitespace-nowrap text-xs">
-                  <thead>
-                    <tr className="bg-[#eaf1fc] dark:bg-[#0A1D3D] text-[#214e84] dark:text-[#93C5FD] border-b border-slate-200 dark:border-slate-800">
-                      <th className="sticky top-0 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-2 px-3 text-left font-bold">
-                        #
-                      </th>
-                      <th className="sticky top-0 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-2 px-3 text-left font-bold">
-                        Fecha
-                      </th>
-                      <th className="sticky top-0 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-2 px-3 text-left font-bold">
-                        Etapa
-                      </th>
-                      <th className="sticky top-0 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-2 px-3 text-right font-bold">
-                        Capital
-                      </th>
-                      <th className="sticky top-0 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-2 px-3 text-right font-bold">
-                        Interés
-                      </th>
-                      <th className="sticky top-0 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-2 px-3 text-right font-bold">
-                        Cuota
-                      </th>
-                      <th className="sticky top-0 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-2 px-3 text-right font-bold">
-                        Balance
-                      </th>
+                  <thead className="sticky top-0 axy-table-head z-10">
+                    <tr className="text-[#0052CC] dark:text-[#00D1FF]">
+                      <th className="py-2 px-3 text-left font-bold">#</th>
+                      <th className="py-2 px-3 text-left font-bold">Fecha</th>
+                      <th className="py-2 px-3 text-left font-bold">Etapa</th>
+                      <th className="py-2 px-3 text-right font-bold">Capital</th>
+                      <th className="py-2 px-3 text-right font-bold">Interés</th>
+                      <th className="py-2 px-3 text-right font-bold">Cuota</th>
+                      <th className="py-2 px-3 text-right font-bold">Balance</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody>
                     {(selectedSimulation.moneda === 'USD' &&
                     scheduleCurrencyView === 'DOP' &&
                     selectedSimulation.cuotasDOP
@@ -776,7 +762,7 @@ export function OriginationLoanSimulator({
                           ? 'DOP'
                           : selectedSimulation.moneda;
                       return (
-                        <tr key={row.numero}>
+                        <tr key={row.numero} className="axy-table-row">
                           <td className="py-2 px-3 font-mono tabular-nums">{row.numero}</td>
                           <td className="py-2 px-3 font-mono tabular-nums">
                             {fmtDateDisplay(row.fecha)}

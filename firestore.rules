@@ -50,116 +50,68 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function isActiveStaffDoc() {
+      return isVerified() && userExists() && userDoc().status in ['ACTIVE', 'INVITED'];
+    }
+
     function isActiveUser() {
-      return isBootstrappedAdmin() || (isVerified() && userExists() && (userDoc().status == 'ACTIVE' || userDoc().status == 'INVITED'));
+      return isBootstrappedAdmin() || isActiveStaffDoc();
     }
 
     function currentRole() {
       return isBootstrappedAdmin() ? 'ADMIN' : (userExists() ? userDoc().role : 'NONE');
     }
 
-    function currentOrg() {
-      return userExists() ? userDoc().organizationId : 'org_axycore_main';
-    }
-
     function inSameOrg(orgId) {
       return isValidId(orgId) && (
         isBootstrappedAdmin() ||
-        (isActiveUser() && (
-          currentOrg() == orgId ||
-          currentRole() == 'ADMIN' ||
-          (userExists() && 'isSuperAdmin' in userDoc() && userDoc().isSuperAdmin == true) ||
+        (isActiveStaffDoc() && (
+          userDoc().organizationId == orgId ||
+          userDoc().role == 'ADMIN' ||
+          ('isSuperAdmin' in userDoc() && userDoc().isSuperAdmin == true) ||
           exists(/databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid))
         ))
       );
     }
 
     function isAdmin() {
-      return isBootstrappedAdmin() || (isActiveUser() && currentRole() == 'ADMIN');
+      return isBootstrappedAdmin() || (isActiveStaffDoc() && userDoc().role == 'ADMIN');
     }
 
     function isInternalStaff(orgId) {
-      return inSameOrg(orgId) && currentRole() != 'EXTERNAL_CLIENT' && currentRole() != 'NONE';
+      return inSameOrg(orgId) && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']);
     }
 
-    function canOriginate(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'EXTERNAL_CLIENT'];
+    function hasOrgRole(orgId, roles) {
+      return inSameOrg(orgId) && currentRole() in roles;
     }
 
-    function canAnalyze(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'CREDIT_ANALYST'];
-    }
-
-    function canReviewRisk(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'RISK_OFFICER'];
-    }
-
-    function canVerifyDocuments(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FORMALIZATION'];
-    }
-
-    function canDecideCommittee(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'COMMITTEE_MEMBER'];
-    }
-
-    function canFormalize(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FORMALIZATION'];
-    }
-
-    function canDisburse(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'OPERATIONS', 'FINANCE'];
-    }
-
-    function canLogCollections(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR'];
-    }
-
-    function canReportPayments(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_AGENT', 'CASHIER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'BUSINESS_OFFICER', 'MANAGEMENT'];
-    }
-
-    function canApplyOrReversePayments(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'MANAGEMENT'];
-    }
-
-    function canReconcileBank(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE'];
-    }
-
-    function canAssignPortfolio(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'SUPERVISOR', 'COLLECTION_COORDINATOR'];
-    }
-
-    function canManageBot(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'COLLECTION_COORDINATOR'];
-    }
-
-    function canResolveDisputesAndAgreements(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE', 'RISK_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT'];
-    }
-
-    function canCloseLoan(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS'];
-    }
-
-    function canManageCollectionPolicies(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'COLLECTION_COORDINATOR'];
-    }
-
-    function canManageGeneralOperations(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGEMENT'];
-    }
-
-    function canManageAccountingAndEcf(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGEMENT'];
-    }
-
-    function canManageEcfInfra(orgId) {
-      return inSameOrg(orgId) && currentRole() in ['ADMIN', 'FINANCE'];
-    }
+    function canOriginate(orgId) { return hasOrgRole(orgId, ['ADMIN', 'BUSINESS_OFFICER', 'EXTERNAL_CLIENT']); }
+    function canAnalyze(orgId) { return hasOrgRole(orgId, ['ADMIN', 'CREDIT_ANALYST']); }
+    function canReviewRisk(orgId) { return hasOrgRole(orgId, ['ADMIN', 'RISK_OFFICER']); }
+    function canVerifyDocuments(orgId) { return hasOrgRole(orgId, ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FORMALIZATION']); }
+    function canDecideCommittee(orgId) { return hasOrgRole(orgId, ['ADMIN', 'COMMITTEE_MEMBER']); }
+    function canFormalize(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FORMALIZATION']); }
+    function canDisburse(orgId) { return hasOrgRole(orgId, ['ADMIN', 'OPERATIONS', 'FINANCE']); }
+    function canLogCollections(orgId) { return hasOrgRole(orgId, ['ADMIN', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR']); }
+    function canReportPayments(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_AGENT', 'CASHIER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'BUSINESS_OFFICER', 'MANAGEMENT']); }
+    function canApplyOrReversePayments(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'MANAGEMENT']); }
+    function canReconcileBank(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE']); }
+    function canAssignPortfolio(orgId) { return hasOrgRole(orgId, ['ADMIN', 'SUPERVISOR', 'COLLECTION_COORDINATOR']); }
+    function canManageBot(orgId) { return hasOrgRole(orgId, ['ADMIN', 'COLLECTION_COORDINATOR']); }
+    function canResolveDisputesAndAgreements(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE', 'RISK_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']); }
+    function canCloseLoan(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE', 'OPERATIONS']); }
+    function canManageCollectionPolicies(orgId) { return hasOrgRole(orgId, ['ADMIN', 'COLLECTION_COORDINATOR']); }
+    function canManageGeneralOperations(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGEMENT']); }
+    function canManageAccountingAndEcf(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE', 'OPERATIONS', 'MANAGEMENT']); }
+    function canManageEcfInfra(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE']); }
 
     function isValidTimestampStr(val) {
       return val is string && val.size() >= 10 && val.size() <= 40;
+    }
+
+    function optStr(d, k, m) {
+      return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= m);
     }
 
     // --- Validation Blueprints ---
@@ -179,39 +131,23 @@ service cloud.firestore {
         && isValidId(data.id)
         && (!('organizationId' in data) || (data.organizationId is string && data.organizationId == orgId))
         && data.name is string && data.name.size() >= 2 && data.name.size() <= 160
-        && (!('tenantId' in data) || (data.tenantId is string && data.tenantId.size() <= 128))
-        && (!('tenant_id' in data) || (data.tenant_id is string && data.tenant_id.size() <= 128))
-        && (!('accessCode' in data) || (data.accessCode is string && data.accessCode.size() <= 40))
-        && (!('legalName' in data) || (data.legalName is string && data.legalName.size() <= 200))
-        && (!('tradeName' in data) || (data.tradeName is string && data.tradeName.size() <= 160))
-        && (!('taxId' in data) || (data.taxId is string && data.taxId.size() <= 40))
-        && (!('rnc' in data) || (data.rnc is string && data.rnc.size() <= 40))
-        && (!('logoUrl' in data) || data.logoUrl == null || (data.logoUrl is string && data.logoUrl.size() <= 600))
-        && (!('country' in data) || (data.country is string && data.country.size() <= 80))
-        && (!('province' in data) || (data.province is string && data.province.size() <= 80))
-        && (!('city' in data) || (data.city is string && data.city.size() <= 80))
-        && (!('address' in data) || (data.address is string && data.address.size() <= 300))
-        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 40))
-        && (!('corporateEmail' in data) || (data.corporateEmail is string && data.corporateEmail.size() <= 254))
+        && optStr(data, 'tenantId', 128) && optStr(data, 'tenant_id', 128) && optStr(data, 'accessCode', 40)
+        && optStr(data, 'legalName', 200) && optStr(data, 'tradeName', 160) && optStr(data, 'taxId', 40)
+        && optStr(data, 'rnc', 40) && optStr(data, 'logoUrl', 600) && optStr(data, 'country', 80)
+        && optStr(data, 'province', 80) && optStr(data, 'city', 80) && optStr(data, 'address', 300)
+        && optStr(data, 'phone', 40) && optStr(data, 'corporateEmail', 254) && optStr(data, 'timezone', 64)
+        && optStr(data, 'onboardingDate', 40) && optStr(data, 'licenseId', 128)
+        && optStr(data, 'licenseStartDate', 40) && optStr(data, 'licenseEndDate', 40)
+        && optStr(data, 'primaryAdminUid', 128) && optStr(data, 'primaryAdminName', 160)
+        && optStr(data, 'primaryAdminEmail', 254) && optStr(data, 'primaryAdminPhone', 40)
+        && optStr(data, 'notes', 1500) && optStr(data, 'primaryColor', 32) && optStr(data, 'accentColor', 32)
         && (!('currency' in data) || data.currency in ['DOP', 'USD'])
-        && (!('timezone' in data) || (data.timezone is string && data.timezone.size() <= 64))
         && (!('status' in data) || data.status in ['ACTIVA', 'SUSPENDIDA', 'INACTIVA', 'PRUEBA', 'EN_REVISION', 'DESACTIVADA', 'PENDIENTE'])
-        && (!('onboardingDate' in data) || (data.onboardingDate is string && data.onboardingDate.size() <= 40))
         && (!('planCode' in data) || data.planCode in ['BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'CORPORATIVO', 'PERSONALIZADO'])
-        && (!('licenseId' in data) || (data.licenseId is string && data.licenseId.size() <= 128))
         && (!('licenseStatus' in data) || data.licenseStatus in ['PENDIENTE', 'ACTIVA', 'PROXIMA_A_VENCER', 'VENCIDA', 'SUSPENDIDA', 'CANCELADA'])
-        && (!('licenseStartDate' in data) || (data.licenseStartDate is string && data.licenseStartDate.size() <= 40))
-        && (!('licenseEndDate' in data) || (data.licenseEndDate is string && data.licenseEndDate.size() <= 40))
         && (!('maxUsers' in data) || (data.maxUsers is number && data.maxUsers >= 1 && data.maxUsers <= 100000))
         && (!('enabledModules' in data) || (data.enabledModules is list && data.enabledModules.size() <= 60))
         && (!('modulesEnabled' in data) || (data.modulesEnabled is list && data.modulesEnabled.size() <= 60))
-        && (!('primaryAdminUid' in data) || data.primaryAdminUid == null || (data.primaryAdminUid is string && data.primaryAdminUid.size() <= 128))
-        && (!('primaryAdminName' in data) || (data.primaryAdminName is string && data.primaryAdminName.size() <= 160))
-        && (!('primaryAdminEmail' in data) || (data.primaryAdminEmail is string && data.primaryAdminEmail.size() <= 254))
-        && (!('primaryAdminPhone' in data) || (data.primaryAdminPhone is string && data.primaryAdminPhone.size() <= 40))
-        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1500))
-        && (!('primaryColor' in data) || (data.primaryColor is string && data.primaryColor.size() <= 32))
-        && (!('accentColor' in data) || (data.accentColor is string && data.accentColor.size() <= 32))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -1202,22 +1138,22 @@ service cloud.firestore {
         );
       allow update: if isValidId(applicationId)
         && isValidApplication(incoming(), applicationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
         && incoming().updatedAt == request.time
         && (
-          (isAdmin() && inSameOrg(existing().organizationId)) ||
+          isBootstrappedAdmin() ||
+          (isAdmin() && (!('organizationId' in existing()) || inSameOrg(existing().organizationId))) ||
           (
-            incoming().createdBy == existing().createdBy
+            incoming().id == existing().id
+            && incoming().organizationId == existing().organizationId
+            && incoming().createdBy == existing().createdBy
             && incoming().createdAt == existing().createdAt
             && existing().status != 'DESEMBOLSADA'
             && (
-              // Action 1: Originator edits draft or submits draft
-              ((existing().createdBy == request.auth.uid || isInternalStaff(existing().organizationId))
-                && existing().status in ['BORRADOR', 'DEVUELTA']
-                && incoming().status in ['BORRADOR', 'RECIBIDA']
+              // Action 1: Originator edits draft/returned OR internal staff updates received/returned/evaluation application & re-evaluates
+              (((existing().createdBy == request.auth.uid && existing().status in ['BORRADOR', 'DEVUELTA'] && incoming().status in ['BORRADOR', 'RECIBIDA'])
+                  || (isInternalStaff(existing().organizationId) && currentRole() != 'AUDITOR' && existing().status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA', 'EN_EVALUACION'] && incoming().status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA', 'EN_EVALUACION']))
                 && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'productCode', 'currency', 'requestedAmount', 'requestedTermMonths',
+                  'applicantDisplayName', 'productCode', 'currency', 'requestedAmount', 'requestedTermMonths',
                   'paymentFrequency', 'amortizationMethod', 'loanPurpose', 'loanPurposeDescription',
                   'proposedCollateral', 'financialData', 'businessFinancialData', 'references',
                   'declaredDocumentsSummary', 'status', 'prequalificationStatus',
@@ -2818,6 +2754,43 @@ service cloud.firestore {
         && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COLLECTION_COORDINATOR']
         && incoming().id == configId && incoming().organizationId == existing().organizationId && incoming().createdAt == existing().createdAt
         && incoming().requireHumanApprovalForAllInterventions == true && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // --- AxyCore REGULA (32 Tenant-Isolated Regulatory, Risk, PLAFTPADM, Control & Audit Entities) ---
+
+    function isRegulaCol(col) {
+      return col is string && col.matches('^regula_[a-z_]{3,40}$');
+    }
+
+    match /regula_tenants/{orgId}/{regulaCollection}/{docId} {
+      allow read: if isRegulaCol(regulaCollection) && isInternalStaff(orgId);
+      allow create: if isRegulaCol(regulaCollection)
+        && isValidId(docId)
+        && isInternalStaff(orgId)
+        && (regulaCollection != 'regula_configuracion' || currentRole() in ['ADMIN', 'RISK_OFFICER', 'MANAGEMENT'])
+        && incoming().id == docId
+        && incoming().organizationId == orgId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isRegulaCol(regulaCollection)
+        && !(regulaCollection in ['regula_historial', 'regula_aprobaciones'])
+        && isValidId(docId)
+        && isInternalStaff(orgId)
+        && (regulaCollection != 'regula_configuracion' || currentRole() in ['ADMIN', 'RISK_OFFICER', 'MANAGEMENT'])
+        && incoming().id == docId
+        && incoming().organizationId == orgId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          regulaCollection != 'regula_ai_consultas'
+          || (
+            currentRole() in ['ADMIN', 'RISK_OFFICER', 'AUDITOR', 'MANAGEMENT', 'COMMITTEE_MEMBER']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['humanValidationStatus', 'validatedBy', 'validatedByName', 'validatedAt', 'updatedAt'])
+          )
+        );
       allow delete: if false;
     }
   }

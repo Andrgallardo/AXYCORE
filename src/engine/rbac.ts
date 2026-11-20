@@ -154,6 +154,11 @@ export const ALL_CREDIT_PERMISSIONS: CreditPermission[] = [
   'PROPOSE_ALTERA_INTERVENTION',
   'APPROVE_ALTERA_INTERVENTION',
   'MANAGE_ALTERA_CONFIG',
+  'VIEW_REGULA',
+  'MANAGE_REGULA',
+  'APPROVE_REGULA',
+  'CONFIGURE_REGULA',
+  'USE_REGULA_AI',
 ];
 
 export const PERMISSION_LABELS: Record<CreditPermission, string> = {
@@ -200,6 +205,11 @@ export const PERMISSION_LABELS: Record<CreditPermission, string> = {
   PROPOSE_ALTERA_INTERVENTION: 'Generar y someter propuestas de intervención ALTERA',
   APPROVE_ALTERA_INTERVENTION: 'Aprobar, rechazar o ejecutar recomendaciones ALTERA',
   MANAGE_ALTERA_CONFIG: 'Configurar parámetros, pesos y umbrales de ALTERA',
+  VIEW_REGULA: 'Consultar AxyCore REGULA (Cumplimiento, Riesgos, PLAFTPADM y Auditoría)',
+  MANAGE_REGULA: 'Crear y gestionar obligaciones, riesgos, controles, incidentes y planes en REGULA',
+  APPROVE_REGULA: 'Aprobar aplicabilidad, debida diligencia, informes y cierres en REGULA',
+  CONFIGURE_REGULA: 'Configurar matrices, roles, catálogos y parámetros de REGULA',
+  USE_REGULA_AI: 'Utilizar capacidades de inteligencia regulatoria REGULA AI',
 };
 
 const ROLE_ALLOWED_PERMISSIONS: Record<UserRole, CreditPermission[]> = {
@@ -248,6 +258,11 @@ const ROLE_ALLOWED_PERMISSIONS: Record<UserRole, CreditPermission[]> = {
     'PROPOSE_ALTERA_INTERVENTION',
     'APPROVE_ALTERA_INTERVENTION',
     'MANAGE_ALTERA_CONFIG',
+    'VIEW_REGULA',
+    'MANAGE_REGULA',
+    'APPROVE_REGULA',
+    'CONFIGURE_REGULA',
+    'USE_REGULA_AI',
   ],
   COMMITTEE_MEMBER: [
     'VIEW_INTERNAL_INBOX',
@@ -259,6 +274,9 @@ const ROLE_ALLOWED_PERMISSIONS: Record<UserRole, CreditPermission[]> = {
     'VIEW_ALTERA',
     'SIMULATE_ALTERA',
     'APPROVE_ALTERA_INTERVENTION',
+    'VIEW_REGULA',
+    'APPROVE_REGULA',
+    'USE_REGULA_AI',
   ],
   FORMALIZATION: [
     'VIEW_INTERNAL_INBOX',
@@ -314,6 +332,10 @@ const ROLE_ALLOWED_PERMISSIONS: Record<UserRole, CreditPermission[]> = {
     'VIEW_ECF',
     'EXPORT_FISCAL_REPORTS',
     'VIEW_ALTERA',
+    'VIEW_REGULA',
+    'MANAGE_REGULA',
+    'APPROVE_REGULA',
+    'USE_REGULA_AI',
   ],
   COLLECTION_AGENT: [
     'VIEW_COLLECTIONS_PORTFOLIO',
@@ -370,6 +392,9 @@ const ROLE_ALLOWED_PERMISSIONS: Record<UserRole, CreditPermission[]> = {
     'SIMULATE_ALTERA',
     'PROPOSE_ALTERA_INTERVENTION',
     'APPROVE_ALTERA_INTERVENTION',
+    'VIEW_REGULA',
+    'APPROVE_REGULA',
+    'USE_REGULA_AI',
   ],
   EXTERNAL_CLIENT: ['ORIGINATE_APPLICATION'],
 };
@@ -431,6 +456,7 @@ const SHARED_STAFF_HOME_SECTIONS: NavSectionId[] = [
   'bela',
   'intelligence_dashboard',
   'intelligence_altera',
+  'regula',
   'intelligence_impulsa',
   'system_sitemap',
 ];

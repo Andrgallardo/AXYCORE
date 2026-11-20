@@ -144,15 +144,15 @@ export function DirectorDashboardCard() {
   return (
     <section
       aria-label="AxyCore Director — Análisis Ejecutivo con IA"
-      className="relative overflow-hidden rounded-2xl bg-[#040C1E] text-white border border-[#00B8FF]/20 p-5 sm:p-6 shadow-[0_20px_50px_-18px_rgba(0,102,255,0.28)] space-y-4 h-full flex flex-col justify-between"
+      className="relative overflow-hidden rounded-2xl bg-[#040C1E] text-white border border-[#00B8FF]/22 p-5 sm:p-6 shadow-sm space-y-4 h-full flex flex-col justify-between"
     >
-      <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-infinity-line" />
+      <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-ai-line" />
       <div className="space-y-4">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#00B8FF]">
-              <BrainCircuit className="w-4 h-4" />
+            <div className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#00D1FF]">
+              <BrainCircuit className="w-4 h-4 text-[#00B8FF]" />
               <span>Centro de Inteligencia Ejecutiva · Mes Actual ({clockInfo.currentMonthYm})</span>
             </div>
             <h3 className="font-display text-lg sm:text-xl font-bold text-white tracking-tight">
@@ -168,7 +168,7 @@ export function DirectorDashboardCard() {
               type="button"
               disabled={directorLoading}
               onClick={() => handleAnalyzeCurrentMonth()}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap shadow-[0_6px_18px_-4px_rgba(0,102,255,0.55)]"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl axy-btn-primary text-xs cursor-pointer disabled:opacity-50 whitespace-nowrap"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${directorLoading ? 'animate-spin' : ''}`} />
               <span>
@@ -410,12 +410,12 @@ export function DirectorDedicatedView() {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl bg-[#040C1E] text-white border border-[#00B8FF]/20 p-6 space-y-5 shadow-[0_20px_50px_-18px_rgba(0,102,255,0.28)]">
-        <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-infinity-line" />
+      <div className="relative overflow-hidden rounded-2xl bg-[#040C1E] text-white border border-[#00B8FF]/22 p-6 space-y-5 shadow-sm">
+        <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-ai-line" />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-[#00B8FF] flex items-center gap-1.5">
-              <BrainCircuit className="w-4 h-4" />
+            <p className="text-xs font-semibold text-[#00D1FF] flex items-center gap-1.5">
+              <BrainCircuit className="w-4 h-4 text-[#00B8FF]" />
               Centro de Inteligencia Ejecutiva AxyCore
             </p>
             <h2 className="font-display text-2xl font-bold text-white">
@@ -447,7 +447,7 @@ export function DirectorDedicatedView() {
               type="button"
               disabled={directorLoading}
               onClick={() => runDirectorAnalysis()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 shadow-[0_6px_18px_-4px_rgba(0,102,255,0.55)]"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl axy-btn-primary text-xs cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${directorLoading ? 'animate-spin' : ''}`} />
               <span>{directorLoading ? 'Procesando diagnóstico…' : 'Analizar mi operación'}</span>

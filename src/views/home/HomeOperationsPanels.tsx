@@ -31,11 +31,11 @@ export function InstitutionalPerformanceSection({
   items: InstitutionalPerformanceItem[];
 }) {
   return (
-    <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/16 shadow-[0_1px_2px_rgba(11,31,58,0.04)] p-5 sm:p-6 space-y-5">
+    <section className="axy-surface rounded-2xl p-5 sm:p-6 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-bold text-[#0B1F3A] dark:text-white flex items-center gap-2">
-            <Activity className="w-4 h-4 text-[#168BFF]" />
+          <h3 className="font-display text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
+            <Activity className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
             <span>Rendimiento de la institución</span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -48,20 +48,20 @@ export function InstitutionalPerformanceSection({
         {items.map((item) => (
           <div
             key={item.id}
-            className="p-4 rounded-xl bg-[#F4F7FB]/80 dark:bg-[#040C1E]/70 border border-slate-200/75 dark:border-white/[0.08] space-y-3"
+            className="p-4 rounded-xl axy-surface-tonal space-y-3"
           >
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-xs font-bold text-[#0B1F3A] dark:text-white">
+              <span className="text-xs font-bold text-slate-950 dark:text-white">
                 {item.label}
               </span>
-              <span className="font-mono tabular-nums text-base font-bold text-[#168BFF] dark:text-[#20C4E8]">
+              <span className="font-mono tabular-nums text-base font-bold text-[#0066FF] dark:text-[#00D1FF]">
                 {item.pct !== null ? `${item.pct}%` : 'Sin datos'}
               </span>
             </div>
 
             <div className="h-2 w-full rounded-full bg-slate-200/80 dark:bg-white/10 overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#123B65] via-[#168BFF] to-[#20C4E8] transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-[#041B4E] via-[#0066FF] to-[#00B8FF] transition-all duration-300"
                 style={{ width: `${item.pct !== null ? Math.min(100, Math.max(3, item.pct)) : 0}%` }}
               />
             </div>
@@ -93,11 +93,11 @@ export function CollectionsSummaryPanel({
   const maxStageAmount = Math.max(...summary.recoveryByStage.map((s) => s.amount), 0);
 
   return (
-    <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/16 shadow-[0_1px_2px_rgba(11,31,58,0.04)] p-5 sm:p-6 space-y-5">
+    <section className="axy-surface rounded-2xl p-5 sm:p-6 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-bold text-[#0B1F3A] dark:text-white flex items-center gap-2">
-            <ClipboardCheck className="w-4 h-4 text-[#168BFF]" />
+          <h3 className="font-display text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
+            <ClipboardCheck className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
             <span>Resumen de Cobros ({currency})</span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -108,7 +108,7 @@ export function CollectionsSummaryPanel({
           <button
             type="button"
             onClick={() => onNavigate('cobranza_daily')}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-[#168BFF] hover:underline cursor-pointer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer"
           >
             <span>Abrir módulo de cobros</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -122,7 +122,7 @@ export function CollectionsSummaryPanel({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/80 dark:divide-white/[0.08] rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E]/75 border border-slate-200/75 dark:border-white/[0.08]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/70 dark:divide-white/[0.07] rounded-xl bg-slate-50/85 dark:bg-[#040C1E]/65">
             <div className="p-4 space-y-1">
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
                 Cobros del día
@@ -204,7 +204,7 @@ export function CollectionsSummaryPanel({
                 return (
                   <div
                     key={st.stage}
-                    className="p-3 rounded-xl border border-slate-200/75 dark:border-white/[0.07] bg-white dark:bg-[#040C1E]/50 space-y-2"
+                    className="p-3 rounded-xl bg-slate-50/80 dark:bg-[#040C1E]/55 space-y-2"
                   >
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -243,11 +243,11 @@ export function TeamProductivityPanel({
   onNavigate: (sec: NavSectionId) => void;
 }) {
   return (
-    <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/16 shadow-[0_1px_2px_rgba(11,31,58,0.04)] p-5 sm:p-6 space-y-5">
+    <section className="axy-surface rounded-2xl p-5 sm:p-6 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-bold text-[#0B1F3A] dark:text-white flex items-center gap-2">
-            <Users className="w-4 h-4 text-[#168BFF]" />
+          <h3 className="font-display text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
+            <Users className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
             <span>Productividad del Equipo</span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -257,12 +257,12 @@ export function TeamProductivityPanel({
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#20C4E8]" />
+          <ShieldCheck className="w-3.5 h-3.5 text-[#00B8FF]" />
           <span>{team.canViewFullTeam ? 'Vista Gerencial Completa' : 'Vista Acotada a tu Rol'}</span>
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/80 dark:divide-white/[0.08] rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E]/75 border border-slate-200/75 dark:border-white/[0.08]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/70 dark:divide-white/[0.07] rounded-xl bg-slate-50/85 dark:bg-[#040C1E]/65">
         <div className="p-4">
           <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
             {team.canViewFullTeam ? 'Usuarios activos' : 'Sesión activa'}
@@ -372,11 +372,11 @@ export function SmartShortcutsSection({ shortcuts }: { shortcuts: HomeShortcutIt
   if (shortcuts.length === 0) return null;
 
   return (
-    <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/16 shadow-[0_1px_2px_rgba(11,31,58,0.04)] p-5 sm:p-6 space-y-4">
+    <section className="axy-surface rounded-2xl p-5 sm:p-6 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-bold text-[#0B1F3A] dark:text-white flex items-center gap-2">
-            <Wallet className="w-4 h-4 text-[#168BFF]" />
+          <h3 className="font-display text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
             <span>Accesos Inteligentes</span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -393,10 +393,10 @@ export function SmartShortcutsSection({ shortcuts }: { shortcuts: HomeShortcutIt
               key={sc.id}
               type="button"
               onClick={sc.onClick}
-              className="group p-4 rounded-xl border border-slate-200/80 dark:border-white/10 bg-[#F4F7FB]/65 dark:bg-[#040C1E]/65 hover:bg-white dark:hover:bg-[#0E1D40] hover:border-[#168BFF]/40 transition-all text-left flex items-center justify-between gap-3 cursor-pointer"
+              className="group p-3.5 rounded-xl axy-surface-tonal hover:bg-slate-100/90 dark:hover:bg-[#0E1D40] transition-colors text-left flex items-center justify-between gap-3 cursor-pointer"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2.5 rounded-xl bg-[#0B1F3A] text-[#20C4E8] shrink-0 group-hover:bg-[#168BFF] group-hover:text-white transition-colors">
+                <div className="p-2 rounded-lg bg-white dark:bg-[#08132B] text-[#0052CC] dark:text-[#00D1FF] shrink-0 group-hover:bg-[#0066FF] group-hover:text-white transition-colors">
                   <Icon className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">

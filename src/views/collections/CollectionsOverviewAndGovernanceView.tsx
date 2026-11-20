@@ -705,7 +705,7 @@ export function CollectionsOverviewAndGovernanceView({
 
         <div className="flex flex-wrap items-center gap-2">
           {mode === 'reports' && rbac.canAccessSection('reports') && (
-            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-[#040C1E] border border-slate-200/80 dark:border-[#00B8FF]/20 mr-1">
+            <div className="inline-flex items-center gap-1 p-1 rounded-xl axy-surface-tonal mr-1">
               <button
                 type="button"
                 onClick={() => setActiveSection('reports')}
@@ -724,7 +724,7 @@ export function CollectionsOverviewAndGovernanceView({
           )}
 
           {(mode === 'dashboard' || mode === 'anticipate' || mode === 'reports') && (
-            <div className="flex items-center gap-2 bg-white dark:bg-[#08132B] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#00B8FF]/20">
+            <div className="flex items-center gap-2 axy-surface px-3 py-1.5 rounded-xl">
               <span className="text-slate-500 dark:text-slate-400">Corte:</span>
               <input
                 type="date"
@@ -739,7 +739,7 @@ export function CollectionsOverviewAndGovernanceView({
               <button
                 type="button"
                 onClick={() => handleExport('pdf')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl axy-brand-gradient hover:brightness-110 text-white font-semibold whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 axy-btn-primary whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5" />
                 Exportar PDF
@@ -747,7 +747,7 @@ export function CollectionsOverviewAndGovernanceView({
               <button
                 type="button"
                 onClick={() => handleExport('csv')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#08132B] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 font-semibold whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 axy-btn-secondary text-slate-700 dark:text-slate-200 font-semibold whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00D1FF]" />
                 Exportar CSV
@@ -763,7 +763,7 @@ export function CollectionsOverviewAndGovernanceView({
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-900 dark:bg-[#040C1E] text-white font-semibold whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#00B8FF]/25 bg-[#040C1E] hover:bg-[#0B1E47] text-white font-semibold whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
                 Imprimir
@@ -783,7 +783,7 @@ export function CollectionsOverviewAndGovernanceView({
                 });
                 setBusy(false);
               }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
               Ejecutar Corte Diario y Snapshot
@@ -811,7 +811,7 @@ export function CollectionsOverviewAndGovernanceView({
             {([parMetrics.DOP, parMetrics.USD] as const).map((m) => (
               <div
                 key={m.currency}
-                className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-4"
+                className="p-5 sm:p-6 rounded-2xl axy-surface space-y-4"
               >
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
@@ -864,7 +864,7 @@ export function CollectionsOverviewAndGovernanceView({
           {/* Interactive Recharts Analytics Row */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             {/* Aging Bucket Distribution Chart */}
-            <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-4">
+            <div className="lg:col-span-7 p-5 sm:p-6 rounded-2xl axy-surface space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
@@ -875,7 +875,7 @@ export function CollectionsOverviewAndGovernanceView({
                     Exposición de saldo capital y monto vencido por antigüedad de atraso
                   </p>
                 </div>
-                <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-[#040C1E]/60 border border-slate-200/60 dark:border-[#00B8FF]/15">
+                <div className="inline-flex items-center gap-1 p-1 rounded-xl axy-surface-tonal">
                   {(['DOP', 'USD'] as const).map((cur) => (
                     <button
                       key={cur}
@@ -883,7 +883,7 @@ export function CollectionsOverviewAndGovernanceView({
                       onClick={() => setChartCurrency(cur)}
                       className={`px-2.5 py-1 rounded-lg font-mono font-semibold transition-all cursor-pointer ${
                         chartCurrency === cur
-                          ? 'bg-white dark:bg-[#0E1D40] text-[#0052CC] dark:text-[#00D1FF] shadow-xs'
+                          ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                       }`}
                     >
@@ -916,7 +916,7 @@ export function CollectionsOverviewAndGovernanceView({
                         const row = payload[0]?.payload as (typeof agingChartData)[number] | undefined;
                         if (!row) return null;
                         return (
-                          <div className="p-3 rounded-xl bg-white/95 dark:bg-[#040C1E]/95 backdrop-blur-md border border-slate-200 dark:border-[#00B8FF]/25 shadow-md text-xs space-y-1 font-mono tabular-nums">
+                          <div className="p-3 rounded-xl axy-surface backdrop-blur-md text-xs space-y-1 font-mono tabular-nums">
                             <p className="font-sans font-semibold text-slate-950 dark:text-white">
                               Tramo {label} ({row.count} préstamos)
                             </p>
@@ -951,7 +951,7 @@ export function CollectionsOverviewAndGovernanceView({
             </div>
 
             {/* Anticípate 30/60/90 Visual Chart */}
-            <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-4">
+            <div className="lg:col-span-5 p-5 sm:p-6 rounded-2xl axy-surface space-y-4">
               <div>
                 <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-[#00B8FF] shrink-0" />
@@ -985,7 +985,7 @@ export function CollectionsOverviewAndGovernanceView({
                         const row = payload[0]?.payload as (typeof anticipateChartData)[number] | undefined;
                         if (!row) return null;
                         return (
-                          <div className="p-3 rounded-xl bg-white/95 dark:bg-[#040C1E]/95 backdrop-blur-md border border-slate-200 dark:border-[#00B8FF]/25 shadow-md text-xs space-y-1 font-mono tabular-nums">
+                          <div className="p-3 rounded-xl axy-surface backdrop-blur-md text-xs space-y-1 font-mono tabular-nums">
                             <p className="font-sans font-semibold text-slate-950 dark:text-white">
                               Horizonte {label} ({row.installmentsCount} cuotas)
                             </p>
@@ -1013,7 +1013,7 @@ export function CollectionsOverviewAndGovernanceView({
           </div>
 
           {/* Anticípate 30 / 60 / 90 Projections Detail Cards */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-3">
+          <div className="p-5 sm:p-6 rounded-2xl axy-surface space-y-3">
             <h3 className="font-display text-sm font-bold flex items-center gap-2 text-slate-950 dark:text-white">
               <TrendingUp className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
               Anticípate 30 / 60 / 90 Días (Flujos Proyectados desde Cuotas Reales)
@@ -1022,7 +1022,7 @@ export function CollectionsOverviewAndGovernanceView({
               {projections.map((p) => (
                 <div
                   key={p.horizonDays}
-                  className="p-4 rounded-xl border border-slate-200/80 dark:border-white/[0.08] bg-slate-50/70 dark:bg-white/[0.02] space-y-2"
+                  className="p-4 rounded-xl axy-surface-tonal space-y-2"
                 >
                   <div className="flex justify-between font-bold text-slate-950 dark:text-white">
                     <span>Horizonte {p.horizonDays} días</span>
@@ -1051,7 +1051,7 @@ export function CollectionsOverviewAndGovernanceView({
         <div className="space-y-6">
           {/* Collections Report KPI Strip */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18">
+            <div className="p-4 rounded-2xl axy-surface">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Cartera Vigente
               </p>
@@ -1063,7 +1063,7 @@ export function CollectionsOverviewAndGovernanceView({
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18">
+            <div className="p-4 rounded-2xl axy-surface">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Monto Vencido Exigible
               </p>
@@ -1075,7 +1075,7 @@ export function CollectionsOverviewAndGovernanceView({
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18">
+            <div className="p-4 rounded-2xl axy-surface">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Indicador PAR 30
               </p>
@@ -1087,7 +1087,7 @@ export function CollectionsOverviewAndGovernanceView({
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18">
+            <div className="p-4 rounded-2xl axy-surface">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Recuperado Aplicado
               </p>
@@ -1110,7 +1110,7 @@ export function CollectionsOverviewAndGovernanceView({
                   value={reportCatalogSearch}
                   onChange={(e) => setReportCatalogSearch(e.target.value)}
                   placeholder="Buscar entre los 20 informes de cobranza..."
-                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200/85 dark:border-[#00B8FF]/18 bg-white dark:bg-[#08132B] text-xs text-slate-900 dark:text-white"
+                  className="w-full pl-8 pr-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -1125,7 +1125,7 @@ export function CollectionsOverviewAndGovernanceView({
                       className={`w-full text-left p-3 rounded-xl border transition-colors cursor-pointer ${
                         active
                           ? 'border-[#0066FF] dark:border-[#00B8FF]/60 bg-[#0066FF]/[0.07] dark:bg-[#00B8FF]/12'
-                          : 'border-slate-200/85 dark:border-[#00B8FF]/15 bg-white dark:bg-[#08132B] hover:bg-slate-50 dark:hover:bg-white/[0.03]'
+                          : 'axy-surface hover:bg-[var(--axy-surface-muted)]'
                       }`}
                     >
                       <p
@@ -1144,7 +1144,7 @@ export function CollectionsOverviewAndGovernanceView({
 
             {/* Active Report Table */}
             <div className="lg:col-span-8 space-y-4">
-              <div className="p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 flex flex-wrap items-center justify-between gap-3">
+              <div className="p-4 rounded-2xl axy-surface flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0066FF] dark:text-[#00D1FF] flex items-center justify-center shrink-0">
                     <BarChart3 className="w-4 h-4" />
@@ -1167,16 +1167,16 @@ export function CollectionsOverviewAndGovernanceView({
                     value={reportRowSearch}
                     onChange={(e) => setReportRowSearch(e.target.value)}
                     placeholder="Filtrar registros..."
-                    className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#040C1E] text-xs text-slate-900 dark:text-white w-48"
+                    className="pl-8 pr-3 py-1.5 axy-input text-xs text-slate-900 dark:text-white w-48"
                   />
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 overflow-hidden">
+              <div className="rounded-2xl axy-surface overflow-hidden">
                 <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="sticky top-0 bg-slate-50 dark:bg-[#040C1E]">
-                      <tr className="border-b border-slate-200/80 dark:border-white/10 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <thead className="sticky top-0 axy-table-head">
+                      <tr className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         {reportTable.columns.map((c) => (
                           <th key={c} className="py-3 px-3 font-semibold whitespace-nowrap">
                             {c}
@@ -1184,11 +1184,11 @@ export function CollectionsOverviewAndGovernanceView({
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-mono tabular-nums">
+                    <tbody className="font-mono tabular-nums">
                       {visibleReportRows.map((row, idx) => (
                         <tr
                           key={idx}
-                          className="hover:bg-slate-50/70 dark:hover:bg-white/[0.02] transition-colors"
+                          className="axy-table-row"
                         >
                           {row.map((cell, ci) => (
                             <td
@@ -1216,7 +1216,7 @@ export function CollectionsOverviewAndGovernanceView({
               </div>
 
               {collectionDailySnapshots.length > 0 && (
-                <div className="p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 space-y-2">
+                <div className="p-4 rounded-2xl axy-surface space-y-2">
                   <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                     Instantáneas Históricas Guardadas ({collectionDailySnapshots.length})
                   </h3>
@@ -1226,7 +1226,7 @@ export function CollectionsOverviewAndGovernanceView({
                         key={s.id}
                         type="button"
                         onClick={() => setCutoffDate(s.cutoffDate)}
-                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#00B8FF]/20 font-mono cursor-pointer hover:bg-slate-50 dark:hover:bg-[#040C1E] text-slate-700 dark:text-slate-200"
+                        className="px-3 py-1.5 axy-btn-secondary font-mono cursor-pointer text-slate-700 dark:text-slate-200"
                       >
                         {s.cutoffDate} · PAR30 DOP {s.par30Dop}% / USD {s.par30Usd}%
                       </button>
@@ -1240,28 +1240,28 @@ export function CollectionsOverviewAndGovernanceView({
       )}
 
       {mode === 'params' && (
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5">
+        <div className="p-5 sm:p-6 rounded-2xl axy-surface space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-display text-sm font-bold">
+            <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
               Política de Cobranza Versionada ({policyDraft.version})
             </h3>
-            <span className="font-mono text-slate-500">
+            <span className="font-mono text-slate-500 dark:text-slate-400">
               Versiones registradas: {collectionPolicies.length}
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block mb-1 text-slate-500">Días de Gracia Mora</label>
+              <label className="block mb-1 text-slate-500 dark:text-slate-400">Días de Gracia Mora</label>
               <input
                 type="number"
                 value={policyDraft.graceDays}
                 onChange={(e) => setPolicyDraft({ ...policyDraft, graceDays: Number(e.target.value) })}
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
               />
             </div>
             <div>
-              <label className="block mb-1 text-slate-500">Tasa de Mora Mensual (%)</label>
+              <label className="block mb-1 text-slate-500 dark:text-slate-400">Tasa de Mora Mensual (%)</label>
               <input
                 type="number"
                 step="0.1"
@@ -1269,46 +1269,46 @@ export function CollectionsOverviewAndGovernanceView({
                 onChange={(e) =>
                   setPolicyDraft({ ...policyDraft, lateFeeRateMonthlyPct: Number(e.target.value) })
                 }
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
               />
             </div>
             <div>
-              <label className="block mb-1 text-slate-500">Contactos Máx./Día</label>
+              <label className="block mb-1 text-slate-500 dark:text-slate-400">Contactos Máx./Día</label>
               <input
                 type="number"
                 value={policyDraft.maxDailyContactsPerLoan}
                 onChange={(e) =>
                   setPolicyDraft({ ...policyDraft, maxDailyContactsPerLoan: Number(e.target.value) })
                 }
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
               />
             </div>
             <div>
-              <label className="block mb-1 text-slate-500">Bot Máx./Semana</label>
+              <label className="block mb-1 text-slate-500 dark:text-slate-400">Bot Máx./Semana</label>
               <input
                 type="number"
                 value={policyDraft.maxWeeklyBotMessagesPerLoan}
                 onChange={(e) =>
                   setPolicyDraft({ ...policyDraft, maxWeeklyBotMessagesPerLoan: Number(e.target.value) })
                 }
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <p className="font-semibold">Orden Configurable de Imputación de Pagos</p>
+            <p className="font-semibold text-slate-900 dark:text-white">Orden Configurable de Imputación de Pagos</p>
             <div className="flex flex-wrap gap-2">
               {policyDraft.imputationOrder.map((comp, i) => (
                 <div
                   key={comp}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl axy-surface-tonal font-mono text-slate-900 dark:text-white"
                 >
                   <span>{i + 1}. {comp}</span>
-                  <button type="button" onClick={() => moveImputation(i, -1)} className="cursor-pointer">
+                  <button type="button" onClick={() => moveImputation(i, -1)} className="cursor-pointer text-[#0066FF] dark:text-[#00B8FF]">
                     <ArrowUp className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => moveImputation(i, 1)} className="cursor-pointer">
+                  <button type="button" onClick={() => moveImputation(i, 1)} className="cursor-pointer text-[#0066FF] dark:text-[#00B8FF]">
                     <ArrowDown className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1316,7 +1316,7 @@ export function CollectionsOverviewAndGovernanceView({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-6">
+          <div className="flex flex-wrap gap-6 text-slate-700 dark:text-slate-300">
             <label className="inline-flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -1346,12 +1346,12 @@ export function CollectionsOverviewAndGovernanceView({
           </div>
 
           {rbac.hasPermission('MANAGE_COLLECTION_POLICIES') && userProfile && (
-            <div className="flex flex-wrap gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex flex-wrap gap-3 pt-3 border-t border-[var(--axy-border)]">
               <input
                 value={newPolVersion}
                 onChange={(e) => setNewPolVersion(e.target.value)}
                 placeholder="Nueva versión (ej. cobranza-v1.1)"
-                className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                className="px-3 py-2 axy-input font-mono text-slate-900 dark:text-white"
               />
               <button
                 type="button"
@@ -1377,7 +1377,7 @@ export function CollectionsOverviewAndGovernanceView({
                   });
                   setBusy(false);
                 }}
-                className="px-4 py-2 rounded-lg bg-sky-700 text-white font-semibold cursor-pointer"
+                className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
               >
                 Guardar y Activar Nueva Versión
               </button>
@@ -1389,9 +1389,9 @@ export function CollectionsOverviewAndGovernanceView({
       {mode === 'audit' && (
         <div className="space-y-6">
           {/* Formal Loan Closure Queue */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-            <h3 className="font-display text-sm font-bold flex items-center gap-2">
-              <Award className="w-4 h-4 text-sky-600" />
+          <div className="p-5 sm:p-6 rounded-2xl axy-surface space-y-3">
+            <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+              <Award className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
               Control de Cierre y Cancelación Formal de Préstamos
             </h3>
             <div className="space-y-2">
@@ -1407,10 +1407,10 @@ export function CollectionsOverviewAndGovernanceView({
                 return (
                   <div
                     key={l.id}
-                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2"
+                    className="p-3 rounded-xl axy-surface-tonal flex flex-wrap items-center justify-between gap-2"
                   >
                     <div>
-                      <span className="font-mono font-bold">{l.loanNumber}</span> · {l.applicantDisplayName} ·{' '}
+                      <span className="font-mono font-bold text-slate-950 dark:text-white">{l.loanNumber}</span> · {l.applicantDisplayName} ·{' '}
                       <span className="font-semibold">{l.status}</span>
                       {!check.allowed && l.status !== 'CANCELADO' && (
                         <p className="text-rose-700 dark:text-rose-400">{check.reasons.join(' | ')}</p>
@@ -1420,7 +1420,7 @@ export function CollectionsOverviewAndGovernanceView({
                       <button
                         type="button"
                         onClick={() => setSelectedCollectionLoanId(l.id)}
-                        className="px-3 py-1 rounded border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer"
+                        className="px-3 py-1.5 axy-btn-secondary text-slate-700 dark:text-slate-200 font-semibold cursor-pointer"
                       >
                         Ver Ficha 360°
                       </button>
@@ -1438,7 +1438,7 @@ export function CollectionsOverviewAndGovernanceView({
                             });
                             setFeedback({ type: 'ok', msg: `Préstamo cancelado formalmente: ${cert}` });
                           }}
-                          className="px-3 py-1 rounded bg-emerald-700 text-white font-semibold cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                         >
                           Emitir Cierre Formal
                         </button>
@@ -1450,26 +1450,26 @@ export function CollectionsOverviewAndGovernanceView({
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-display text-sm font-bold">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
+            <div className="p-4 border-b border-[var(--axy-border)]">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                 Bitácora Inmutable de Auditoría Cobranza ({collectionsAuditLogs.length})
               </h3>
             </div>
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-2.5 px-4">Fecha / Evento</th>
                   <th className="py-2.5 px-3">Acción</th>
                   <th className="py-2.5 px-3">Estado Anterior → Nuevo</th>
                   <th className="py-2.5 px-3">Usuario / Rol</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {collectionsAuditLogs.map((log) => (
-                  <tr key={log.id}>
+                  <tr key={log.id} className="axy-table-row">
                     <td className="py-2 px-4">
-                      <p className="font-mono font-semibold">{log.eventType}</p>
+                      <p className="font-mono font-semibold text-slate-900 dark:text-white">{log.eventType}</p>
                       <p className="text-slate-500 font-mono">{formatTimestamp(log.timestamp)}</p>
                     </td>
                     <td className="py-2 px-3">

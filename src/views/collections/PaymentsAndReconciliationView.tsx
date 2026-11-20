@@ -248,9 +248,9 @@ export function PaymentsAndReconciliationView({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            {mode === 'payments' && <CreditCard className="w-5 h-5 text-sky-600" />}
-            {mode === 'reconciliation' && <GitCompare className="w-5 h-5 text-sky-600" />}
-            {mode === 'unidentified' && <HelpCircle className="w-5 h-5 text-amber-600" />}
+            {mode === 'payments' && <CreditCard className="w-5 h-5 text-[#0066FF] dark:text-[#00B8FF]" />}
+            {mode === 'reconciliation' && <GitCompare className="w-5 h-5 text-[#0066FF] dark:text-[#00B8FF]" />}
+            {mode === 'unidentified' && <HelpCircle className="w-5 h-5 text-amber-500" />}
             {mode === 'payments'
               ? 'Registro, Verificación y Aplicación de Pagos'
               : mode === 'reconciliation'
@@ -309,18 +309,18 @@ export function PaymentsAndReconciliationView({
             activeLoans.length > 0 && (
               <form
                 onSubmit={handleReportPayment}
-                className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3"
+                className="p-5 rounded-2xl axy-surface space-y-3"
               >
-                <h3 className="font-display text-sm font-bold">
+                <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                   Reportar Pago o Recaudo en Ventanilla (Sin Rebajar Saldo Hasta Verificación)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block mb-1 text-slate-500">Préstamo *</label>
+                    <label className="block mb-1 text-slate-500 dark:text-slate-400">Préstamo *</label>
                     <select
                       value={selectedLoan?.id || ''}
                       onChange={(e) => setLoanId(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                     >
                       {activeLoans.map((l) => (
                         <option key={l.id} value={l.id}>
@@ -330,7 +330,7 @@ export function PaymentsAndReconciliationView({
                     </select>
                   </div>
                   <div>
-                    <label className="block mb-1 text-slate-500">
+                    <label className="block mb-1 text-slate-500 dark:text-slate-400">
                       Monto ({selectedLoan?.currency || 'DOP'}) *
                     </label>
                     <input
@@ -339,25 +339,25 @@ export function PaymentsAndReconciliationView({
                       required
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-slate-500">Fecha de Pago *</label>
+                    <label className="block mb-1 text-slate-500 dark:text-slate-400">Fecha de Pago *</label>
                     <input
                       type="date"
                       required
                       value={payDate}
                       onChange={(e) => setPayDate(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-slate-500">Canal / Método</label>
+                    <label className="block mb-1 text-slate-500 dark:text-slate-400">Canal / Método</label>
                     <select
                       value={method}
                       onChange={(e) => setMethod(e.target.value as PaymentChannelMethod)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                     >
                       <option value="TRANSFERENCIA">Transferencia</option>
                       <option value="DEPOSITO">Depósito</option>
@@ -368,28 +368,28 @@ export function PaymentsAndReconciliationView({
                     </select>
                   </div>
                   <div>
-                    <label className="block mb-1 text-slate-500">Banco</label>
+                    <label className="block mb-1 text-slate-500 dark:text-slate-400">Banco</label>
                     <input
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-slate-500">Número de Referencia *</label>
+                    <label className="block mb-1 text-slate-500 dark:text-slate-400">Número de Referencia *</label>
                     <input
                       required
                       value={refNumber}
                       onChange={(e) => setRefNumber(e.target.value)}
                       placeholder="Ej. TRF-88412"
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                   <div className="space-y-1.5">
-                    <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:border-sky-500 cursor-pointer w-full justify-center font-semibold text-slate-700 dark:text-slate-200">
-                      <Upload className="w-3.5 h-3.5 text-sky-600" />
+                    <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-[var(--axy-border-strong)] bg-[var(--axy-surface-tonal)] hover:border-[#0066FF] dark:hover:border-[#00B8FF] cursor-pointer w-full justify-center font-semibold text-slate-700 dark:text-slate-200 transition-colors">
+                      <Upload className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00B8FF]" />
                       <span>
                         {evidenceFile ? 'Cambiar Comprobante (Imagen o PDF)' : 'Subir Comprobante del Cliente (Opcional)'}
                       </span>
@@ -427,7 +427,7 @@ export function PaymentsAndReconciliationView({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Observaciones operativas"
-                    className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                   />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -437,7 +437,7 @@ export function PaymentsAndReconciliationView({
                   <button
                     type="submit"
                     disabled={busy}
-                    className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
                   >
                     {busy ? 'Registrando…' : 'Registrar Pago para Validación'}
                   </button>
@@ -445,10 +445,10 @@ export function PaymentsAndReconciliationView({
               </form>
             )}
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-3 px-4">Fecha / Ref</th>
                   <th className="py-3 px-3">Préstamo / Cliente</th>
                   <th className="py-3 px-3">Monto</th>
@@ -458,7 +458,7 @@ export function PaymentsAndReconciliationView({
                   <th className="py-3 px-3">Acciones de Control</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {sortedPayments.map((pay) => {
                   const loan = loans.find(
                     (l) => l.id === pay.loanId || l.loanNumber === pay.loanNumber
@@ -471,22 +471,22 @@ export function PaymentsAndReconciliationView({
 
                   return (
                     <React.Fragment key={pay.id}>
-                      <tr>
+                      <tr className="axy-table-row">
                         <td className="py-2.5 px-4 font-mono">
-                          <p className="font-semibold">{pay.paymentDate}</p>
+                          <p className="font-semibold text-slate-900 dark:text-white">{pay.paymentDate}</p>
                           <p className="text-slate-500">{pay.referenceNumber}</p>
                         </td>
                         <td className="py-2.5 px-3">
                           <button
                             type="button"
                             onClick={() => setSelectedCollectionLoanId(pay.loanId)}
-                            className="font-mono font-bold text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
+                            className="font-mono font-bold text-[#0052CC] dark:text-[#00D1FF] hover:underline cursor-pointer"
                           >
                             {pay.loanNumber}
                           </button>
                           <p>{pay.customerName}</p>
                         </td>
-                        <td className="py-2.5 px-3 font-mono tabular-nums font-bold">
+                        <td className="py-2.5 px-3 font-mono tabular-nums font-bold text-slate-900 dark:text-white">
                           {formatMoney(pay.amount, pay.currency)}
                         </td>
                         <td className="py-2.5 px-3">
@@ -498,13 +498,13 @@ export function PaymentsAndReconciliationView({
                             <button
                               type="button"
                               onClick={() => setPreviewPayment(pay)}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-semibold cursor-pointer"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-[#0066FF]/25 dark:border-[#00B8FF]/25 bg-[#0066FF]/[0.07] dark:bg-[#00B8FF]/10 text-[#0052CC] dark:text-[#00D1FF] font-semibold cursor-pointer"
                             >
                               <Eye className="w-3 h-3" />
                               <span>Ver Comprobante</span>
                             </button>
                           ) : isPending ? (
-                            <label className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium cursor-pointer">
+                            <label className="inline-flex items-center gap-1 px-2 py-1 axy-btn-secondary font-medium cursor-pointer text-slate-700 dark:text-slate-200">
                               <Upload className="w-3 h-3" />
                               <span>{isUploading ? 'Subiendo…' : 'Subir'}</span>
                               <input
@@ -538,7 +538,7 @@ export function PaymentsAndReconciliationView({
                               <button
                                 type="button"
                                 onClick={() => downloadReceiptPdf(receipt)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-emerald-300 text-emerald-800 dark:text-emerald-300 font-semibold cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-semibold cursor-pointer"
                               >
                                 <Download className="w-3 h-3" />
                                 {receipt.receiptNumber}
@@ -548,7 +548,7 @@ export function PaymentsAndReconciliationView({
                               <button
                                 type="button"
                                 onClick={() => setActiveSection('accounting_payment_validation')}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-semibold cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-semibold cursor-pointer"
                               >
                                 <ClipboardCheck className="w-3 h-3" />
                                 <span>Validar en Contabilidad</span>
@@ -558,7 +558,7 @@ export function PaymentsAndReconciliationView({
                               <button
                                 type="button"
                                 onClick={() => setReversingId(pay.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-amber-300 text-amber-800 dark:text-amber-300 font-semibold cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 font-semibold cursor-pointer"
                               >
                                 <RotateCcw className="w-3 h-3" />
                                 Revertir
@@ -569,13 +569,13 @@ export function PaymentsAndReconciliationView({
                       </tr>
                       {reversingId === pay.id && loan && userProfile && (
                         <tr>
-                          <td colSpan={7} className="p-3 bg-amber-50 dark:bg-amber-950/30">
+                          <td colSpan={7} className="p-3 bg-amber-50/70 dark:bg-amber-950/30">
                             <div className="flex flex-wrap gap-2">
                               <input
                                 value={revReason}
                                 onChange={(e) => setRevReason(e.target.value)}
                                 placeholder="Justificación obligatoria del reverso..."
-                                className="flex-1 min-w-[220px] px-2.5 py-1.5 rounded border border-slate-300 bg-white dark:bg-slate-900"
+                                className="flex-1 min-w-[220px] px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                               />
                               <button
                                 type="button"
@@ -605,7 +605,7 @@ export function PaymentsAndReconciliationView({
                                     setBusy(false);
                                   }
                                 }}
-                                className="px-3 py-1.5 rounded bg-rose-700 text-white font-semibold cursor-pointer"
+                                className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-semibold cursor-pointer"
                               >
                                 Confirmar Reverso
                               </button>
@@ -628,12 +628,12 @@ export function PaymentsAndReconciliationView({
           </div>
 
           {paymentReversals.length > 0 && (
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
-              <h3 className="font-display text-sm font-bold">
+            <div className="p-4 rounded-2xl axy-surface space-y-2">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                 Historial de Reversos Autorizados ({paymentReversals.length})
               </h3>
               {paymentReversals.map((r) => (
-                <div key={r.id} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 flex justify-between">
+                <div key={r.id} className="p-2.5 rounded-xl axy-surface-tonal flex justify-between">
                   <span>
                     <strong className="font-mono">{r.loanNumber}</strong> · {formatMoney(r.reversedAmount, r.currency)} · {r.reason}
                   </span>
@@ -648,13 +648,13 @@ export function PaymentsAndReconciliationView({
       {mode === 'reconciliation' && (
         <div className="space-y-5">
           {rbac.hasPermission('RECONCILE_BANK_TRANSACTIONS') && (
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="p-5 rounded-2xl axy-surface space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-display text-sm font-bold flex items-center gap-1.5">
-                  <FileSpreadsheet className="w-4 h-4 text-sky-600" />
+                <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                   Importar Extracto Bancario (CSV / TSV / Tabular)
                 </h3>
-                <span className="font-mono text-slate-500">
+                <span className="font-mono text-slate-500 dark:text-slate-400">
                   Auto-aplicación exacta:{' '}
                   {activeCollectionPolicy.autoApplyExactBankMatch ? 'HABILITADA' : 'DESACTIVADA (requiere confirmación)'}
                 </span>
@@ -665,12 +665,12 @@ export function PaymentsAndReconciliationView({
                   value={csvBank}
                   onChange={(e) => setCsvBank(e.target.value)}
                   placeholder="Banco por defecto"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 />
                 <select
                   value={csvCurrency}
                   onChange={(e) => setCsvCurrency(e.target.value as CurrencyCode)}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   <option value="DOP">DOP (RD$)</option>
                   <option value="USD">USD (US$)</option>
@@ -679,7 +679,7 @@ export function PaymentsAndReconciliationView({
                   type="file"
                   accept=".csv,.tsv,.txt"
                   onChange={handleFileUpload}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -688,7 +688,7 @@ export function PaymentsAndReconciliationView({
                 value={rawStatement}
                 onChange={(e) => setRawStatement(e.target.value)}
                 placeholder={'fecha,referencia,descripcion,monto,moneda,banco\n2026-11-17,TRF-88412,TRANSFERENCIA CLIENTE,12500.00,DOP,Banco Popular'}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                className="w-full px-3 py-2 axy-input font-mono text-slate-900 dark:text-white"
               />
 
               <div className="flex flex-wrap gap-2 justify-end">
@@ -721,7 +721,7 @@ export function PaymentsAndReconciliationView({
                       setBusy(false);
                     }
                   }}
-                  className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 axy-btn-secondary font-semibold cursor-pointer disabled:opacity-50 text-slate-700 dark:text-slate-200"
                 >
                   Importar Extracto
                 </button>
@@ -755,7 +755,7 @@ export function PaymentsAndReconciliationView({
                       setBusy(false);
                     }
                   }}
-                  className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
                 >
                   Ejecutar Motor de Conciliación
                 </button>
@@ -763,15 +763,15 @@ export function PaymentsAndReconciliationView({
             </div>
           )}
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-display text-sm font-bold">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
+            <div className="p-4 border-b border-[var(--axy-border)]">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                 Movimientos Bancarios y Coincidencias ({bankTransactions.length})
               </h3>
             </div>
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-2.5 px-4">Fecha / Banco</th>
                   <th className="py-2.5 px-3">Referencia</th>
                   <th className="py-2.5 px-3">Descripción</th>
@@ -780,7 +780,7 @@ export function PaymentsAndReconciliationView({
                   <th className="py-2.5 px-3">Emparejamiento</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {bankTransactions.map((btx) => {
                   const match = reconciliationMatches.find((m) => m.bankTransactionId === btx.id);
                   const matchedPay = match?.paymentId
@@ -791,14 +791,14 @@ export function PaymentsAndReconciliationView({
                     : undefined;
 
                   return (
-                    <tr key={btx.id}>
+                    <tr key={btx.id} className="axy-table-row">
                       <td className="py-2.5 px-4 font-mono">
                         <p>{btx.transactionDate}</p>
                         <p className="text-slate-500 font-sans">{btx.bankName}</p>
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-semibold">{btx.referenceNumber}</td>
+                      <td className="py-2.5 px-3 font-mono font-semibold text-slate-900 dark:text-white">{btx.referenceNumber}</td>
                       <td className="py-2.5 px-3">{btx.description}</td>
-                      <td className="py-2.5 px-3 font-mono tabular-nums font-bold">
+                      <td className="py-2.5 px-3 font-mono tabular-nums font-bold text-slate-900 dark:text-white">
                         {formatMoney(btx.amount, btx.currency)}
                       </td>
                       <td className="py-2.5 px-3 font-semibold">{btx.status}</td>
@@ -833,7 +833,7 @@ export function PaymentsAndReconciliationView({
                                       msg: `Conciliación confirmada y pago aplicado para ${matchedLoan.loanNumber}.`,
                                     });
                                   }}
-                                  className="px-2.5 py-1 rounded bg-emerald-700 text-white font-semibold cursor-pointer"
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                                 >
                                   Confirmar y Aplicar ({matchedLoan.loanNumber})
                                 </button>
@@ -871,12 +871,12 @@ export function PaymentsAndReconciliationView({
             return (
               <div
                 key={exc.id}
-                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3"
+                className="p-4 rounded-2xl axy-surface space-y-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    <span className="font-mono font-bold">{btx.referenceNumber}</span>
+                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">{btx.referenceNumber}</span>
                     <span>{btx.bankName}</span>
                     <span className="font-mono font-bold text-slate-900 dark:text-white">
                       {formatMoney(btx.amount, btx.currency)}
@@ -891,13 +891,13 @@ export function PaymentsAndReconciliationView({
                 </p>
 
                 {rbac.hasPermission('RECONCILE_BANK_TRANSACTIONS') && userProfile && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-[var(--axy-border)]">
                     <select
                       value={targetLoanId}
                       onChange={(e) =>
                         setResolveLoanByExc((prev) => ({ ...prev, [exc.id]: e.target.value }))
                       }
-                      className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                     >
                       {sameCurrencyLoans.map((l) => (
                         <option key={l.id} value={l.id}>
@@ -911,7 +911,7 @@ export function PaymentsAndReconciliationView({
                         setResolveNoteByExc((prev) => ({ ...prev, [exc.id]: e.target.value }))
                       }
                       placeholder="Nota de verificación / identificación..."
-                      className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                     />
                     <button
                       type="button"
@@ -945,7 +945,7 @@ export function PaymentsAndReconciliationView({
                           setBusy(false);
                         }
                       }}
-                      className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer disabled:opacity-50"
                     >
                       Asociar y Aplicar Pago
                     </button>
@@ -955,7 +955,7 @@ export function PaymentsAndReconciliationView({
             );
           })}
           {openExceptions.length === 0 && (
-            <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center text-slate-500">
+            <div className="p-8 rounded-2xl axy-surface text-center text-slate-500 dark:text-slate-400">
               No hay pagos bancarios pendientes por identificar.
             </div>
           )}

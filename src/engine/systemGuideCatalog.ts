@@ -814,6 +814,28 @@ export const SYSTEM_GUIDE_AREAS: GuideFunctionalArea[] = [
         tags: ['Gemelo Digital', 'ADN Financiero', 'Universos Alternativos', 'Plan B'],
       },
       {
+        sectionId: 'regula',
+        title: 'AxyCore REGULA · Cumplimiento, Riesgos y Control',
+        summary:
+          'Centro de inteligencia regulatoria, cumplimiento normativo dominicano, PLAFTPADM (Ley 155-17), matriz de riesgos 5×5, control interno, auditoría, evidencias, incidentes, planes de acción y REGULA AI.',
+        mechanism:
+          'Centraliza normativas, obligaciones, expedientes KYC/DDC, controles, hallazgos y planes correctivos con validación humana obligatoria, bitácora inmutable y reportes ejecutivos.',
+        outcome:
+          'Gobierno institucional verificable, trazabilidad de evidencias y respuesta preventiva ante brechas regulatorias.',
+        tags: ['Cumplimiento', 'PLAFTPADM', 'Riesgos 5×5', 'Auditoría', 'REGULA AI'],
+      },
+      {
+        sectionId: 'system_sitemap',
+        title: 'Mapa del Sistema',
+        summary:
+          'Visualización interactiva de la arquitectura completa de AxyCore con dominios, flujos de datos y acceso directo a cada pantalla.',
+        mechanism:
+          'Construye en tiempo real el grafo de los 9 dominios, 13 flujos inter-módulo, volúmenes vivos y permisos RBAC/licencia de la sesión.',
+        outcome:
+          'Navegación directa a cualquier sección y comprensión inmediata de cómo se conectan originación, cobros, contabilidad, DGII e inteligencia.',
+        tags: ['Arquitectura', 'Sitemap', 'Flujos', 'Navegación'],
+      },
+      {
         sectionId: 'intelligence_impulsa',
         title: 'Impulsa (Próximamente)',
         summary: 'Motor en hoja de ruta para renovación preventiva y crecimiento sano de cartera.',

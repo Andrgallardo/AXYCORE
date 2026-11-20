@@ -340,7 +340,7 @@ export function CollectionsActionsAndAgendaView({
             <button
               type="button"
               onClick={() => setAgreementModalAccount(selectedAccount)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl axy-brand-gradient hover:brightness-110 text-white font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 axy-btn-primary cursor-pointer"
             >
               <Handshake className="w-3.5 h-3.5" />
               Registrar Acuerdo de Pago
@@ -359,7 +359,7 @@ export function CollectionsActionsAndAgendaView({
                 });
                 setBusy(false);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
               Generar Tareas Automáticas (Idempotente)
@@ -370,7 +370,7 @@ export function CollectionsActionsAndAgendaView({
 
       {/* Submenu de Gestiones de Cobros */}
       {isGestionesGroup && (
-        <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 w-fit">
+        <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl axy-surface w-fit">
           {rbac.canAccessSection('cobranza_actions') && (
             <button
               type="button"
@@ -378,7 +378,7 @@ export function CollectionsActionsAndAgendaView({
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold transition cursor-pointer ${
                 mode === 'all_actions'
                   ? 'axy-brand-gradient text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-[var(--axy-surface-muted)]'
               }`}
             >
               <ListChecks className="w-3.5 h-3.5" />
@@ -393,7 +393,7 @@ export function CollectionsActionsAndAgendaView({
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold transition cursor-pointer ${
                 mode === 'agreements_today'
                   ? 'axy-brand-gradient text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-[var(--axy-surface-muted)]'
               }`}
             >
               <Handshake className="w-3.5 h-3.5" />
@@ -410,7 +410,7 @@ export function CollectionsActionsAndAgendaView({
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold transition cursor-pointer ${
                 mode === 'agreements_broken'
                   ? 'bg-rose-700 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-[var(--axy-surface-muted)]'
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -438,8 +438,8 @@ export function CollectionsActionsAndAgendaView({
       {/* ACUERDOS DEL DÍA SUBMENU VIEW */}
       {mode === 'agreements_today' && (
         <div className="space-y-4">
-          <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 overflow-x-auto">
-            <div className="p-4 border-b border-slate-200/80 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
+            <div className="p-4 border-b border-[var(--axy-border)] flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                   Acuerdos del Día a Gestionar ({agreementClassification.acuerdosDelDia.length})
@@ -451,7 +451,7 @@ export function CollectionsActionsAndAgendaView({
             </div>
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200/80 dark:border-white/[0.08] bg-slate-50/90 dark:bg-white/[0.03] text-slate-500 dark:text-slate-400">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-3 px-4 font-semibold">Cliente / Préstamo</th>
                   <th className="py-3 px-3 font-semibold">Fecha Acuerdo</th>
                   <th className="py-3 px-3 font-semibold text-right">Monto Acordado</th>
@@ -460,9 +460,9 @@ export function CollectionsActionsAndAgendaView({
                   <th className="py-3 px-4 font-semibold text-right">Gestión</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/70 dark:divide-white/[0.06]">
+              <tbody>
                 {agreementClassification.acuerdosDelDia.map((item) => (
-                  <tr key={item.agreement.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.025]">
+                  <tr key={item.agreement.id} className="axy-table-row">
                     <td className="py-3 px-4">
                       <p className="font-mono font-bold text-slate-950 dark:text-white">
                         {item.agreement.loanNumber}
@@ -544,7 +544,7 @@ export function CollectionsActionsAndAgendaView({
                         <button
                           type="button"
                           onClick={() => setSelectedCollectionLoanId(item.agreement.loanId)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 font-semibold cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 axy-btn-secondary font-semibold cursor-pointer text-slate-700 dark:text-slate-200"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           360°
@@ -569,8 +569,8 @@ export function CollectionsActionsAndAgendaView({
       {/* ACUERDOS INCUMPLIDOS SUBMENU VIEW */}
       {mode === 'agreements_broken' && (
         <div className="space-y-4">
-          <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-rose-500/25 overflow-x-auto">
-            <div className="p-4 border-b border-slate-200/80 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
+          <div className="rounded-2xl axy-surface border-rose-500/25 overflow-x-auto">
+            <div className="p-4 border-b border-[var(--axy-border)] flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-display text-sm font-bold text-rose-700 dark:text-rose-400">
                   Acuerdos de Pago Incumplidos ({agreementClassification.acuerdosIncumplidos.length})
@@ -582,7 +582,7 @@ export function CollectionsActionsAndAgendaView({
             </div>
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200/80 dark:border-white/[0.08] bg-slate-50/90 dark:bg-white/[0.03] text-slate-500 dark:text-slate-400">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-3 px-4 font-semibold">Cliente / Préstamo</th>
                   <th className="py-3 px-3 font-semibold">Fecha Compromiso</th>
                   <th className="py-3 px-3 font-semibold text-right">Acordado</th>
@@ -591,9 +591,9 @@ export function CollectionsActionsAndAgendaView({
                   <th className="py-3 px-4 font-semibold text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/70 dark:divide-white/[0.06]">
+              <tbody>
                 {agreementClassification.acuerdosIncumplidos.map((item) => (
-                  <tr key={item.agreement.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.025]">
+                  <tr key={item.agreement.id} className="axy-table-row">
                     <td className="py-3 px-4">
                       <p className="font-mono font-bold text-slate-950 dark:text-white">
                         {item.agreement.loanNumber}
@@ -654,7 +654,7 @@ export function CollectionsActionsAndAgendaView({
                         <button
                           type="button"
                           onClick={() => setSelectedCollectionLoanId(item.agreement.loanId)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 font-semibold cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 axy-btn-secondary font-semibold cursor-pointer text-slate-700 dark:text-slate-200"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           360°
@@ -681,10 +681,10 @@ export function CollectionsActionsAndAgendaView({
           {rbac.hasPermission('LOG_COLLECTION_ACTIONS') && activeAccounts.length > 0 && (
             <form
               onSubmit={handleSubmitAction}
-              className="p-5 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 space-y-3"
+              className="p-5 rounded-2xl axy-surface space-y-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-display text-sm font-bold">Registrar Nueva Gestión</h3>
+                <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">Registrar Nueva Gestión</h3>
                 {guardPreview && (
                   <span className={guardPreview.allowed ? 'text-emerald-700 dark:text-emerald-400 font-mono' : 'text-rose-700 dark:text-rose-400 font-mono'}>
                     Contactos hoy: {guardPreview.dailyContactsCount}/{guardPreview.maxDailyContacts}
@@ -695,11 +695,11 @@ export function CollectionsActionsAndAgendaView({
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block mb-1 text-slate-500">Préstamo</label>
+                  <label className="block mb-1 text-slate-500 dark:text-slate-400">Préstamo</label>
                   <select
                     value={selectedAccount?.loanId || ''}
                     onChange={(e) => setSelectedLoanId(e.target.value)}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                   >
                     {activeAccounts.map((a) => (
                       <option key={a.loanId} value={a.loanId}>
@@ -709,11 +709,11 @@ export function CollectionsActionsAndAgendaView({
                   </select>
                 </div>
                 <div>
-                  <label className="block mb-1 text-slate-500">Canal</label>
+                  <label className="block mb-1 text-slate-500 dark:text-slate-400">Canal</label>
                   <select
                     value={channel}
                     onChange={(e) => setChannel(e.target.value as CollectionChannel)}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                   >
                     <option value="LLAMADA">Llamada</option>
                     <option value="WHATSAPP">WhatsApp</option>
@@ -724,11 +724,11 @@ export function CollectionsActionsAndAgendaView({
                   </select>
                 </div>
                 <div>
-                  <label className="block mb-1 text-slate-500">Resultado</label>
+                  <label className="block mb-1 text-slate-500 dark:text-slate-400">Resultado</label>
                   <select
                     value={contactResult}
                     onChange={(e) => setContactResult(e.target.value as CollectionContactResult)}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                   >
                     <option value="CONTACTO_EFECTIVO_PROMESA">Contacto efectivo con promesa</option>
                     <option value="CONTACTO_SIN_ACUERDO">Contacto sin acuerdo</option>
@@ -739,12 +739,12 @@ export function CollectionsActionsAndAgendaView({
                   </select>
                 </div>
                 <div>
-                  <label className="block mb-1 text-slate-500">Próximo seguimiento</label>
+                  <label className="block mb-1 text-slate-500 dark:text-slate-400">Próximo seguimiento</label>
                   <input
                     type="date"
                     value={nextDate}
                     onChange={(e) => setNextDate(e.target.value)}
-                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                    className="w-full px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
@@ -755,11 +755,11 @@ export function CollectionsActionsAndAgendaView({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Detalle de la gestión..."
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
               />
 
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="inline-flex items-center gap-2 font-medium cursor-pointer">
+                <label className="inline-flex items-center gap-2 font-medium cursor-pointer text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
                     checked={includePromise}
@@ -771,37 +771,37 @@ export function CollectionsActionsAndAgendaView({
                 <button
                   type="submit"
                   disabled={busy || (guardPreview ? !guardPreview.allowed : false)}
-                  className="px-4 py-2 rounded-lg axy-brand-gradient hover:brightness-110 text-white font-semibold cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
                 >
                   Guardar Gestión
                 </button>
               </div>
 
               {includePromise && selectedAccount && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[var(--axy-border)]">
                   <input
                     type="number"
                     step="0.01"
                     placeholder={`Monto prometido (${selectedAccount.currency})`}
                     value={promiseAmt}
                     onChange={(e) => setPromiseAmt(e.target.value)}
-                    className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                    className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                   />
                   <input
                     type="date"
                     value={promiseDate}
                     onChange={(e) => setPromiseDate(e.target.value)}
-                    className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                    className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                   />
                 </div>
               )}
             </form>
           )}
 
-          <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 overflow-x-auto">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-3 px-4">Fecha / Hora</th>
                   <th className="py-3 px-3">Préstamo / Cliente</th>
                   <th className="py-3 px-3">Canal / Resultado</th>
@@ -810,10 +810,10 @@ export function CollectionsActionsAndAgendaView({
                   <th className="py-3 px-3">Trazabilidad</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {visibleActions.map((act) => (
                   <React.Fragment key={act.id}>
-                    <tr>
+                    <tr className="axy-table-row">
                       <td className="py-2.5 px-4 font-mono whitespace-nowrap">
                         {formatTimestamp(act.actionTimeIso)}
                       </td>
@@ -821,21 +821,21 @@ export function CollectionsActionsAndAgendaView({
                         <button
                           type="button"
                           onClick={() => setSelectedCollectionLoanId(act.loanId)}
-                          className="font-mono font-bold text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
+                          className="font-mono font-bold text-[#0052CC] dark:text-[#00D1FF] hover:underline cursor-pointer"
                         >
                           {act.loanNumber}
                         </button>
                         <p>{act.customerName}</p>
                       </td>
                       <td className="py-2.5 px-3">
-                        <p className="font-semibold">{act.channel}</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">{act.channel}</p>
                         <p className="text-slate-500">{act.contactResult}</p>
                       </td>
                       <td className="py-2.5 px-3 max-w-md">{act.notes}</td>
                       <td className="py-2.5 px-3">{act.collectorName}</td>
                       <td className="py-2.5 px-3">
                         {act.correctsActionId ? (
-                          <span className="text-sky-700 dark:text-sky-400 font-semibold">
+                          <span className="text-[#0052CC] dark:text-[#00D1FF] font-semibold">
                             Corrige {act.correctsActionId}
                           </span>
                         ) : act.supersededByActionId ? (
@@ -847,7 +847,7 @@ export function CollectionsActionsAndAgendaView({
                               setCorrectingId(act.id);
                               setCorrNotes(act.notes);
                             }}
-                            className="text-sky-700 dark:text-sky-400 font-semibold hover:underline cursor-pointer"
+                            className="text-[#0052CC] dark:text-[#00D1FF] font-semibold hover:underline cursor-pointer"
                           >
                             Corregir
                           </button>
@@ -858,18 +858,18 @@ export function CollectionsActionsAndAgendaView({
                     </tr>
                     {correctingId === act.id && userProfile && (
                       <tr>
-                        <td colSpan={6} className="p-3 bg-slate-50 dark:bg-slate-800/40">
+                        <td colSpan={6} className="p-3 bg-[var(--axy-surface-tonal)]">
                           <div className="flex flex-wrap gap-2">
                             <input
                               value={corrReason}
                               onChange={(e) => setCorrReason(e.target.value)}
                               placeholder="Motivo de corrección (obligatorio)..."
-                              className="flex-1 min-w-[200px] px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                              className="flex-1 min-w-[200px] px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                             />
                             <input
                               value={corrNotes}
                               onChange={(e) => setCorrNotes(e.target.value)}
-                              className="flex-1 min-w-[200px] px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                              className="flex-1 min-w-[200px] px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                             />
                             <button
                               type="button"
@@ -884,7 +884,7 @@ export function CollectionsActionsAndAgendaView({
                                 setCorrectingId(null);
                                 setCorrReason('');
                               }}
-                              className="px-3 py-1.5 rounded bg-sky-700 text-white font-semibold cursor-pointer"
+                              className="px-3 py-1.5 axy-btn-primary cursor-pointer"
                             >
                               Registrar Corrección
                             </button>
@@ -909,13 +909,13 @@ export function CollectionsActionsAndAgendaView({
 
       {mode === 'promises' && (
         <div className="space-y-6">
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-display text-sm font-bold">Promesas de Pago ({paymentPromises.length})</h3>
+          <div className="rounded-2xl axy-surface overflow-x-auto">
+            <div className="p-4 border-b border-[var(--axy-border)]">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">Promesas de Pago ({paymentPromises.length})</h3>
             </div>
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-2.5 px-4">Préstamo / Cliente</th>
                   <th className="py-2.5 px-3">Fecha Promesa</th>
                   <th className="py-2.5 px-3">Monto Prometido</th>
@@ -924,14 +924,14 @@ export function CollectionsActionsAndAgendaView({
                   <th className="py-2.5 px-3">Gestor</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {paymentPromises.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} className="axy-table-row">
                     <td className="py-2.5 px-4">
                       <button
                         type="button"
                         onClick={() => setSelectedCollectionLoanId(p.loanId)}
-                        className="font-mono font-bold text-sky-700 dark:text-sky-400 hover:underline cursor-pointer"
+                        className="font-mono font-bold text-[#0052CC] dark:text-[#00D1FF] hover:underline cursor-pointer"
                       >
                         {p.loanNumber}
                       </button>
@@ -962,16 +962,16 @@ export function CollectionsActionsAndAgendaView({
           {rbac.hasPermission('MANAGE_PROMISES') && activeAccounts.length > 0 && (
             <form
               onSubmit={handleProposeAgreement}
-              className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3"
+              className="p-5 rounded-2xl axy-surface space-y-3"
             >
-              <h3 className="font-display text-sm font-bold">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                 Proponer Acuerdo de Pago o Reestructuración / Refinanciamiento
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <select
                   value={agrLoanId || activeAccounts[0]?.loanId}
                   onChange={(e) => setAgrLoanId(e.target.value)}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   {activeAccounts.map((a) => (
                     <option key={a.loanId} value={a.loanId}>
@@ -982,7 +982,7 @@ export function CollectionsActionsAndAgendaView({
                 <select
                   value={agrType}
                   onChange={(e) => setAgrType(e.target.value as PaymentAgreementRecord['agreementType'])}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   <option value="ACUERDO_PAGO">Acuerdo de Pago</option>
                   <option value="REESTRUCTURACION">Reestructuración</option>
@@ -995,7 +995,7 @@ export function CollectionsActionsAndAgendaView({
                   value={agrAmount}
                   onChange={(e) => setAgrAmount(e.target.value)}
                   placeholder="Monto total acordado"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
                 <input
                   type="number"
@@ -1003,7 +1003,7 @@ export function CollectionsActionsAndAgendaView({
                   value={agrDown}
                   onChange={(e) => setAgrDown(e.target.value)}
                   placeholder="Inicial / Abono"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
                 <input
                   type="number"
@@ -1011,13 +1011,13 @@ export function CollectionsActionsAndAgendaView({
                   value={agrInstallments}
                   onChange={(e) => setAgrInstallments(e.target.value)}
                   placeholder="Número de cuotas"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
                 <input
                   type="date"
                   value={agrFirstDue}
                   onChange={(e) => setAgrFirstDue(e.target.value)}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <textarea
@@ -1026,27 +1026,27 @@ export function CollectionsActionsAndAgendaView({
                 value={agrNotes}
                 onChange={(e) => setAgrNotes(e.target.value)}
                 placeholder="Condiciones y justificación del acuerdo..."
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
               />
               <button
                 type="submit"
                 disabled={busy}
-                className="px-4 py-2 rounded-lg bg-sky-700 text-white font-semibold cursor-pointer"
+                className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
               >
                 Enviar Propuesta para Aprobación
               </button>
             </form>
           )}
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-display text-sm font-bold">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
+            <div className="p-4 border-b border-[var(--axy-border)]">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                 Acuerdos y Solicitudes de Reestructuración ({paymentAgreements.length})
               </h3>
             </div>
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-2.5 px-4">Préstamo</th>
                   <th className="py-2.5 px-3">Tipo</th>
                   <th className="py-2.5 px-3">Monto / Cuotas</th>
@@ -1055,11 +1055,11 @@ export function CollectionsActionsAndAgendaView({
                   <th className="py-2.5 px-3">Decisión</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {paymentAgreements.map((agr) => (
-                  <tr key={agr.id}>
+                  <tr key={agr.id} className="axy-table-row">
                     <td className="py-2.5 px-4">
-                      <span className="font-mono font-bold">{agr.loanNumber}</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-white">{agr.loanNumber}</span>
                       <p>{agr.customerName}</p>
                     </td>
                     <td className="py-2.5 px-3 font-semibold">{agr.agreementType}</td>
@@ -1088,7 +1088,7 @@ export function CollectionsActionsAndAgendaView({
                                 });
                               }
                             }}
-                            className="px-2.5 py-1 rounded bg-emerald-700 text-white font-semibold cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                           >
                             Aprobar
                           </button>
@@ -1102,7 +1102,7 @@ export function CollectionsActionsAndAgendaView({
                                 user: userProfile,
                               })
                             }
-                            className="px-2.5 py-1 rounded border border-rose-300 text-rose-700 font-semibold cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-400 font-semibold cursor-pointer"
                           >
                             Rechazar
                           </button>
@@ -1124,17 +1124,17 @@ export function CollectionsActionsAndAgendaView({
           {rbac.hasPermission('LOG_COLLECTION_ACTIONS') && activeAccounts.length > 0 && (
             <form
               onSubmit={handleCreateManualTask}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3"
+              className="p-4 rounded-2xl axy-surface space-y-3"
             >
-              <h3 className="font-display text-sm font-bold flex items-center gap-1.5">
-                <Plus className="w-4 h-4 text-sky-600" />
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
+                <Plus className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                 Programar Tarea Manual en Agenda
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <select
                   value={taskLoanId || activeAccounts[0]?.loanId}
                   onChange={(e) => setTaskLoanId(e.target.value)}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   {activeAccounts.map((a) => (
                     <option key={a.loanId} value={a.loanId}>
@@ -1147,12 +1147,12 @@ export function CollectionsActionsAndAgendaView({
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
                   placeholder="Título de tarea..."
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 />
                 <select
                   value={taskPriority}
                   onChange={(e) => setTaskPriority(e.target.value as CollectionPriority)}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   <option value="CRITICA">CRÍTICA</option>
                   <option value="ALTA">ALTA</option>
@@ -1163,7 +1163,7 @@ export function CollectionsActionsAndAgendaView({
                   type="date"
                   value={taskDue}
                   onChange={(e) => setTaskDue(e.target.value)}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div className="flex gap-2">
@@ -1171,12 +1171,12 @@ export function CollectionsActionsAndAgendaView({
                   value={taskDesc}
                   onChange={(e) => setTaskDesc(e.target.value)}
                   placeholder="Instrucción / detalle..."
-                  className="flex-1 px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="flex-1 px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 />
                 <button
                   type="submit"
                   disabled={busy}
-                  className="px-4 py-2 rounded-lg bg-sky-700 text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
                 >
                   Crear Tarea
                 </button>
@@ -1185,11 +1185,11 @@ export function CollectionsActionsAndAgendaView({
           )}
 
           <div className="flex items-center justify-between">
-            <h3 className="font-display text-sm font-bold">Tareas de Agenda ({visibleTasks.length})</h3>
+            <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">Tareas de Agenda ({visibleTasks.length})</h3>
             <select
               value={taskStatusFilter}
               onChange={(e) => setTaskStatusFilter(e.target.value as 'ALL' | CollectionTaskStatus)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+              className="px-3 py-1.5 axy-input text-slate-900 dark:text-white"
             >
               <option value="ALL">Todos los estados</option>
               <option value="PENDIENTE">PENDIENTE</option>
@@ -1203,7 +1203,7 @@ export function CollectionsActionsAndAgendaView({
             {visibleTasks.map((t) => (
               <div
                 key={t.id}
-                className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                className="p-4 rounded-2xl axy-surface flex flex-wrap items-center justify-between gap-3"
               >
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
@@ -1222,7 +1222,7 @@ export function CollectionsActionsAndAgendaView({
                   <button
                     type="button"
                     onClick={() => setSelectedCollectionLoanId(t.loanId)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer"
+                    className="px-3 py-1.5 axy-btn-secondary font-semibold cursor-pointer text-slate-700 dark:text-slate-200"
                   >
                     Ficha 360°
                   </button>
@@ -1237,7 +1237,7 @@ export function CollectionsActionsAndAgendaView({
                           user: userProfile,
                         })
                       }
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-semibold cursor-pointer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       Completar
@@ -1247,7 +1247,7 @@ export function CollectionsActionsAndAgendaView({
               </div>
             ))}
             {visibleTasks.length === 0 && (
-              <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center text-slate-500">
+              <div className="p-8 rounded-2xl axy-surface text-center text-slate-500 dark:text-slate-400">
                 Sin tareas en la agenda para el filtro actual.
               </div>
             )}

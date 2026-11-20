@@ -183,12 +183,12 @@ export function PerformanceOverviewWidget({
   return (
     <section
       aria-label={`Vista General de Desempeño (${currency})`}
-      className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/18 shadow-[0_1px_3px_rgba(11,31,58,0.05)] overflow-hidden"
+      className="axy-surface rounded-2xl overflow-hidden"
     >
       {/* Header Toolbar */}
       <div className="p-5 sm:p-6 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 border-b border-slate-100 dark:border-white/[0.07]">
         <div className="space-y-1">
-          <h3 className="font-display text-lg font-bold text-[#0B1F3A] dark:text-white tracking-tight text-balance">
+          <h3 className="font-display text-lg font-bold text-slate-950 dark:text-white tracking-tight text-balance">
             Vista General de Desempeño
           </h3>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -207,7 +207,7 @@ export function PerformanceOverviewWidget({
           <div
             role="group"
             aria-label="Ventana de análisis"
-            className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/[0.08]"
+            className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/[0.08]"
           >
             {WINDOW_OPTIONS.map((opt) => (
               <button
@@ -216,8 +216,8 @@ export function PerformanceOverviewWidget({
                 onClick={() => setWindowDays(opt.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   windowDays === opt.value
-                    ? 'bg-[#0B1F3A] dark:bg-[#168BFF] text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-[#0B1F3A] dark:hover:text-white'
+                    ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                 }`}
               >
                 {opt.label}
@@ -229,15 +229,15 @@ export function PerformanceOverviewWidget({
           <div
             role="group"
             aria-label="Modo de visualización de gráficas"
-            className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/[0.08]"
+            className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/[0.08]"
           >
             <button
               type="button"
               onClick={() => setViewMode('SPLIT')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                 viewMode === 'SPLIT'
-                  ? 'bg-[#0B1F3A] dark:bg-[#168BFF] text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-[#0B1F3A] dark:hover:text-white'
+                  ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <Activity className="w-3.5 h-3.5 shrink-0" />
@@ -248,8 +248,8 @@ export function PerformanceOverviewWidget({
               onClick={() => setViewMode('COMBINED')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                 viewMode === 'COMBINED'
-                  ? 'bg-[#0B1F3A] dark:bg-[#168BFF] text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-[#0B1F3A] dark:hover:text-white'
+                  ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
               }`}
             >
               <Layers className="w-3.5 h-3.5 shrink-0" />
@@ -273,7 +273,7 @@ export function PerformanceOverviewWidget({
               </span>
             </div>
             <div className="flex items-baseline gap-2.5">
-              <p className="font-mono tabular-nums text-2xl sm:text-[28px] font-extrabold text-[#0B1F3A] dark:text-white tracking-tight">
+              <p className="font-display tabular-nums text-2xl sm:text-[28px] font-bold text-slate-950 dark:text-white tracking-tight">
                 {data.approvalRate.currentPct !== null
                   ? `${data.approvalRate.currentPct.toFixed(1)}%`
                   : '—'}
@@ -301,7 +301,7 @@ export function PerformanceOverviewWidget({
               <button
                 type="button"
                 onClick={() => onNavigate('applications')}
-                className="inline-flex items-center gap-1 font-semibold text-[#168BFF] hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer whitespace-nowrap shrink-0"
               >
                 <span>Ver originación</span>
                 <ArrowRight className="w-3 h-3" />
@@ -322,7 +322,7 @@ export function PerformanceOverviewWidget({
               </span>
             </div>
             <div className="flex items-baseline gap-2.5 flex-wrap">
-              <p className="font-mono tabular-nums text-2xl sm:text-[28px] font-extrabold text-[#0B1F3A] dark:text-white tracking-tight">
+              <p className="font-display tabular-nums text-2xl sm:text-[28px] font-bold text-slate-950 dark:text-white tracking-tight">
                 {formatMoney(data.dailyPlacement.windowTotalAmount, currency)}
               </p>
               <span className="font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
@@ -348,7 +348,7 @@ export function PerformanceOverviewWidget({
               <button
                 type="button"
                 onClick={() => onNavigate('disbursements')}
-                className="inline-flex items-center gap-1 font-semibold text-[#168BFF] hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer whitespace-nowrap shrink-0"
               >
                 <span>Ver desembolsos</span>
                 <ArrowRight className="w-3 h-3" />
@@ -369,7 +369,7 @@ export function PerformanceOverviewWidget({
               </span>
             </div>
             <div className="flex items-baseline gap-2.5 flex-wrap">
-              <p className="font-mono tabular-nums text-2xl sm:text-[28px] font-extrabold text-[#0B1F3A] dark:text-white tracking-tight">
+              <p className="font-display tabular-nums text-2xl sm:text-[28px] font-bold text-slate-950 dark:text-white tracking-tight">
                 {data.par30.currentPct.toFixed(2)}%
               </p>
               <span className="font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
@@ -392,7 +392,7 @@ export function PerformanceOverviewWidget({
               <button
                 type="button"
                 onClick={() => onNavigate('cobranza_portfolio')}
-                className="inline-flex items-center gap-1 font-semibold text-[#168BFF] hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer whitespace-nowrap shrink-0"
               >
                 <span>Ver cartera</span>
                 <ArrowRight className="w-3 h-3" />
@@ -732,8 +732,8 @@ export function PerformanceOverviewWidget({
                         yAxisId="daily"
                         dataKey="dailyPlacementAmount"
                         name="Colocación diaria"
-                        fill="#168BFF"
-                        radius={[4, 4, 0, 0]}
+                        fill="#0066FF"
+                        radius={[5, 5, 0, 0]}
                         maxBarSize={28}
                       />
                       {showCumulativeLine && (
@@ -742,7 +742,7 @@ export function PerformanceOverviewWidget({
                           type="monotone"
                           dataKey="cumulativePlacementAmount"
                           name="Acumulado ventana"
-                          stroke="#20C4E8"
+                          stroke="#00B8FF"
                           strokeWidth={2}
                           dot={false}
                           activeDot={{ r: 4 }}

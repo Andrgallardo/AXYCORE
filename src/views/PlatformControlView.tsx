@@ -787,7 +787,7 @@ export function PlatformControlView() {
 
           {/* Módulos Más Contratados & Estado de Servicios */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm">
+            <div className="rounded-2xl axy-surface p-6">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                 Módulos Más Contratados en la Plataforma
@@ -796,7 +796,7 @@ export function PlatformControlView() {
                 {platformMetrics.topModules.map((m) => (
                   <div
                     key={m.code}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#040C1E]/60 border border-slate-200/70 dark:border-[#00B8FF]/15 text-xs"
+                    className="flex items-center justify-between p-3 rounded-xl axy-surface-tonal text-xs"
                   >
                     <div>
                       <span className="font-semibold text-slate-800 dark:text-slate-100">{m.name}</span>
@@ -810,7 +810,7 @@ export function PlatformControlView() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm">
+            <div className="rounded-2xl axy-surface p-6">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Server className="w-4 h-4 text-[#00B8FF]" />
                 Estado de Servicios e Infraestructura Multi-Tenant
@@ -836,7 +836,7 @@ export function PlatformControlView() {
                 ].map((row) => (
                   <div
                     key={row.service}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#040C1E]/60 border border-slate-200/70 dark:border-[#00B8FF]/15"
+                    className="flex items-center justify-between p-3 rounded-xl axy-surface-tonal"
                   >
                     <span className="text-slate-700 dark:text-slate-200 font-medium">{row.service}</span>
                     <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-mono text-[11px] font-bold">
@@ -853,7 +853,7 @@ export function PlatformControlView() {
 
       {/* TAB 2: EMPRESAS CLIENTES */}
       {activeTab === 'EMPRESAS_CLIENTES' && (
-        <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm space-y-5">
+        <div className="rounded-2xl axy-surface p-6 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
@@ -871,13 +871,13 @@ export function PlatformControlView() {
                   value={companySearch}
                   onChange={(e) => setCompanySearch(e.target.value)}
                   placeholder="Buscar por nombre, RNC, tenantId..."
-                  className="pl-8 pr-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="pl-8 pr-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'ALL' | TenantStatus)}
-                className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                className="px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
               >
                 <option value="ALL">Todos los estados</option>
                 <option value="ACTIVA">Activas</option>
@@ -891,7 +891,7 @@ export function PlatformControlView() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase text-[10px]">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400 uppercase text-[10px]">
                   <th className="py-3 px-3">Empresa / Tenant ID</th>
                   <th className="py-3 px-3">RNC / País / Moneda</th>
                   <th className="py-3 px-3">Plan y Licencia</th>
@@ -906,7 +906,7 @@ export function PlatformControlView() {
                   const licStatus = org.licenseStatus || 'ACTIVA';
                   const isCurrentWorkspace = org.id === organization.id;
                   return (
-                    <tr key={org.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
+                    <tr key={org.id} className="axy-table-row">
                       <td className="py-3.5 px-3">
                         <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                           {org.tradeName || org.name}
@@ -1039,7 +1039,7 @@ export function PlatformControlView() {
 
       {/* TAB 3: REGISTRAR NUEVA EMPRESA */}
       {activeTab === 'REGISTRAR_EMPRESA' && (
-        <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm space-y-6">
+        <div className="rounded-2xl axy-surface p-6 space-y-6">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
               REGISTRAR NUEVA EMPRESA EN AXYCORE SAAS
@@ -1134,7 +1134,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.tradeName}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, tradeName: e.target.value }))}
                   placeholder="Ej. Financiera Horizonte"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1147,7 +1147,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.legalName}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, legalName: e.target.value }))}
                   placeholder="Ej. Financiera Horizonte, S.R.L."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1160,7 +1160,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.taxId}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, taxId: e.target.value }))}
                   placeholder="Ej. 1-31-99887-2"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -1173,7 +1173,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.logoUrl}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, logoUrl: e.target.value }))}
                   placeholder="https://empresa.com/logo.png"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1185,7 +1185,7 @@ export function PlatformControlView() {
                   required
                   value={newCompanyForm.country}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, country: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1197,7 +1197,7 @@ export function PlatformControlView() {
                     type="text"
                     value={newCompanyForm.province}
                     onChange={(e) => setNewCompanyForm((p) => ({ ...p, province: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
@@ -1208,7 +1208,7 @@ export function PlatformControlView() {
                     type="text"
                     value={newCompanyForm.city}
                     onChange={(e) => setNewCompanyForm((p) => ({ ...p, city: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
@@ -1223,7 +1223,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.address}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, address: e.target.value }))}
                   placeholder="Av. Winston Churchill #102"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1236,7 +1236,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.phone}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, phone: e.target.value }))}
                   placeholder="809-555-0199"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1249,7 +1249,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.corporateEmail}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, corporateEmail: e.target.value }))}
                   placeholder="contacto@empresa.com"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -1260,7 +1260,7 @@ export function PlatformControlView() {
                 <select
                   value={newCompanyForm.currency}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, currency: e.target.value as 'DOP' | 'USD' }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 >
                   <option value="DOP">DOP (RD$ Peso Dominicano)</option>
                   <option value="USD">USD (US$ Dólar Estadounidense)</option>
@@ -1275,7 +1275,7 @@ export function PlatformControlView() {
                   required
                   value={newCompanyForm.timezone}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, timezone: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1304,7 +1304,7 @@ export function PlatformControlView() {
                   required
                   value={newCompanyForm.licenseStartDate}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, licenseStartDate: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1316,7 +1316,7 @@ export function PlatformControlView() {
                   required
                   value={newCompanyForm.licenseEndDate}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, licenseEndDate: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1330,7 +1330,7 @@ export function PlatformControlView() {
                   required
                   value={newCompanyForm.maxUsers}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, maxUsers: Number(e.target.value) }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -1344,7 +1344,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.primaryAdminName}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, primaryAdminName: e.target.value }))}
                   placeholder="Ej. Lic. Roberto Méndez"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1357,7 +1357,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.primaryAdminEmail}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, primaryAdminEmail: e.target.value }))}
                   placeholder="admin@empresa.com"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1370,7 +1370,7 @@ export function PlatformControlView() {
                   value={newCompanyForm.primaryAdminPhone}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, primaryAdminPhone: e.target.value }))}
                   placeholder="809-555-0100"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -1381,7 +1381,7 @@ export function PlatformControlView() {
                 <select
                   value={newCompanyForm.status}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, status: e.target.value as TenantStatus }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 >
                   <option value="ACTIVA">Activa</option>
                   <option value="PENDIENTE">Pendiente / En prueba</option>
@@ -1400,7 +1400,7 @@ export function PlatformControlView() {
                     setNewCompanyForm((p) => ({ ...p, accessCode: e.target.value.toUpperCase() }))
                   }
                   placeholder="Ej. FINA-001"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono uppercase text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs font-mono uppercase text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1412,13 +1412,13 @@ export function PlatformControlView() {
                   value={newCompanyForm.notes}
                   onChange={(e) => setNewCompanyForm((p) => ({ ...p, notes: e.target.value }))}
                   placeholder="Acuerdos comerciales especiales, sucursales autorizadas..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-xs text-slate-900 dark:text-white"
                 />
               </div>
             </div>
 
             {/* Step 16: Selección de Módulos Contratados */}
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="pt-4 border-t border-[var(--axy-border)]">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                   16. Módulos Contratados ({newCompanyForm.enabledModules.length} seleccionados)
@@ -1435,8 +1435,8 @@ export function PlatformControlView() {
                       key={mod.code}
                       className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
                         checked
-                          ? 'bg-blue-500/10 border-blue-500/40 text-slate-900 dark:text-white'
-                          : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-500'
+                          ? 'bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 border-[#0066FF]/40 dark:border-[#00B8FF]/40 text-slate-900 dark:text-white'
+                          : 'axy-surface-tonal text-slate-500'
                       }`}
                     >
                       <input
@@ -1479,7 +1479,7 @@ export function PlatformControlView() {
       {/* TAB 4: ADMINISTRAR MÓDULOS POR EMPRESA (FEATURE FLAGS) */}
       {activeTab === 'MODULOS_EMPRESA' && (
         <div className="space-y-6">
-          <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm">
+          <div className="rounded-2xl axy-surface p-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -1498,7 +1498,7 @@ export function PlatformControlView() {
                   <select
                     value={selectedOrgForModules.id}
                     onChange={(e) => setSelectedOrgIdForModules(e.target.value)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white"
+                    className="px-3.5 py-2 axy-input text-xs font-bold text-slate-900 dark:text-white"
                   >
                     {(allOrganizations.length > 0 ? allOrganizations : [organization]).map((org) => (
                       <option key={org.id} value={org.id}>
@@ -1515,7 +1515,7 @@ export function PlatformControlView() {
                   <select
                     value={moduleCategoryFilter}
                     onChange={(e) => setModuleCategoryFilter(e.target.value as 'ALL' | AxyCoreModuleCategory)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                    className="px-3.5 py-2 axy-input text-xs text-slate-900 dark:text-white"
                   >
                     <option value="ALL">Todas las Categorías (34 Módulos)</option>
                     <option value="FINANCIEROS">1. Módulos Financieros (13)</option>
@@ -1535,7 +1535,7 @@ export function PlatformControlView() {
               return (
                 <div
                   key={category}
-                  className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm space-y-4"
+                  className="rounded-2xl axy-surface p-6 space-y-4"
                 >
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">{meta.title}</h3>
@@ -1551,7 +1551,7 @@ export function PlatformControlView() {
                           className={`rounded-xl border p-4 flex flex-col justify-between gap-3 transition ${
                             enabled
                               ? 'bg-[#0066FF]/5 dark:bg-[#0066FF]/15 border-[#0066FF]/30 dark:border-[#00B8FF]/30'
-                              : 'bg-slate-50 dark:bg-[#040C1E]/50 border-slate-200 dark:border-[#00B8FF]/10 opacity-80'
+                              : 'axy-surface-tonal opacity-80'
                           }`}
                         >
                           <div>
@@ -1642,14 +1642,14 @@ export function PlatformControlView() {
             ))}
           </div>
 
-          <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm">
+          <div className="rounded-2xl axy-surface p-6">
             <h3 className="text-base font-bold text-slate-900 dark:text-white mb-4">
               Control de Licencias Activas por Organización
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase text-[10px]">
+                  <tr className="axy-table-head text-slate-500 dark:text-slate-400 uppercase text-[10px]">
                     <th className="py-3 px-3">Organización</th>
                     <th className="py-3 px-3">Plan</th>
                     <th className="py-3 px-3">Estado de Licencia</th>
@@ -1760,7 +1760,7 @@ export function PlatformControlView() {
 
         return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm space-y-4">
+          <div className="rounded-2xl axy-surface p-6 space-y-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">
                 Vincular Usuario a Empresa (Multi-Organización)
@@ -1770,7 +1770,7 @@ export function PlatformControlView() {
               </p>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#040C1E] border border-slate-200 dark:border-[#00B8FF]/20 space-y-2 text-xs">
+            <div className="p-3.5 rounded-xl axy-surface-tonal space-y-2 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-slate-900 dark:text-white">
                   Comité de Crédito por Empresa (3 Votantes Autorizados)
@@ -1812,7 +1812,7 @@ export function PlatformControlView() {
                 <select
                   value={membershipForm.organizationId}
                   onChange={(e) => setMembershipForm((p) => ({ ...p, organizationId: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   {(allOrganizations.length > 0 ? allOrganizations : [organization]).map((o) => (
                     <option key={o.id} value={o.id}>
@@ -1831,7 +1831,7 @@ export function PlatformControlView() {
                   value={membershipForm.userEmail}
                   onChange={(e) => setMembershipForm((p) => ({ ...p, userEmail: e.target.value }))}
                   placeholder="colaborador@empresa.com"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1844,7 +1844,7 @@ export function PlatformControlView() {
                   value={membershipForm.userDisplayName}
                   onChange={(e) => setMembershipForm((p) => ({ ...p, userDisplayName: e.target.value }))}
                   placeholder="Nombre y Apellido"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1854,7 +1854,7 @@ export function PlatformControlView() {
                 <select
                   value={membershipForm.role}
                   onChange={(e) => setMembershipForm((p) => ({ ...p, role: e.target.value as UserRole }))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
                     <option key={r} value={r}>
@@ -1907,7 +1907,7 @@ export function PlatformControlView() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase text-[10px]">
+                  <tr className="axy-table-head text-slate-500 dark:text-slate-400 uppercase text-[10px]">
                     <th className="py-2.5 px-3">Usuario</th>
                     <th className="py-2.5 px-3">Organización</th>
                     <th className="py-2.5 px-3">Rol Asignado</th>
@@ -1955,7 +1955,7 @@ export function PlatformControlView() {
 
       {/* TAB 7: INFRAESTRUCTURA Y AUDITORÍA GLOBAL */}
       {activeTab === 'USO_AUDITORIA' && (
-        <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 p-6 shadow-sm space-y-4">
+        <div className="rounded-2xl axy-surface p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
@@ -1972,7 +1972,7 @@ export function PlatformControlView() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase text-[10px]">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400 uppercase text-[10px]">
                   <th className="py-2.5 px-3">Evento</th>
                   <th className="py-2.5 px-3">Organización</th>
                   <th className="py-2.5 px-3">Descripción</th>

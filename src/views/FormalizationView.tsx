@@ -376,12 +376,12 @@ export function FormalizationView() {
 
   if (inbox.length === 0) {
     return (
-      <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
-        <p className="text-sm text-slate-500">No hay solicitudes aprobadas pendientes de formalización.</p>
+      <div className="axy-surface p-8 rounded-2xl text-center space-y-3">
+        <p className="text-sm text-slate-500 dark:text-slate-400">No hay solicitudes aprobadas pendientes de formalización.</p>
         <button
           type="button"
           onClick={() => setActiveSection('committee')}
-          className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-xs font-medium cursor-pointer"
+          className="axy-btn-primary px-4 py-2 text-xs cursor-pointer"
         >
           Ir a Comité de Crédito
         </button>
@@ -392,20 +392,20 @@ export function FormalizationView() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-4 space-y-2">
-        <h2 className="font-display text-base font-bold">Pendientes de Formalización ({inbox.length})</h2>
+        <h2 className="font-display text-base font-bold text-slate-950 dark:text-white">Pendientes de Formalización ({inbox.length})</h2>
         {inbox.map((app) => (
           <button
             key={app.id}
             type="button"
             onClick={() => setSelectedApplicationId(app.id)}
-            className={`w-full text-left p-4 rounded-xl border cursor-pointer ${
+            className={`w-full text-left p-4 rounded-xl border transition-colors cursor-pointer ${
               activeApp?.id === app.id
-                ? 'border-sky-700 bg-sky-50/70 dark:bg-sky-950/40'
-                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                ? 'border-[#0066FF] bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/16 dark:border-[#00B8FF]'
+                : 'axy-surface hover:bg-slate-50/90 dark:hover:bg-[#0E1D40]/70'
             }`}
           >
             <p className="font-mono text-xs text-slate-500">{app.applicationNumber}</p>
-            <p className="font-semibold text-sm mt-1">{app.applicantDisplayName}</p>
+            <p className="font-semibold text-sm text-slate-950 dark:text-white mt-1">{app.applicantDisplayName}</p>
             <p className="text-xs text-slate-500">{app.status}</p>
           </button>
         ))}
@@ -464,16 +464,16 @@ export function FormalizationView() {
           </div>
 
           {/* Breakdown: Capital vs Financed vs Deducted vs Net */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="axy-surface p-5 rounded-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-sm font-bold flex items-center gap-2">
-                <FileSignature className="w-4 h-4 text-sky-600" />
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                <FileSignature className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                 Desglose Contractual y Gastos
               </h3>
               <button
                 type="button"
                 onClick={handleDownloadDocs}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium cursor-pointer"
+                className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 Descargar Paquete
@@ -481,25 +481,25 @@ export function FormalizationView() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <div className="axy-surface-tonal p-3 rounded-xl">
                 <p className="text-slate-500">Capital Aprobado</p>
-                <p className="font-mono font-bold text-sm mt-0.5">{formatMoney(approvedCapital, activeApp.currency)}</p>
+                <p className="font-mono font-bold text-sm tabular-nums mt-0.5">{formatMoney(approvedCapital, activeApp.currency)}</p>
               </div>
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <div className="axy-surface-tonal p-3 rounded-xl">
                 <p className="text-slate-500">Gastos Financiados</p>
-                <p className="font-mono font-bold text-sm mt-0.5">{formatMoney(effFinancedExpenses, activeApp.currency)}</p>
+                <p className="font-mono font-bold text-sm tabular-nums mt-0.5">{formatMoney(effFinancedExpenses, activeApp.currency)}</p>
               </div>
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <div className="axy-surface-tonal p-3 rounded-xl">
                 <p className="text-slate-500">Total Financiado</p>
-                <p className="font-mono font-bold text-sm mt-0.5">{formatMoney(totalFinanced, activeApp.currency)}</p>
+                <p className="font-mono font-bold text-sm tabular-nums mt-0.5">{formatMoney(totalFinanced, activeApp.currency)}</p>
               </div>
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+              <div className="axy-surface-tonal p-3 rounded-xl">
                 <p className="text-slate-500">Gastos Descontados</p>
-                <p className="font-mono font-bold text-sm mt-0.5">{formatMoney(deductedExpenses, activeApp.currency)}</p>
+                <p className="font-mono font-bold text-sm tabular-nums mt-0.5">{formatMoney(deductedExpenses, activeApp.currency)}</p>
               </div>
-              <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-950/40">
-                <p className="text-sky-700 dark:text-sky-300">Neto a Entregar</p>
-                <p className="font-mono font-bold text-sm mt-0.5">{formatMoney(netToDeliver, activeApp.currency)}</p>
+              <div className="p-3 rounded-xl bg-[#0066FF]/8 dark:bg-[#0066FF]/16 border border-[#0066FF]/20 dark:border-[#00B8FF]/25">
+                <p className="text-[#0052CC] dark:text-[#00D1FF] font-medium">Neto a Entregar</p>
+                <p className="font-mono font-bold text-sm tabular-nums mt-0.5 text-slate-950 dark:text-white">{formatMoney(netToDeliver, activeApp.currency)}</p>
               </div>
             </div>
 
@@ -519,7 +519,7 @@ export function FormalizationView() {
                   disabled={!allowFinancedExpenses}
                   value={financedExpenses}
                   onChange={(e) => setFinancedExpenses(Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white disabled:opacity-60"
                 />
               </div>
               <div>
@@ -529,7 +529,7 @@ export function FormalizationView() {
                   min={0}
                   value={deductedExpenses}
                   onChange={(e) => setDeductedExpenses(Number(e.target.value))}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -538,7 +538,7 @@ export function FormalizationView() {
                   type="date"
                   value={disbursementTargetDate}
                   onChange={(e) => setDisbursementTargetDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input w-full px-2.5 py-1.5 text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -547,15 +547,15 @@ export function FormalizationView() {
                   type="date"
                   value={firstPaymentDate}
                   onChange={(e) => setFirstPaymentDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input w-full px-2.5 py-1.5 text-slate-900 dark:text-white"
                 />
               </div>
             </div>
           </div>
 
           {/* Contract & Promissory Note Templates */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-            <h4 className="font-semibold text-sm">Pagaré y Contrato de Préstamo</h4>
+          <div className="axy-surface p-5 rounded-2xl space-y-4">
+            <h4 className="font-semibold text-sm text-slate-950 dark:text-white">Pagaré y Contrato de Préstamo</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block mb-1 text-slate-500">Contrato de Préstamo</label>
@@ -563,7 +563,7 @@ export function FormalizationView() {
                   rows={6}
                   value={contractText}
                   onChange={(e) => setContractText(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full p-2.5 font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -572,12 +572,12 @@ export function FormalizationView() {
                   rows={6}
                   value={promissoryNoteText}
                   onChange={(e) => setPromissoryNoteText(e.target.value)}
-                  className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full p-2.5 font-mono text-slate-900 dark:text-white"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/80 dark:border-[#00B8FF]/14">
               {docsChecklist.map((item, idx) => (
                 <label key={item.key} className="inline-flex items-center gap-2 cursor-pointer">
                   <input
@@ -595,7 +595,7 @@ export function FormalizationView() {
             </div>
 
             {/* Checklist obligatorio de Pagaré y Contrato correctos */}
-            <div className="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 space-y-2.5">
+            <div className="p-3.5 rounded-xl bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/14 border border-[#0066FF]/20 dark:border-[#00B8FF]/25 space-y-2.5">
               <p className="font-semibold text-slate-900 dark:text-white">
                 Checklist de Validación Contractual (Obligatorio para Enviar a Desembolso)
               </p>
@@ -643,19 +643,19 @@ export function FormalizationView() {
             </div>
 
             {/* Signature Evidence */}
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-              <p className="font-semibold">Evidencias de Firma ({signatures.length})</p>
+            <div className="pt-2 border-t border-slate-200/80 dark:border-[#00B8FF]/14 space-y-2">
+              <p className="font-semibold text-slate-950 dark:text-white">Evidencias de Firma ({signatures.length})</p>
               <div className="flex flex-wrap gap-2">
                 <input
                   value={signerName}
                   onChange={(e) => setSignerName(e.target.value)}
                   placeholder="Nombre del firmante"
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
                 />
                 <select
                   value={signMethod}
                   onChange={(e) => setSignMethod(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
                 >
                   <option value="PRESENCIAL">Firma Presencial Verificada</option>
                   <option value="ELECTRONICA_CERTIFICADA">Firma Electrónica Configurada</option>
@@ -663,7 +663,7 @@ export function FormalizationView() {
                 <button
                   type="button"
                   onClick={handleAddSignature}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 font-medium cursor-pointer"
+                  className="axy-btn-secondary px-3 py-1.5 text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   Registrar Firma
                 </button>
@@ -678,19 +678,19 @@ export function FormalizationView() {
 
           {/* Amortization Preview */}
           {schedule && (
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="axy-surface p-5 rounded-2xl space-y-3">
               <div className="flex justify-between items-center">
-                <h4 className="font-semibold text-sm">
+                <h4 className="font-semibold text-sm text-slate-950 dark:text-white">
                   Tabla de Amortización Contractual ({schedule.rows.length} cuotas · Conciliación:{' '}
                   {schedule.isReconciled ? 'Exacta' : 'Revisar'})
                 </h4>
-                <span className="font-mono font-bold">
+                <span className="font-mono font-bold tabular-nums text-slate-950 dark:text-white">
                   Total Contractual: {formatMoney(schedule.totalContractualPayable, activeApp.currency)}
                 </span>
               </div>
-              <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+              <div className="max-h-60 overflow-y-auto border border-slate-200/80 dark:border-[#00B8FF]/14 rounded-xl">
                 <table className="w-full text-left text-xs font-mono tabular-nums">
-                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                  <thead className="axy-table-head sticky top-0 text-slate-600 dark:text-slate-300">
                     <tr>
                       <th className="py-2 px-3">Cuota</th>
                       <th className="py-2 px-3">Fecha</th>
@@ -700,9 +700,9 @@ export function FormalizationView() {
                       <th className="py-2 px-3 text-right">Saldo</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-200/80 dark:divide-[#00B8FF]/12">
                     {schedule.rows.map((r) => (
-                      <tr key={r.installmentNumber}>
+                      <tr key={r.installmentNumber} className="axy-table-row">
                         <td className="py-1.5 px-3">{r.installmentNumber}</td>
                         <td className="py-1.5 px-3">{r.dueDate}</td>
                         <td className="py-1.5 px-3 text-right">{r.principalAmount.toFixed(2)}</td>
@@ -722,7 +722,7 @@ export function FormalizationView() {
               type="button"
               disabled={saving || !canFormalize}
               onClick={() => handleSave(false)}
-              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 font-medium cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+              className="axy-btn-secondary px-4 py-2 text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
             >
               Guardar Borrador
             </button>
@@ -730,7 +730,7 @@ export function FormalizationView() {
               type="button"
               disabled={saving || !canFormalize || !promissoryNoteConfirmed || !contractConfirmed}
               onClick={() => handleSave(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg axy-brand-gradient text-white font-semibold cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+              className="axy-btn-primary inline-flex items-center gap-2 px-5 py-2.5 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
             >
               <Send className="w-3.5 h-3.5" />
               {saving ? 'Procesando...' : 'Enviar a Desembolso'}

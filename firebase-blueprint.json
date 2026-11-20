@@ -1475,6 +1475,19 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "organizationId", "earlyDeteriorationDelayThresholdDays", "maxRestructureExtensionMonths", "requireHumanApprovalForAllInterventions", "updatedBy", "createdAt", "updatedAt"]
+    },
+    "RegulaRecord": {
+      "title": "RegulaRecord",
+      "description": "Tenant-isolated AxyCore REGULA entity record across compliance, PLAFTPADM, risk management, internal control, audit, evidences, incidents, action plans, compliance culture, approvals, audit trail, and REGULA AI logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "createdBy", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -1542,6 +1555,38 @@
     "/altera_recommendations/{recId}": { "schema": { "$ref": "#/entities/AlteraRecommendation" }, "description": "ALTERA preventive & prescriptive recommendations" },
     "/altera_outcomes/{outcomeId}": { "schema": { "$ref": "#/entities/AlteraOutcome" }, "description": "ALTERA projected vs real outcome learning records" },
     "/altera_analyses/{analysisId}": { "schema": { "$ref": "#/entities/AlteraAnalysisLog" }, "description": "Immutable ALTERA query & analysis logs" },
-    "/altera_configs/{configId}": { "schema": { "$ref": "#/entities/AlteraConfig" }, "description": "Per-tenant ALTERA thresholds and weights" }
+    "/altera_configs/{configId}": { "schema": { "$ref": "#/entities/AlteraConfig" }, "description": "Per-tenant ALTERA thresholds and weights" },
+    "/regula_tenants/{orgId}/regula_configuracion/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Per-tenant REGULA catalogs, matrices, roles, escalation rules and AI settings" },
+    "/regula_tenants/{orgId}/regula_normativas/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Regulatory norms and radar entries" },
+    "/regula_tenants/{orgId}/regula_normativa_versiones/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Normative version history" },
+    "/regula_tenants/{orgId}/regula_obligaciones/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Regulatory obligations and compliance requirements" },
+    "/regula_tenants/{orgId}/regula_aplicabilidad/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Normative applicability matrix with documented justification and approval" },
+    "/regula_tenants/{orgId}/regula_calendario/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Compliance calendar events and deadlines" },
+    "/regula_tenants/{orgId}/regula_responsables/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "REGULA responsible owners and assigned governance roles" },
+    "/regula_tenants/{orgId}/regula_kyc/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "PLAFTPADM KYC records linked to AxyCore customers/businesses" },
+    "/regula_tenants/{orgId}/regula_debida_diligencia/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Simplified, standard, and enhanced due diligence evaluations" },
+    "/regula_tenants/{orgId}/regula_beneficiarios_finales/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Ultimate beneficial owners (UBO) registry" },
+    "/regula_tenants/{orgId}/regula_perfiles_riesgo/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Configurable PLAFTPADM client risk profiles" },
+    "/regula_tenants/{orgId}/regula_casos_plaft/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "PLAFTPADM investigation alerts and cases" },
+    "/regula_tenants/{orgId}/regula_matriz_riesgos/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Institutional risk register across 14 categories" },
+    "/regula_tenants/{orgId}/regula_evaluaciones_riesgo/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Inherent and residual risk evaluation history" },
+    "/regula_tenants/{orgId}/regula_controles/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Internal controls matrix" },
+    "/regula_tenants/{orgId}/regula_pruebas_control/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Internal control testing and effectiveness results" },
+    "/regula_tenants/{orgId}/regula_auditorias/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Annual internal audit plans and executions" },
+    "/regula_tenants/{orgId}/regula_programas_auditoria/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Audit procedures, samples, and checklists" },
+    "/regula_tenants/{orgId}/regula_hallazgos/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Audit findings (criterio/condición/causa/efecto) and follow-up" },
+    "/regula_tenants/{orgId}/regula_evidencias/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Evidence repository with version control and confidentiality" },
+    "/regula_tenants/{orgId}/regula_documentos/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Institutional policies, manuals, procedures, and governance documents" },
+    "/regula_tenants/{orgId}/regula_incidentes/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Risk incidents, root cause analysis, and financial losses" },
+    "/regula_tenants/{orgId}/regula_planes_accion/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Corrective and preventive action plans with effectiveness verification gate" },
+    "/regula_tenants/{orgId}/regula_actividades/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Action plan subtasks and deliverables" },
+    "/regula_tenants/{orgId}/regula_capacitaciones/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Compliance culture annual training plans and sessions" },
+    "/regula_tenants/{orgId}/regula_participantes/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Training attendance and internal certifications" },
+    "/regula_tenants/{orgId}/regula_evaluaciones_capacitacion/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Compliance training evaluations and passing grades" },
+    "/regula_tenants/{orgId}/regula_alertas/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Deduplicated regulatory, risk, and ecosystem alerts" },
+    "/regula_tenants/{orgId}/regula_notificaciones/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Internal and external channel notification logs" },
+    "/regula_tenants/{orgId}/regula_aprobaciones/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Immutable human approval records for governance decisions" },
+    "/regula_tenants/{orgId}/regula_historial/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Immutable audit trail of REGULA entity actions and access" },
+    "/regula_tenants/{orgId}/regula_ai_consultas/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Audited REGULA AI queries, cited sources, and human validation status" }
   }
 }

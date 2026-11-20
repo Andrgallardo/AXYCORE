@@ -545,6 +545,49 @@ describe('Loan Origination & Lifecycle Flow Regression Suite', () => {
     expect(repaired.latestScoringExecutionId).toBeNull();
     expect(repaired.createdBy).toBe('system_migrator');
     expect(hasApplicationSchemaDrift(repaired, giordannyApp.id)).toBe(false);
+
+    // Detect drift on subtle legacy anomalies (null financialData, bad createdAt, oversized strings)
+    expect(
+      hasApplicationSchemaDrift(
+        { ...materialized, financialData: null },
+        giordannyApp.id
+      )
+    ).toBe(true);
+    expect(
+      hasApplicationSchemaDrift(
+        { ...materialized, createdAt: '' },
+        giordannyApp.id
+      )
+    ).toBe(true);
+    expect(
+      hasApplicationSchemaDrift(
+        { ...materialized, loanPurpose: 'X'.repeat(140) },
+        giordannyApp.id
+      )
+    ).toBe(true);
+
+    const healedEdgeCases = buildMaterializedApplicationPayload(
+      {
+        ...giordannyApp,
+        loanPurpose: 'X'.repeat(140),
+        financialData: null as unknown as ApplicationRecord['financialData'],
+        declaredDocumentsSummary: null as unknown as ApplicationRecord['declaredDocumentsSummary'],
+        recommendedInstallment: 'NaN' as unknown as number,
+      },
+      { status: 'EN_EVALUACION', movementHistory: nextHistory },
+      'admin_uid_1',
+      'Andry Gallardo',
+      {
+        preserveOrganizationId: 'org_axycore_main',
+        preserveCreatedBy: 'system_migrator',
+        preserveCreatedAt: '',
+      }
+    );
+    expect(String(healedEdgeCases.loanPurpose).length).toBeLessThanOrEqual(120);
+    expect('financialData' in healedEdgeCases).toBe(false);
+    expect('declaredDocumentsSummary' in healedEdgeCases).toBe(false);
+    expect(healedEdgeCases.recommendedInstallment).toBeNull();
+    expect(hasApplicationSchemaDrift(healedEdgeCases, giordannyApp.id)).toBe(false);
   });
 
   it('formats structured FirestoreErrorInfo JSON into readable Spanish messages for UI feedback', () => {

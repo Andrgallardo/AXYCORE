@@ -507,7 +507,7 @@ export function PoliciesView({
   const meta = SECTION_META[focusTab] ?? SECTION_META.parameters;
 
   const renderPolicyVersionToolbar = () => (
-    <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 text-xs">
+    <div className="axy-surface p-4 rounded-xl space-y-3 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
@@ -516,7 +516,7 @@ export function PoliciesView({
           <select
             value={selectedPolicyId}
             onChange={(e) => setSelectedPolicyId(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-slate-900 dark:text-white"
+            className="axy-input px-3 py-1.5 font-mono text-slate-900 dark:text-white"
           >
             {policies.map((p) => (
               <option key={p.id} value={p.id}>
@@ -534,7 +534,7 @@ export function PoliciesView({
                 status: e.target.value as CreditPolicyRecord['status'],
               })
             }
-            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold text-slate-900 dark:text-white disabled:opacity-60"
+            className="axy-input px-3 py-1.5 font-semibold text-slate-900 dark:text-white disabled:opacity-60"
           >
             <option value="PROPUESTA">PROPUESTA</option>
             <option value="EN_PRUEBAS">EN_PRUEBAS</option>
@@ -550,13 +550,13 @@ export function PoliciesView({
               value={newVersionTag}
               onChange={(e) => setNewVersionTag(e.target.value)}
               placeholder="Nueva versión (ej. v2.1.0)"
-              className="w-44 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+              className="axy-input w-44 px-3 py-1.5 font-mono text-slate-900 dark:text-white"
             />
             <button
               type="button"
               disabled={saving}
               onClick={() => handleSavePolicy(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5" />
               Nueva Versión
@@ -566,7 +566,7 @@ export function PoliciesView({
                 type="button"
                 disabled={saving}
                 onClick={() => handleSavePolicy(false)}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                className="axy-btn-primary inline-flex items-center gap-1.5 px-4 py-1.5 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5" />
                 {saving ? 'Guardando...' : `Guardar ${draft.version}`}
@@ -577,7 +577,7 @@ export function PoliciesView({
       </div>
 
       {/* Synchronized Policy Sub-section Segmented Control */}
-      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-1.5">
+      <div className="pt-3 border-t border-slate-200/80 dark:border-[#00B8FF]/15 flex flex-wrap items-center gap-1.5">
         {POLICY_SUB_TABS.filter((item) => rbac.canAccessSection(item.sectionId)).map((item) => {
           const Icon = item.icon;
           const active = focusTab === item.tab;
@@ -588,8 +588,8 @@ export function PoliciesView({
               onClick={() => setActiveSection(item.sectionId)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                 active
-                  ? 'bg-slate-900 dark:bg-sky-700 text-white font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  ? 'bg-[#0066FF] text-white font-semibold shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06]'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -654,8 +654,8 @@ export function PoliciesView({
         <div className="space-y-5">
           {renderPolicyVersionToolbar()}
 
-          <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5 text-xs">
-            <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="axy-surface p-5 rounded-xl space-y-5 text-xs">
+            <div className="pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15">
               <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
                 Tipo de Cambio y Límites de Capacidad de Pago
               </h3>
@@ -684,7 +684,7 @@ export function PoliciesView({
                     })
                   }
                   placeholder="Ej. 60.50"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                  className="axy-input w-full px-3 py-2 font-mono tabular-nums text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -706,7 +706,7 @@ export function PoliciesView({
                       },
                     });
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -728,7 +728,7 @@ export function PoliciesView({
                       },
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                  className="axy-input w-full px-3 py-2 font-mono tabular-nums text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -750,7 +750,7 @@ export function PoliciesView({
                       },
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                  className="axy-input w-full px-3 py-2 font-mono tabular-nums text-slate-900 dark:text-white"
                 />
               </div>
             </div>
@@ -766,10 +766,10 @@ export function PoliciesView({
                     key={item.tab}
                     type="button"
                     onClick={() => setActiveSection(item.sectionId)}
-                    className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-600 text-left space-y-2 transition-colors cursor-pointer"
+                    className="axy-surface p-4 rounded-xl hover:border-[#0066FF]/50 dark:hover:border-[#00B8FF]/50 text-left space-y-2 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                      <Icon className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                       <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
                     </div>
                     <p className="font-display text-sm font-bold text-slate-900 dark:text-white">
@@ -793,8 +793,8 @@ export function PoliciesView({
         <div className="space-y-5">
           {renderPolicyVersionToolbar()}
 
-          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
-            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div className="axy-surface rounded-xl overflow-hidden text-xs">
+            <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
                 Bandas de Riesgo, Tasas Mensuales y Plazos Máximos
               </h3>
@@ -805,8 +805,8 @@ export function PoliciesView({
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
+                <thead className="axy-table-head">
+                  <tr className="text-slate-600 dark:text-slate-300">
                     <th className="py-2.5 px-4 font-semibold">Banda de Riesgo</th>
                     <th className="py-2.5 px-4 font-semibold text-right">Score Mínimo</th>
                     <th className="py-2.5 px-4 font-semibold text-right">Score Máximo</th>
@@ -814,9 +814,9 @@ export function PoliciesView({
                     <th className="py-2.5 px-4 font-semibold">Plazo Máximo (meses)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono tabular-nums">
+                <tbody className="font-mono tabular-nums">
                   {draft.riskBands.map((band, idx) => (
-                    <tr key={band.code} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
+                    <tr key={band.code} className="axy-table-row">
                       <td className="py-2.5 px-4 font-sans font-semibold text-slate-900 dark:text-white">
                         {band.label}
                       </td>
@@ -836,7 +836,7 @@ export function PoliciesView({
                               updated[idx] = { ...band, monthlyRate: Number(e.target.value) / 100 };
                               setDraft({ ...draft, riskBands: updated });
                             }}
-                            className="w-28 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                            className="axy-input w-28 px-2.5 py-1.5 text-slate-900 dark:text-white"
                           />
                         )}
                       </td>
@@ -850,7 +850,7 @@ export function PoliciesView({
                             updated[idx] = { ...band, maxTermMonths: Number(e.target.value) };
                             setDraft({ ...draft, riskBands: updated });
                           }}
-                          className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                          className="axy-input w-24 px-2.5 py-1.5 text-slate-900 dark:text-white"
                         />
                       </td>
                     </tr>
@@ -876,9 +876,9 @@ export function PoliciesView({
               return (
                 <div
                   key={pk}
-                  className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4"
+                  className="axy-surface p-5 rounded-xl space-y-4"
                 >
-                  <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15">
                     <div>
                       <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
                         {p.label}
@@ -887,14 +887,14 @@ export function PoliciesView({
                         Código {pk} · Moneda {p.currency}
                       </p>
                     </div>
-                    <span className="font-mono font-bold text-sky-700 dark:text-sky-400">
+                    <span className="font-mono font-bold text-[#0066FF] dark:text-[#00D1FF]">
                       {p.currency}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 font-mono tabular-nums">
                     <div>
-                      <label className="font-sans text-[11px] font-medium text-slate-500 block mb-1">
+                      <label className="font-sans text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
                         Monto Mínimo
                       </label>
                       <input
@@ -910,11 +910,11 @@ export function PoliciesView({
                             },
                           })
                         }
-                        className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                        className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                       />
                     </div>
                     <div>
-                      <label className="font-sans text-[11px] font-medium text-slate-500 block mb-1">
+                      <label className="font-sans text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
                         Monto Máximo
                       </label>
                       <input
@@ -930,11 +930,11 @@ export function PoliciesView({
                             },
                           })
                         }
-                        className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                        className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                       />
                     </div>
                     <div>
-                      <label className="font-sans text-[11px] font-medium text-slate-500 block mb-1">
+                      <label className="font-sans text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
                         Plazo Máx (meses)
                       </label>
                       <input
@@ -950,7 +950,7 @@ export function PoliciesView({
                             },
                           })
                         }
-                        className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                        className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                       />
                     </div>
                   </div>
@@ -968,8 +968,8 @@ export function PoliciesView({
         <div className="space-y-5">
           {renderPolicyVersionToolbar()}
 
-          <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
-            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div className="axy-surface rounded-xl overflow-hidden text-xs">
+            <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
                   Matriz Configurable de Facultades de Aprobación
@@ -999,7 +999,7 @@ export function PoliciesView({
                       ],
                     })
                   }
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-sky-700 text-white font-semibold whitespace-nowrap shrink-0 cursor-pointer"
+                  className="axy-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Agregar Facultad
@@ -1009,8 +1009,8 @@ export function PoliciesView({
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
+                <thead className="axy-table-head">
+                  <tr className="text-slate-600 dark:text-slate-300">
                     <th className="py-2.5 px-4 font-semibold">Rol</th>
                     <th className="py-2.5 px-4 font-semibold">Producto</th>
                     <th className="py-2.5 px-4 font-semibold">Monto Máx. Autorizado</th>
@@ -1022,7 +1022,7 @@ export function PoliciesView({
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                <tbody>
                   {draft.approvalAuthorities.length === 0 ? (
                     <tr>
                       <td
@@ -1034,7 +1034,7 @@ export function PoliciesView({
                     </tr>
                   ) : (
                     draft.approvalAuthorities.map((authRule, idx) => (
-                      <tr key={authRule.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
+                      <tr key={authRule.id} className="axy-table-row">
                         <td className="py-2.5 px-4">
                           <select
                             disabled={!isAdmin || draft.status === 'HISTORICA'}
@@ -1044,7 +1044,7 @@ export function PoliciesView({
                               next[idx] = { ...authRule, role: e.target.value as UserRole };
                               setDraft({ ...draft, approvalAuthorities: next });
                             }}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-semibold"
+                            className="axy-input px-2.5 py-1.5 font-semibold text-slate-900 dark:text-white"
                           >
                             {(['COMMITTEE_MEMBER', 'RISK_OFFICER', 'MANAGEMENT', 'ADMIN'] as UserRole[]).map(
                               (r) => (
@@ -1067,7 +1067,7 @@ export function PoliciesView({
                               };
                               setDraft({ ...draft, approvalAuthorities: next });
                             }}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                            className="axy-input px-2.5 py-1.5 font-mono text-slate-900 dark:text-white"
                           >
                             <option value="ALL">ALL</option>
                             {productKeys.map((pk) => (
@@ -1087,7 +1087,7 @@ export function PoliciesView({
                               next[idx] = { ...authRule, maxAmount: Number(e.target.value) };
                               setDraft({ ...draft, approvalAuthorities: next });
                             }}
-                            className="w-36 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                            className="axy-input w-36 px-2.5 py-1.5 text-slate-900 dark:text-white"
                           />
                         </td>
                         <td className="py-2.5 px-4 text-center">
@@ -1117,7 +1117,7 @@ export function PoliciesView({
                               };
                               setDraft({ ...draft, approvalAuthorities: next });
                             }}
-                            className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-center"
+                            className="axy-input w-16 px-2 py-1 text-center text-slate-900 dark:text-white"
                           />
                         </td>
                         <td className="py-2.5 px-4 text-center">
@@ -1168,7 +1168,7 @@ export function PoliciesView({
         <div className="space-y-5">
           {renderPolicyVersionToolbar()}
 
-          <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+          <div className="axy-surface p-5 rounded-xl text-xs">
             <WorkflowBuilder
               workflowConfig={draft.workflowConfig}
               dopPerUsd={draft.exchangeRateConfig.dopPerUsd ?? 60}
@@ -1218,12 +1218,12 @@ export function PoliciesView({
               {/* Invite / Provision Form */}
               <form
                 onSubmit={handleInviteStaff}
-                className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4"
+                className="axy-surface p-5 rounded-xl space-y-4"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15">
                   <div>
                     <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <UserPlus className="w-4 h-4 text-sky-600" />
+                      <UserPlus className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                       Invitar / Aprovisionar Colaborador o Administrador
                     </h3>
                     <p className="text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1236,7 +1236,7 @@ export function PoliciesView({
                     <span aria-hidden="true">·</span>
                     <span className="text-emerald-700 dark:text-emerald-400">{activeUsersCount} activos</span>
                     <span aria-hidden="true">·</span>
-                    <span className="text-sky-700 dark:text-sky-400">{invitedUsersCount} invitados</span>
+                    <span className="text-[#0066FF] dark:text-[#00D1FF]">{invitedUsersCount} invitados</span>
                   </div>
                 </div>
 
@@ -1250,7 +1250,7 @@ export function PoliciesView({
                       value={inviteName}
                       onChange={(e) => setInviteName(e.target.value)}
                       placeholder="Ej. María Pérez"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                     />
                   </div>
                   <div className="sm:col-span-4">
@@ -1263,7 +1263,7 @@ export function PoliciesView({
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                       placeholder="correo@empresa.com"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                     />
                   </div>
                   <div className="sm:col-span-2">
@@ -1273,7 +1273,7 @@ export function PoliciesView({
                     <select
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value as UserRole)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                     >
                       {Object.entries(ROLE_LABELS)
                         .filter(([k]) => k !== 'EXTERNAL_CLIENT')
@@ -1288,7 +1288,7 @@ export function PoliciesView({
                     <button
                       type="submit"
                       disabled={inviting}
-                      className="w-full px-4 py-2 rounded-lg axy-brand-gradient text-white font-semibold whitespace-nowrap cursor-pointer disabled:opacity-50"
+                      className="axy-btn-primary w-full px-4 py-2 whitespace-nowrap cursor-pointer disabled:opacity-50"
                     >
                       {inviting ? 'Enviando...' : 'Enviar Invitación'}
                     </button>
@@ -1296,16 +1296,16 @@ export function PoliciesView({
                 </div>
 
                 {latestInviteLink && (
-                  <div className="p-3.5 rounded-lg bg-sky-50/80 dark:bg-[#061533] border border-sky-200 dark:border-[#00B8FF]/35 space-y-2">
+                  <div className="axy-surface-ai p-3.5 rounded-lg space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-semibold text-sky-900 dark:text-[#00D1FF] flex items-center gap-1.5">
+                      <p className="font-semibold text-[#0066FF] dark:text-[#00D1FF] flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Enlace de Activación Automática — {latestInviteLink.email} ({latestInviteLink.roleLabel})
                       </p>
                       <button
                         type="button"
                         onClick={() => copyTextWithFeedback(latestInviteLink.link, 'latest_invite')}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-[11px] font-semibold cursor-pointer"
+                        className="axy-btn-primary inline-flex items-center gap-1 px-2.5 py-1 text-[11px] cursor-pointer"
                       >
                         {copiedKey === 'latest_invite' ? (
                           <>
@@ -1321,7 +1321,7 @@ export function PoliciesView({
                     <p className="text-[11px] text-slate-600 dark:text-slate-300">
                       {latestInviteLink.deliveryNote}
                     </p>
-                    <div className="px-2.5 py-1.5 rounded bg-white/90 dark:bg-[#030816] border border-sky-200/80 dark:border-[#00B8FF]/20 font-mono text-[10px] text-slate-700 dark:text-sky-200 break-all select-all">
+                    <div className="axy-surface-tonal px-2.5 py-1.5 rounded font-mono text-[10px] text-slate-700 dark:text-sky-200 break-all select-all">
                       {latestInviteLink.link}
                     </div>
                   </div>
@@ -1329,10 +1329,10 @@ export function PoliciesView({
               </form>
 
               {/* Users Directory Table */}
-              <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="axy-surface rounded-xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex flex-wrap items-center justify-between gap-3">
                   <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Users className="w-4 h-4 text-sky-600" />
+                    <Users className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                     Directorio de Usuarios ({filteredUsers.length})
                   </h3>
 
@@ -1343,11 +1343,11 @@ export function PoliciesView({
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
                         placeholder="Buscar nombre, correo o rol..."
-                        className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                        className="axy-input pl-8 pr-3 py-1.5 text-slate-900 dark:text-white"
                       />
                     </div>
 
-                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <div className="axy-surface-tonal flex items-center gap-1 p-0.5 rounded-lg">
                       {(
                         [
                           { id: 'ALL', label: 'Todos' },
@@ -1362,7 +1362,7 @@ export function PoliciesView({
                           onClick={() => setUserStatusFilter(opt.id)}
                           className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap cursor-pointer transition-colors ${
                             userStatusFilter === opt.id
-                              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs font-semibold'
+                              ? 'bg-[#0066FF] text-white shadow-xs font-semibold'
                               : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                           }`}
                         >
@@ -1375,8 +1375,8 @@ export function PoliciesView({
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
+                    <thead className="axy-table-head">
+                      <tr className="text-slate-600 dark:text-slate-300">
                         <th className="py-2.5 px-4 font-semibold">Usuario</th>
                         <th className="py-2.5 px-4 font-semibold">Rol</th>
                         <th className="py-2.5 px-4 font-semibold">Estado</th>
@@ -1384,7 +1384,7 @@ export function PoliciesView({
                         <th className="py-2.5 px-4 font-semibold text-right">Acciones</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    <tbody>
                       {filteredUsers.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="py-8 text-center text-slate-500">
@@ -1410,18 +1410,18 @@ export function PoliciesView({
                           return (
                             <tr
                               key={u.uid}
-                              className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                              className="axy-table-row"
                             >
                               <td className="py-2.5 px-4">
                                 <p className="font-semibold text-slate-900 dark:text-white">
                                   {u.displayName}
                                   {isPrimaryOwner && (
-                                    <span className="ml-2 text-[11px] font-medium text-sky-700 dark:text-sky-400">
+                                    <span className="ml-2 text-[11px] font-medium text-[#0066FF] dark:text-[#00D1FF]">
                                       · SuperAdmin
                                     </span>
                                   )}
                                 </p>
-                                <p className="text-[11px] text-slate-500">{u.email}</p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</p>
                               </td>
                               <td className="py-2.5 px-4">
                                 <select
@@ -1430,7 +1430,7 @@ export function PoliciesView({
                                   onChange={(e) =>
                                     handleRoleUpdate(u.uid, e.target.value as UserRole, u.status)
                                   }
-                                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium disabled:opacity-70"
+                                  className="axy-input px-2.5 py-1.5 text-xs font-medium text-slate-900 dark:text-white disabled:opacity-70"
                                 >
                                   {Object.entries(ROLE_LABELS).map(([k, lbl]) => (
                                     <option key={k} value={k}>
@@ -1446,7 +1446,7 @@ export function PoliciesView({
                                   onChange={(e) =>
                                     handleRoleUpdate(u.uid, u.role, e.target.value as UserStatus)
                                   }
-                                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs disabled:opacity-70"
+                                  className="axy-input px-2.5 py-1.5 text-xs text-slate-900 dark:text-white disabled:opacity-70"
                                 >
                                   <option value="ACTIVE">ACTIVO</option>
                                   <option value="INVITED">INVITADO</option>
@@ -1469,7 +1469,7 @@ export function PoliciesView({
                                     )}
                                   </div>
                                 ) : effectiveStatus === 'CONFIRMADA' ? (
-                                  <span className="inline-flex items-center gap-1.5 font-semibold text-sky-700 dark:text-sky-400">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-[#0066FF] dark:text-[#00D1FF]">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     Acceso confirmado
                                   </span>
@@ -1485,7 +1485,7 @@ export function PoliciesView({
                                       onClick={() =>
                                         copyTextWithFeedback(userInviteLink, `copy_${u.uid}`)
                                       }
-                                      className="inline-flex items-center gap-1 text-[11px] text-slate-600 hover:text-sky-700 dark:text-slate-300 dark:hover:text-sky-400 font-medium px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                      className="inline-flex items-center gap-1 text-[11px] text-slate-600 hover:text-[#0066FF] dark:text-slate-300 dark:hover:text-[#00D1FF] font-medium px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-white/[0.06] cursor-pointer"
                                       title="Copiar enlace directo de invitación y registro automático"
                                     >
                                       {copiedKey === `copy_${u.uid}` ? (
@@ -1503,7 +1503,7 @@ export function PoliciesView({
                                     type="button"
                                     disabled={resendingUid === u.uid}
                                     onClick={() => handleResendInvitation(u)}
-                                    className="inline-flex items-center gap-1 text-[11px] text-sky-700 hover:text-sky-800 dark:text-sky-400 font-medium px-2 py-1 rounded hover:bg-sky-50 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-50"
+                                    className="inline-flex items-center gap-1 text-[11px] text-[#0066FF] hover:text-[#0052CC] dark:text-[#00D1FF] font-medium px-2 py-1 rounded hover:bg-[#0066FF]/10 dark:hover:bg-white/[0.06] cursor-pointer disabled:opacity-50"
                                     title="Reenviar correo de invitación"
                                   >
                                     <RefreshCw
@@ -1530,11 +1530,11 @@ export function PoliciesView({
           7. ROLES Y PERMISOS RBAC
          ===================================================================== */}
       {focusTab === 'roles' && (
-        <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
-          <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="axy-surface rounded-xl overflow-hidden text-xs">
+          <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-sky-600" />
+                <ShieldCheck className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                 Matriz RBAC de Segregación de Funciones ({filteredPermissions.length} permisos)
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1549,14 +1549,14 @@ export function PoliciesView({
                   value={rolePermissionSearch}
                   onChange={(e) => setRolePermissionSearch(e.target.value)}
                   placeholder="Filtrar permiso..."
-                  className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input pl-8 pr-3 py-1.5 text-slate-900 dark:text-white"
                 />
               </div>
 
               <select
                 value={selectedRoleFilter}
                 onChange={(e) => setSelectedRoleFilter(e.target.value as 'ALL' | UserRole)}
-                className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
               >
                 <option value="ALL">Todos los roles ({RBAC_DISPLAY_ROLES.length})</option>
                 {RBAC_DISPLAY_ROLES.map((r) => (
@@ -1570,9 +1570,9 @@ export function PoliciesView({
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
-                  <th className="py-2.5 px-4 font-semibold sticky left-0 bg-slate-50 dark:bg-slate-800/95 z-10 min-w-[220px]">
+              <thead className="axy-table-head">
+                <tr className="text-slate-600 dark:text-slate-300">
+                  <th className="py-2.5 px-4 font-semibold sticky left-0 bg-[var(--axy-surface-tonal)] z-10 min-w-[220px]">
                     Permiso Operativo
                   </th>
                   {visibleRbacRoles.map((r) => (
@@ -1582,10 +1582,10 @@ export function PoliciesView({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {filteredPermissions.map((perm) => (
-                  <tr key={perm} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                    <td className="py-2 px-4 font-medium text-slate-800 dark:text-slate-200 sticky left-0 bg-white dark:bg-slate-900">
+                  <tr key={perm} className="axy-table-row">
+                    <td className="py-2 px-4 font-medium text-slate-800 dark:text-slate-200 sticky left-0 bg-[var(--axy-surface)]">
                       {PERMISSION_LABELS[perm]}
                     </td>
                     {visibleRbacRoles.map((r) => {
@@ -1621,11 +1621,11 @@ export function PoliciesView({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <form
               onSubmit={handleSaveBranding}
-              className="lg:col-span-7 p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4"
+              className="axy-surface lg:col-span-7 p-5 rounded-xl space-y-4"
             >
-              <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15">
                 <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Palette className="w-4 h-4 text-sky-600 dark:text-[#00B8FF]" />
+                  <Palette className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                   Identidad Institucional y Colores Corporativos
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1643,7 +1643,7 @@ export function PoliciesView({
                     disabled={!isAdmin}
                     value={orgName}
                     onChange={(e) => setOrgName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+                    className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
@@ -1654,7 +1654,7 @@ export function PoliciesView({
                     disabled={!isAdmin}
                     value={orgTaxId}
                     onChange={(e) => setOrgTaxId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                    className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white font-mono"
                   />
                 </div>
               </div>
@@ -1670,14 +1670,14 @@ export function PoliciesView({
                       disabled={!isAdmin}
                       value={primaryColor}
                       onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="h-10 w-14 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer"
+                      className="h-10 w-14 rounded-lg border border-slate-200 dark:border-[#00B8FF]/20 cursor-pointer"
                     />
                     <input
                       type="text"
                       disabled={!isAdmin}
                       value={primaryColor}
                       onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                      className="axy-input flex-1 px-3 py-2 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                 </div>
@@ -1691,14 +1691,14 @@ export function PoliciesView({
                       disabled={!isAdmin}
                       value={accentColor}
                       onChange={(e) => setAccentColor(e.target.value)}
-                      className="h-10 w-14 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer"
+                      className="h-10 w-14 rounded-lg border border-slate-200 dark:border-[#00B8FF]/20 cursor-pointer"
                     />
                     <input
                       type="text"
                       disabled={!isAdmin}
                       value={accentColor}
                       onChange={(e) => setAccentColor(e.target.value)}
-                      className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
+                      className="axy-input flex-1 px-3 py-2 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                 </div>
@@ -1709,7 +1709,7 @@ export function PoliciesView({
                 <button
                   type="submit"
                   disabled={savingBranding}
-                  className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-sky-700 dark:hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                  className="axy-btn-primary inline-flex items-center gap-2 px-5 py-2 cursor-pointer disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5" />
                   {savingBranding ? 'Guardando...' : 'Guardar Identidad Corporativa'}
@@ -1719,41 +1719,41 @@ export function PoliciesView({
           </form>
 
           {/* Live Organization Summary & Preview */}
-          <div className="lg:col-span-5 p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 h-fit">
-            <div className="pb-3 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-sky-600" />
+          <div className="axy-surface lg:col-span-5 p-5 rounded-xl space-y-4 h-fit">
+            <div className="pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
               <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
                 Ficha de Organización Activa
               </h3>
             </div>
 
             <div className="space-y-2.5">
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/80">
-                <span className="text-slate-500">Entidad</span>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60 dark:border-[#00B8FF]/10">
+                <span className="text-slate-500 dark:text-slate-400">Entidad</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
                   {orgName || organization.name}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/80">
-                <span className="text-slate-500">RNC / ID Fiscal</span>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60 dark:border-[#00B8FF]/10">
+                <span className="text-slate-500 dark:text-slate-400">RNC / ID Fiscal</span>
                 <span className="font-mono text-slate-900 dark:text-white">
                   {orgTaxId || 'No registrado'}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/80">
-                <span className="text-slate-500">Código de Acceso</span>
-                <span className="font-mono font-semibold text-sky-700 dark:text-sky-400">
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60 dark:border-[#00B8FF]/10">
+                <span className="text-slate-500 dark:text-slate-400">Código de Acceso</span>
+                <span className="font-mono font-semibold text-[#0066FF] dark:text-[#00D1FF]">
                   {organization.accessCode || 'SGMA-001'}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800/80">
-                <span className="text-slate-500">Plan Comercial</span>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60 dark:border-[#00B8FF]/10">
+                <span className="text-slate-500 dark:text-slate-400">Plan Comercial</span>
                 <span className="font-mono text-slate-900 dark:text-white">
                   {organization.planCode || 'CORPORATIVO'}
                 </span>
               </div>
               <div className="flex items-center justify-between py-1.5">
-                <span className="text-slate-500">Estado de Licencia</span>
+                <span className="text-slate-500 dark:text-slate-400">Estado de Licencia</span>
                 <span className="font-semibold text-emerald-700 dark:text-emerald-400">
                   {organization.licenseStatus || 'ACTIVA'}
                 </span>
@@ -1761,7 +1761,7 @@ export function PoliciesView({
             </div>
 
             <div className="pt-2 space-y-2">
-              <p className="text-[11px] font-medium text-slate-500">Vista previa de paleta</p>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Vista previa de paleta</p>
               <div className="grid grid-cols-2 gap-2">
                 <div
                   className="h-10 rounded-lg flex items-center justify-center text-white font-mono text-[11px] font-semibold"

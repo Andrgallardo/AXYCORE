@@ -109,7 +109,7 @@ const CURRENCY_OPTIONS: Array<{ value: ExecutiveCurrencyMode; label: string }> =
   { value: 'SEPARATED', label: 'DOP y USD' },
 ];
 
-const PRODUCT_PIE_COLORS = ['#168BFF', '#20C4E8', '#123B65', '#E2B35E'];
+const PRODUCT_PIE_COLORS = ['#0066FF', '#00B8FF', '#041B4E', '#E2B35E'];
 
 type DetailIndicatorKey = ExecutiveKpiWidgetId;
 
@@ -165,7 +165,7 @@ function TrendIndicator({
 
 function MiniSparkBars({
   values,
-  barColor = 'bg-[#168BFF]',
+  barColor = 'bg-[#0066FF]',
 }: {
   values: number[];
   barColor?: string;
@@ -320,16 +320,16 @@ function CurrencyExecutiveBlock({
           <>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold tracking-wider uppercase text-[#123B65] dark:text-[#20C4E8]">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   Cartera Total · {cur}
                 </span>
-                <div className="p-2 rounded-xl bg-[#0B1F3A] text-[#20C4E8]">
+                <div className="w-8 h-8 rounded-lg bg-[#0066FF]/10 dark:bg-[#0066FF]/18 text-[#0052CC] dark:text-[#00B8FF] flex items-center justify-center shrink-0">
                   <Landmark className="w-4 h-4" />
                 </div>
               </div>
 
               <div>
-                <p className="font-mono tabular-nums text-2xl sm:text-[26px] font-extrabold text-[#0B1F3A] dark:text-white tracking-tight">
+                <p className="font-display tabular-nums text-2xl sm:text-[26px] font-bold text-slate-950 dark:text-white tracking-tight">
                   {formatMoney(metrics.activePortfolioCapital, cur)}
                 </p>
                 <div className="mt-1.5">
@@ -350,13 +350,13 @@ function CurrencyExecutiveBlock({
                 <button
                   type="button"
                   onClick={() => onInspectIndicator('CARTERA_TOTAL', cur)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#168BFF] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   <span>Ver detalle</span>
                 </button>
               </div>
-              <MiniSparkBars values={series.map((s) => s.total)} barColor="bg-[#168BFF]" />
+              <MiniSparkBars values={series.map((s) => s.total)} barColor="bg-[#0066FF]" />
             </div>
           </>
         );
@@ -366,20 +366,20 @@ function CurrencyExecutiveBlock({
           <>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold tracking-wider uppercase text-[#123B65] dark:text-[#20C4E8]">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   Cartera Vencida · {cur}
                 </span>
-                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/40">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/10 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-4 h-4" />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-mono tabular-nums text-2xl sm:text-[26px] font-extrabold text-[#0B1F3A] dark:text-white tracking-tight">
+                  <p className="font-display tabular-nums text-2xl sm:text-[26px] font-bold text-slate-950 dark:text-white tracking-tight">
                     {formatMoney(metrics.par1Exposure, cur)}
                   </p>
-                  <span className="font-mono tabular-nums text-xs font-bold text-rose-700 dark:text-rose-400">
+                  <span className="font-mono tabular-nums text-xs font-bold text-rose-600 dark:text-rose-400">
                     {metrics.par1Pct !== null ? `${metrics.par1Pct.toFixed(2)}% mora` : '0.00%'}
                   </span>
                 </div>
@@ -404,7 +404,7 @@ function CurrencyExecutiveBlock({
                 <button
                   type="button"
                   onClick={() => onInspectIndicator('CARTERA_VENCIDA', cur)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#168BFF] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   <span>Ver detalle</span>
@@ -423,16 +423,16 @@ function CurrencyExecutiveBlock({
           <>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold tracking-wider uppercase text-[#123B65] dark:text-[#20C4E8]">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   Desembolsos · {cur}
                 </span>
-                <div className="p-2 rounded-xl bg-[#168BFF]/12 text-[#168BFF] dark:text-[#20C4E8] border border-[#168BFF]/20">
+                <div className="w-8 h-8 rounded-lg bg-[#00B8FF]/12 dark:bg-[#00B8FF]/18 text-[#0052CC] dark:text-[#00D1FF] flex items-center justify-center shrink-0">
                   <DollarSign className="w-4 h-4" />
                 </div>
               </div>
 
               <div>
-                <p className="font-mono tabular-nums text-2xl sm:text-[26px] font-extrabold text-[#0B1F3A] dark:text-white tracking-tight">
+                <p className="font-display tabular-nums text-2xl sm:text-[26px] font-bold text-slate-950 dark:text-white tracking-tight">
                   {formatMoney(metrics.disbursedPeriodTotal, cur)}
                 </p>
                 <div className="mt-1.5">
@@ -457,13 +457,13 @@ function CurrencyExecutiveBlock({
                 <button
                   type="button"
                   onClick={() => onInspectIndicator('DESEMBOLSOS', cur)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#168BFF] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   <span>Ver detalle</span>
                 </button>
               </div>
-              <MiniSparkBars values={series.map((s) => s.desembolsos)} barColor="bg-[#20C4E8]" />
+              <MiniSparkBars values={series.map((s) => s.desembolsos)} barColor="bg-[#00B8FF]" />
             </div>
           </>
         );
@@ -473,17 +473,17 @@ function CurrencyExecutiveBlock({
           <>
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold tracking-wider uppercase text-[#123B65] dark:text-[#20C4E8]">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   Recuperación · {cur}
                 </span>
-                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-800/40">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-mono tabular-nums text-2xl sm:text-[26px] font-extrabold text-[#0B1F3A] dark:text-white tracking-tight">
+                  <p className="font-display tabular-nums text-2xl sm:text-[26px] font-bold text-slate-950 dark:text-white tracking-tight">
                     {formatMoney(metrics.recoveryPeriodTotal, cur)}
                   </p>
                   {enhancements.recoveryCompliancePct !== null && (
@@ -497,7 +497,7 @@ function CurrencyExecutiveBlock({
                   <div className="mt-2 space-y-1">
                     <div className="h-1.5 w-full rounded-full bg-slate-200/80 dark:bg-white/10 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#168BFF] to-[#20C4E8]"
+                        className="h-full rounded-full bg-gradient-to-r from-[#0066FF] to-[#00B8FF]"
                         style={{
                           width: `${Math.min(100, Math.max(4, enhancements.recoveryCompliancePct ?? 0))}%`,
                         }}
@@ -527,13 +527,13 @@ function CurrencyExecutiveBlock({
                 <button
                   type="button"
                   onClick={() => onInspectIndicator('RECUPERACION', cur)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#168BFF] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:underline cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   <span>Ver detalle</span>
                 </button>
               </div>
-              <MiniSparkBars values={series.map((s) => s.recuperacion)} barColor="bg-emerald-600" />
+              <MiniSparkBars values={series.map((s) => s.recuperacion)} barColor="bg-emerald-500" />
             </div>
           </>
         );
@@ -548,11 +548,11 @@ function CurrencyExecutiveBlock({
           {isPrimaryCurrency && (
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-display text-sm font-bold text-[#0B1F3A] dark:text-white tracking-tight">
+                <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white tracking-tight">
                   Resumen Ejecutivo · {cur}
                 </h3>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Rol: <strong className="text-[#123B65] dark:text-[#20C4E8]">{roleLabel}</strong> ·{' '}
+                  Rol: <strong className="text-[#0052CC] dark:text-[#00D1FF]">{roleLabel}</strong> ·{' '}
                   <span className="font-mono tabular-nums">
                     {visibleKpis.length}/{allowedKpiCount} visibles
                   </span>
@@ -566,8 +566,8 @@ function CurrencyExecutiveBlock({
                     onClick={onToggleEditMode}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
                       editMode
-                        ? 'bg-[#168BFF] text-white border-[#168BFF]'
-                        : 'bg-white dark:bg-[#08132B] text-slate-600 dark:text-slate-300 border-slate-200/85 dark:border-[#20C4E8]/18 hover:border-[#168BFF]'
+                        ? 'bg-[#0066FF] text-white border-[#0066FF]'
+                        : 'bg-white dark:bg-[#08132B] text-slate-600 dark:text-slate-300 border-slate-200/85 dark:border-[#00B8FF]/18 hover:border-[#0066FF]'
                     }`}
                   >
                     <LayoutGrid className="w-3.5 h-3.5" />
@@ -577,7 +577,7 @@ function CurrencyExecutiveBlock({
                   <button
                     type="button"
                     onClick={onOpenConfigurator}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-[#08132B] text-[#123B65] dark:text-[#20C4E8] border border-slate-200/85 dark:border-[#20C4E8]/18 hover:border-[#168BFF] cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-[#08132B] text-[#0052CC] dark:text-[#00D1FF] border border-slate-200/85 dark:border-[#00B8FF]/18 hover:border-[#0066FF] cursor-pointer"
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5" />
                     <span>Configurar</span>
@@ -750,11 +750,11 @@ function CurrencyExecutiveBlock({
 
       {/* BLOQUE 3: INTELIGENCIA FINANCIERA — PANORAMA FINANCIERO */}
       {showPanorama && (
-        <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#20C4E8]/18 shadow-[0_1px_3px_rgba(11,31,58,0.05)] p-5 sm:p-6 space-y-6">
+        <section className="axy-surface rounded-2xl p-5 sm:p-6 space-y-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-white/[0.07]">
             <div>
-              <h3 className="font-display text-lg font-bold text-[#0B1F3A] dark:text-white flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-[#168BFF]" />
+              <h3 className="font-display text-lg font-bold text-slate-950 dark:text-white flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                 <span>Panorama financiero ({cur})</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -762,7 +762,7 @@ function CurrencyExecutiveBlock({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/[0.08]">
+            <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/[0.08]">
               {GRANULARITY_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -770,8 +770,8 @@ function CurrencyExecutiveBlock({
                   onClick={() => onChangeGranularity(opt.value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     granularity === opt.value
-                      ? 'bg-[#0B1F3A] dark:bg-[#168BFF] text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-[#0B1F3A] dark:hover:text-white'
+                      ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                 >
                   {opt.label}
@@ -812,8 +812,8 @@ function CurrencyExecutiveBlock({
                     <AreaChart data={series} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id={`axyGradVig_${cur}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#168BFF" stopOpacity={0.28} />
-                          <stop offset="95%" stopColor="#168BFF" stopOpacity={0.02} />
+                          <stop offset="5%" stopColor="#0066FF" stopOpacity={0.28} />
+                          <stop offset="95%" stopColor="#00B8FF" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
@@ -834,14 +834,14 @@ function CurrencyExecutiveBlock({
                           if (!active || !payload?.length) return null;
                           const row = payload[0]?.payload as (typeof series)[number];
                           return (
-                            <div className="p-3 rounded-xl bg-white/95 dark:bg-[#040C1E]/95 backdrop-blur-md border border-slate-200 dark:border-[#20C4E8]/30 shadow-lg text-xs font-mono tabular-nums space-y-1">
-                              <p className="font-sans font-bold text-[#0B1F3A] dark:text-white">
+                            <div className="p-3 rounded-xl bg-white/95 dark:bg-[#040C1E]/95 backdrop-blur-md border border-slate-200 dark:border-[#00B8FF]/30 shadow-lg text-xs font-mono tabular-nums space-y-1">
+                              <p className="font-sans font-bold text-slate-950 dark:text-white">
                                 Corte {label}
                               </p>
-                              <p className="text-[#168BFF]">
+                              <p className="text-[#0066FF] dark:text-[#00B8FF]">
                                 Total cartera: {formatMoney(row.total, cur)}
                               </p>
-                              <p className="text-[#20C4E8]">
+                              <p className="text-[#00B8FF]">
                                 Capital vigente: {formatMoney(row.vigente, cur)}
                               </p>
                               <p className="text-rose-600 dark:text-rose-400">
@@ -856,8 +856,8 @@ function CurrencyExecutiveBlock({
                         type="monotone"
                         dataKey="vigente"
                         name="Capital Vigente"
-                        stroke="#168BFF"
-                        strokeWidth={2.5}
+                        stroke="#0066FF"
+                        strokeWidth={2.25}
                         fill={`url(#axyGradVig_${cur})`}
                       />
                       <Area
@@ -913,14 +913,14 @@ function CurrencyExecutiveBlock({
                           if (!active || !payload?.length) return null;
                           const row = payload[0]?.payload as (typeof series)[number];
                           return (
-                            <div className="p-3 rounded-xl bg-white/95 dark:bg-[#040C1E]/95 backdrop-blur-md border border-slate-200 dark:border-[#20C4E8]/30 shadow-lg text-xs font-mono tabular-nums space-y-1">
-                              <p className="font-sans font-bold text-[#0B1F3A] dark:text-white">
+                            <div className="p-3 rounded-xl bg-white/95 dark:bg-[#040C1E]/95 backdrop-blur-md border border-slate-200 dark:border-[#00B8FF]/30 shadow-lg text-xs font-mono tabular-nums space-y-1">
+                              <p className="font-sans font-bold text-slate-950 dark:text-white">
                                 {label}
                               </p>
-                              <p className="text-[#168BFF]">
+                              <p className="text-[#0066FF] dark:text-[#00B8FF]">
                                 Desembolsos: {formatMoney(row.desembolsos, cur)}
                               </p>
-                              <p className="text-[#20C4E8]">
+                              <p className="text-[#00B8FF]">
                                 Recuperación: {formatMoney(row.recuperacion, cur)}
                               </p>
                             </div>
@@ -931,15 +931,15 @@ function CurrencyExecutiveBlock({
                       <Bar
                         dataKey="desembolsos"
                         name="Desembolsos"
-                        fill="#168BFF"
-                        radius={[4, 4, 0, 0]}
+                        fill="#0066FF"
+                        radius={[5, 5, 0, 0]}
                         maxBarSize={28}
                       />
                       <Bar
                         dataKey="recuperacion"
                         name="Recuperaciones"
-                        fill="#20C4E8"
-                        radius={[4, 4, 0, 0]}
+                        fill="#00B8FF"
+                        radius={[5, 5, 0, 0]}
                         maxBarSize={28}
                       />
                     </BarChart>
@@ -1221,6 +1221,9 @@ export function ExecutiveDashboardView() {
   } | null>(null);
 
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [focusTab, setFocusTab] = useState<
+    'OVERVIEW' | 'ANALYTICS' | 'OPERATIONS' | 'INTELLIGENCE' | 'ALL'
+  >('OVERVIEW');
 
   const widgetState = useDashboardWidgetConfig({
     organizationId: organization.id,
@@ -1230,6 +1233,44 @@ export function ExecutiveDashboardView() {
     hasPermission: rbac.hasPermission,
     canAccessSection: rbac.canAccessSection,
   });
+
+  const TAB_SECTIONS_MAP: Record<
+    'OVERVIEW' | 'ANALYTICS' | 'OPERATIONS' | 'INTELLIGENCE' | 'ALL',
+    DashboardSectionId[] | null
+  > = {
+    OVERVIEW: ['executiveSummary', 'alertsAndActivity', 'shortcuts'],
+    ANALYTICS: ['performanceOverview', 'panorama', 'performance'],
+    OPERATIONS: ['collections', 'teamProductivity'],
+    INTELLIGENCE: ['intelligence'],
+    ALL: null,
+  };
+
+  const effectiveTab = widgetState.editMode ? 'ALL' : focusTab;
+
+  const displayedSections = useMemo(() => {
+    const allowedByTab = TAB_SECTIONS_MAP[effectiveTab];
+    if (!allowedByTab) return widgetState.visibleSections;
+    const matched = widgetState.visibleSections.filter((s) => allowedByTab.includes(s));
+    return matched.length > 0 ? matched : widgetState.visibleSections;
+  }, [effectiveTab, widgetState.visibleSections]);
+
+  const availableFocusTabs = useMemo(() => {
+    const defs: Array<{
+      id: 'OVERVIEW' | 'ANALYTICS' | 'OPERATIONS' | 'INTELLIGENCE' | 'ALL';
+      label: string;
+    }> = [
+      { id: 'OVERVIEW', label: 'Resumen' },
+      { id: 'ANALYTICS', label: 'Analítica' },
+      { id: 'OPERATIONS', label: 'Operación' },
+      { id: 'INTELLIGENCE', label: 'Inteligencia' },
+      { id: 'ALL', label: 'Vista completa' },
+    ];
+    return defs.filter((tab) => {
+      if (tab.id === 'ALL') return true;
+      const list = TAB_SECTIONS_MAP[tab.id];
+      return Boolean(list && widgetState.visibleSections.some((s) => list.includes(s)));
+    });
+  }, [widgetState.visibleSections]);
 
   const handleGranularityChange = (g: PanoramaGranularity) => {
     setGranularity(g);
@@ -1531,185 +1572,171 @@ export function ExecutiveDashboardView() {
   const canNewCustomer = rbac.canAccessSection('customers');
 
   return (
-    <div className="space-y-6">
-      {/* BLOQUE 1: BIENVENIDA PERSONALIZADA */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0B1F3A] via-[#0E284B] to-[#123B65] text-white border border-[#20C4E8]/22 shadow-[0_24px_54px_-22px_rgba(11,31,58,0.65)]">
-        <div aria-hidden="true" className="axy-infinity-line h-[2px] w-full" />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-28 -right-20 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(32,196,232,0.22)_0%,rgba(22,139,255,0.08)_48%,transparent_72%)]"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(32,196,232,0.5)_1px,transparent_1px),linear-gradient(to_bottom,rgba(32,196,232,0.5)_1px,transparent_1px)] bg-[size:36px_36px]"
-        />
-
-        <div className="relative p-5 sm:p-7 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-          <div className="space-y-2.5 max-w-2xl">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-              <span className="inline-flex items-center gap-1.5 font-semibold text-[#20C4E8]">
+    <div className="space-y-5 max-w-[1440px] mx-auto">
+      {/* BLOQUE 1: CABECERA EJECUTIVA SERENA (ESTILO STRIPE / MERCURY) */}
+      <section className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 shadow-[0_1px_2px_rgba(11,31,58,0.03)]">
+        <div className="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-[#0052CC] dark:text-[#00D1FF]">
                 <Building2 className="w-3.5 h-3.5 shrink-0" />
                 <span>{organization.tradeName || organization.name}</span>
               </span>
-              <span aria-hidden="true" className="text-slate-500">·</span>
+              <span aria-hidden="true">·</span>
               <span>{clockInfo.formattedDate}</span>
-              <span aria-hidden="true" className="text-slate-500">·</span>
-              <span className="font-mono tabular-nums text-slate-200">
-                {clockInfo.formattedTime} (AST)
-              </span>
-            </div>
-
-            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight text-balance">
-              {clockInfo.greeting},{' '}
-              <span className="text-[#20C4E8]">{userProfile?.displayName || 'Ejecutivo'}</span>
-            </h2>
-
-            <p className="text-xs sm:text-sm text-slate-200/90 leading-relaxed">
-              Este es el resumen de actividad de tu institución financiera.
-            </p>
-
-            {/* Espacio destacado para acciones importantes */}
-            {(canNewApplication || canRegisterPayment || canNewCustomer) && (
-              <div className="pt-2 flex flex-wrap items-center gap-2.5">
-                {canNewApplication && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveSection('new_application')}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#168BFF] hover:bg-[#0E7AE8] text-white text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shadow-[0_8px_22px_-6px_rgba(22,139,255,0.65)]"
-                  >
-                    <FilePlus2 className="w-3.5 h-3.5 shrink-0" />
-                    <span>Nueva solicitud</span>
-                  </button>
-                )}
-                {canRegisterPayment && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActiveSection(
-                        rbac.canAccessSection('register_payment')
-                          ? 'register_payment'
-                          : 'cobranza_payments'
-                      )
-                    }
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/18 border border-white/18 text-white text-xs font-semibold transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    <CreditCard className="w-3.5 h-3.5 text-[#20C4E8] shrink-0" />
-                    <span>Registrar pago</span>
-                  </button>
-                )}
-                {canNewCustomer && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveSection('customers')}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/18 border border-white/18 text-white text-xs font-semibold transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    <UserPlus className="w-3.5 h-3.5 text-[#20C4E8] shrink-0" />
-                    <span>Nuevo cliente</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Estado institucional, sincronización y última actualización */}
-          <div className="rounded-xl bg-[#07162C]/80 border border-[#20C4E8]/22 backdrop-blur-xs divide-y sm:divide-y-0 sm:divide-x divide-white/10 grid grid-cols-1 sm:grid-cols-3 shrink-0">
-            <div className="px-4 py-3.5 space-y-1">
-              <span className="text-[11px] text-slate-400 block">Estado de sincronización</span>
-              <p className="text-xs font-semibold text-white flex items-center gap-1.5 whitespace-nowrap">
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
                 {dataLoading ? (
                   <>
-                    <RefreshCw className="w-3.5 h-3.5 text-[#20C4E8] animate-spin shrink-0" />
-                    <span>Sincronizando datos…</span>
+                    <RefreshCw className="w-3 h-3 text-[#0066FF] dark:text-[#00D1FF] animate-spin shrink-0" />
+                    <span>Sincronizando…</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>En línea · Tiempo real</span>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                    <span className="font-mono tabular-nums text-[11px]">
+                      Actualizado {formatTimestamp(lastSyncedAtIso)}
+                    </span>
                   </>
                 )}
-              </p>
+              </span>
             </div>
 
-            <div className="px-4 py-3.5 space-y-1">
-              <span className="text-[11px] text-slate-400 block">Última actualización</span>
-              <p className="font-mono tabular-nums text-xs font-semibold text-[#20C4E8] whitespace-nowrap">
-                {formatTimestamp(lastSyncedAtIso)}
-              </p>
-            </div>
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-slate-950 dark:text-white tracking-tight">
+              {clockInfo.greeting}, {userProfile?.displayName || 'Ejecutivo'}
+            </h1>
 
-            <div className="px-4 py-3.5 space-y-1">
-              <span className="text-[11px] text-slate-400 block">Perfil operativo</span>
-              <p className="text-xs font-semibold text-[#E2B35E] truncate max-w-[190px]">
-                {rbac.roleLabel}
-              </p>
-            </div>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              Corte activo:{' '}
+              <span className="font-mono tabular-nums font-medium text-slate-700 dark:text-slate-300">
+                {periodBounds.label} ({periodBounds.startIso} → {periodBounds.endIso})
+              </span>
+              <span aria-hidden="true"> · </span>
+              <span>{rbac.roleLabel}</span>
+            </p>
           </div>
+
+          {/* Acciones principales claras y ordenadas */}
+          {(canNewApplication || canRegisterPayment || canNewCustomer) && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {canNewApplication && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('new_application')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl axy-btn-primary text-xs cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <FilePlus2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Nueva solicitud</span>
+                </button>
+              )}
+              {canRegisterPayment && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveSection(
+                      rbac.canAccessSection('register_payment')
+                        ? 'register_payment'
+                        : 'cobranza_payments'
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <CreditCard className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00D1FF] shrink-0" />
+                  <span>Registrar pago</span>
+                </button>
+              )}
+              {canNewCustomer && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('customers')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                  <span>Nuevo cliente</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Barra de controles de Moneda, Horizonte y Personalización */}
-        <div className="relative bg-[#07162C]/85 border-t border-[#20C4E8]/15 px-5 sm:px-7 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 text-xs">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 text-slate-300 font-medium">
-              <Calendar className="w-3.5 h-3.5 text-[#20C4E8]" />
-              <span>Corte analizado:</span>
-              <strong className="font-mono tabular-nums text-white">
-                {periodBounds.label} ({periodBounds.startIso} → {periodBounds.endIso})
-              </strong>
-            </span>
+        {/* Barra inferior: Navegación por vistas del tablero + Moneda + Personalización */}
+        <div className="px-5 sm:px-6 py-3 border-t border-slate-100 dark:border-white/8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          {/* Selector progresivo de vistas del tablero */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 lg:pb-0">
+            {availableFocusTabs.map((tab) => {
+              const active = effectiveTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    if (widgetState.editMode && tab.id !== 'ALL') {
+                      widgetState.setEditMode(false);
+                    }
+                    setFocusTab(tab.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    active
+                      ? 'bg-[#041B4E] dark:bg-[#0066FF] text-white'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/6'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="inline-flex items-center gap-1.5">
-              <Wallet className="w-3.5 h-3.5 text-[#20C4E8]" />
-              <div className="inline-flex p-0.5 rounded-xl bg-[#0B1F3A] border border-[#20C4E8]/22">
-                {CURRENCY_OPTIONS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setExecutiveCurrency(c.value)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                      executiveCurrency === c.value
-                        ? 'bg-[#168BFF] text-white shadow-2xs'
-                        : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
+          {/* Controles de moneda y personalización */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="inline-flex p-0.5 rounded-xl bg-slate-100 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/10">
+              {CURRENCY_OPTIONS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setExecutiveCurrency(c.value)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    executiveCurrency === c.value
+                      ? 'bg-white dark:bg-[#0E1D40] text-slate-950 dark:text-white shadow-2xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
             </div>
 
             {widgetState.policy.canConfigure && (
-              <div className="flex flex-wrap items-center gap-2">
+              <>
                 <button
                   type="button"
                   onClick={() => widgetState.setEditMode((v) => !v)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     widgetState.editMode
-                      ? 'bg-[#20C4E8] text-[#0B1F3A] border-[#20C4E8]'
-                      : 'bg-white/[0.08] hover:bg-white/[0.15] border-white/15 text-white'
+                      ? 'bg-[#0066FF] text-white border-[#0066FF]'
+                      : 'border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/6'
                   }`}
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>{widgetState.editMode ? 'Salir de edición' : 'Modo edición'}</span>
+                  <span>{widgetState.editMode ? 'Listo' : 'Reordenar'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setCustomizeOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] border border-white/15 text-xs font-semibold text-white cursor-pointer whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer whitespace-nowrap"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#20C4E8]" />
-                  <span>Configurar widgets</span>
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00D1FF]" />
+                  <span>Widgets</span>
                 </button>
-              </div>
+              </>
             )}
           </div>
         </div>
       </section>
 
-      {/* RENDERIZADO ORDENADO Y CONFIGURABLE DE BLOQUES SEGÚN ROL OPERATIVO */}
-      {widgetState.visibleSections.map((sectionId: DashboardSectionId) => {
+      {/* RENDERIZADO ORDENADO Y CONFIGURABLE DE BLOQUES SEGÚN VISTA ACTIVA Y ROL OPERATIVO */}
+      {displayedSections.map((sectionId: DashboardSectionId) => {
         switch (sectionId) {
           case 'executiveSummary':
             return (

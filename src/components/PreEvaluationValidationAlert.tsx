@@ -59,7 +59,7 @@ export function PreEvaluationValidationAlert({
     <div
       role="alert"
       aria-live="assertive"
-      className="rounded-2xl border-2 border-rose-300 dark:border-rose-800/80 bg-white dark:bg-slate-900 shadow-lg overflow-hidden text-xs"
+      className="rounded-2xl border-2 border-rose-300 dark:border-rose-800/80 axy-surface shadow-lg overflow-hidden text-xs"
     >
       {/* Header */}
       <div className="px-5 py-3.5 bg-rose-50 dark:bg-rose-950/50 border-b border-rose-200 dark:border-rose-900/70 flex items-start justify-between gap-3">
@@ -89,7 +89,7 @@ export function PreEvaluationValidationAlert({
       </div>
 
       {/* Live Firestore Status Strip */}
-      <div className="px-5 py-3 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="px-5 py-3 axy-surface-tonal border-x-0 border-t-0 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="flex items-center gap-2.5">
           {result.customerExistsInFirestore ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -240,7 +240,7 @@ export function PreEvaluationValidationAlert({
         )}
 
         {result.warnings.length > 0 && (
-          <div className="space-y-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+          <div className="space-y-2 pt-1 border-t border-[var(--axy-border)]">
             <h4 className="font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600" />
               Advertencias Informativas ({result.warnings.length})
@@ -259,13 +259,13 @@ export function PreEvaluationValidationAlert({
         )}
 
         {/* Action Bar */}
-        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <div className="pt-3 border-t border-[var(--axy-border)] flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             {needsCustomerAction && onGoToCustomers && (
               <button
                 type="button"
                 onClick={onGoToCustomers}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 axy-btn-secondary text-slate-900 dark:text-white font-semibold cursor-pointer"
               >
                 <UserCog className="w-3.5 h-3.5" />
                 Completar Perfil del Cliente
@@ -275,7 +275,7 @@ export function PreEvaluationValidationAlert({
               <button
                 type="button"
                 onClick={() => onGoToDocuments(result.applicationId)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 axy-btn-primary cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5" />
                 Subir Documentos del Expediente
@@ -289,7 +289,7 @@ export function PreEvaluationValidationAlert({
                 type="button"
                 disabled={revalidating}
                 onClick={onRevalidate}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 axy-btn-secondary text-slate-800 dark:text-slate-200 font-semibold cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${revalidating ? 'animate-spin' : ''}`} />
                 {revalidating ? 'Verificando...' : 'Re-verificar en Firestore'}
@@ -298,7 +298,7 @@ export function PreEvaluationValidationAlert({
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium cursor-pointer"
+              className="px-3 py-2 axy-btn-secondary text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               Cerrar
             </button>

@@ -453,9 +453,9 @@ export function LoanCalculatorView() {
         {/* Left Form Column */}
         <form onSubmit={handleSubmit} noValidate className="space-y-5">
           {/* Card 1: Datos del préstamo */}
-          <section className="rounded-2xl bg-white dark:bg-[#0D1628] border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm">
+          <section className="rounded-2xl axy-surface p-5 sm:p-6">
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="h-7 w-7 rounded-lg bg-sky-50 dark:bg-[#0066FF]/15 text-[#175cb9] dark:text-[#38BDF8] text-xs font-bold grid place-items-center shrink-0">
+              <span className="h-7 w-7 rounded-lg bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0052CC] dark:text-[#00D1FF] text-xs font-bold grid place-items-center shrink-0">
                 1
               </span>
               <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
@@ -494,7 +494,7 @@ export function LoanCalculatorView() {
                       }
                     }
                   }}
-                  className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                  className="axy-input w-full h-11 px-3 text-sm text-slate-900 dark:text-slate-100"
                 >
                   <option value="DOP">Peso Dominicano (DOP / RD$)</option>
                   <option value="USD">Dólar Estadounidense (USD / US$)</option>
@@ -518,7 +518,7 @@ export function LoanCalculatorView() {
                         void fetchBcrdRate(true, true);
                       }}
                       disabled={bcrdLoading}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#175cb9] dark:text-[#38BDF8] hover:underline cursor-pointer disabled:opacity-50"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0052CC] dark:text-[#00D1FF] hover:underline cursor-pointer disabled:opacity-50"
                     >
                       <RefreshCw className={`w-3 h-3 ${bcrdLoading ? 'animate-spin' : ''}`} />
                       <span>{bcrdLoading ? 'Consultando BCRD...' : 'Actualizar BCRD'}</span>
@@ -537,7 +537,7 @@ export function LoanCalculatorView() {
                       setTasaCambio(e.target.value);
                       markStale();
                     }}
-                    className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                    className="axy-input w-full h-11 px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100"
                   />
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
                     {cambioHelpText}
@@ -566,7 +566,7 @@ export function LoanCalculatorView() {
                     setMonto(e.target.value);
                     markStale();
                   }}
-                  className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                  className="axy-input w-full h-11 px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100"
                 />
               </div>
 
@@ -586,7 +586,7 @@ export function LoanCalculatorView() {
                       setFrecuencia(e.target.value as CalculatorFrequencyKey);
                       markStale();
                     }}
-                    className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                    className="axy-input w-full h-11 px-3 text-sm text-slate-900 dark:text-slate-100"
                   >
                     {(Object.keys(DEFAULT_CALCULATOR_CONFIG.frecuencias) as CalculatorFrequencyKey[]).map(
                       (freq) => (
@@ -618,7 +618,7 @@ export function LoanCalculatorView() {
                       setPlazo(e.target.value);
                       markStale();
                     }}
-                    className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                    className="axy-input w-full h-11 px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -643,16 +643,16 @@ export function LoanCalculatorView() {
                     setFecha(e.target.value);
                     markStale();
                   }}
-                  className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                  className="axy-input w-full h-11 px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100"
                 />
               </div>
             </div>
           </section>
 
           {/* Card 2: Condiciones */}
-          <section className="rounded-2xl bg-white dark:bg-[#0D1628] border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm">
+          <section className="rounded-2xl axy-surface p-5 sm:p-6">
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="h-7 w-7 rounded-lg bg-sky-50 dark:bg-[#0066FF]/15 text-[#175cb9] dark:text-[#38BDF8] text-xs font-bold grid place-items-center shrink-0">
+              <span className="h-7 w-7 rounded-lg bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0052CC] dark:text-[#00D1FF] text-xs font-bold grid place-items-center shrink-0">
                 2
               </span>
               <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
@@ -666,7 +666,7 @@ export function LoanCalculatorView() {
                 <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Parámetros de tasa y límites
                 </span>
-                <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 dark:bg-[#091020] border border-slate-200 dark:border-slate-800">
+                <div className="grid grid-cols-2 gap-2 p-1 rounded-xl axy-surface-tonal">
                   <button
                     type="button"
                     onClick={() => {
@@ -675,7 +675,7 @@ export function LoanCalculatorView() {
                     }}
                     className={`py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                       paramSource === 'STANDARD'
-                        ? 'bg-white dark:bg-[#0D1628] text-[#175cb9] dark:text-[#60A5FA] shadow-sm'
+                        ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-sm'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
@@ -689,7 +689,7 @@ export function LoanCalculatorView() {
                     }}
                     className={`inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                       paramSource === 'MOTOR_V2'
-                        ? 'bg-white dark:bg-[#0D1628] text-[#175cb9] dark:text-[#60A5FA] shadow-sm'
+                        ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-sm'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
@@ -700,7 +700,7 @@ export function LoanCalculatorView() {
               </div>
 
               {paramSource === 'MOTOR_V2' && (
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#091020] p-3.5 space-y-3">
+                <div className="rounded-xl axy-surface-tonal p-3.5 space-y-3">
                   <div>
                     <label
                       htmlFor="calc-motor-product"
@@ -721,7 +721,7 @@ export function LoanCalculatorView() {
                         }
                         markStale();
                       }}
-                      className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs text-slate-900 dark:text-slate-100"
+                      className="axy-input w-full h-10 px-2.5 text-xs text-slate-900 dark:text-slate-100"
                     >
                       {(Object.keys(PRODUCT_LABELS) as ProductCode[]).map((code) => (
                         <option key={code} value={code}>
@@ -745,7 +745,7 @@ export function LoanCalculatorView() {
                         setMotorRiskBand(e.target.value as RiskBandCode | 'REFERENCIA');
                         markStale();
                       }}
-                      className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0D1628] px-2.5 text-xs text-slate-900 dark:text-slate-100"
+                      className="axy-input w-full h-10 px-2.5 text-xs text-slate-900 dark:text-slate-100"
                     >
                       {activeOrTestPolicy.riskBands
                         .filter((b) => b.monthlyRate !== null)
@@ -780,13 +780,13 @@ export function LoanCalculatorView() {
               )}
 
               {/* Live Suggestion Box */}
-              <div className="rounded-xl bg-[#edf4ff] dark:bg-[#0A1D3D]/80 border border-[#c8dcfa] dark:border-[#1D4ED8]/40 p-3.5">
+              <div className="axy-surface-ai rounded-xl p-3.5">
                 <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {paramSource === 'MOTOR_V2' && motorV2Resolved
                     ? motorV2Resolved.rateSourceLabel
                     : 'Tasa sugerida'}
                 </div>
-                <div className="text-xl font-bold font-mono tabular-nums text-[#1659b0] dark:text-[#60A5FA]">
+                <div className="text-xl font-bold font-mono tabular-nums text-[#0052CC] dark:text-[#00D1FF]">
                   {paramSource === 'MOTOR_V2' && motorV2Resolved
                     ? `${formatPercentCalc(motorV2Resolved.appliedMonthlyRatePct)} mensual`
                     : liveSuggestion
@@ -808,7 +808,7 @@ export function LoanCalculatorView() {
                   ¿Desea utilizar la tasa sugerida?
                 </span>
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-[#091020] cursor-pointer text-sm font-medium text-slate-800 dark:text-slate-200">
+                  <label className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl axy-surface-tonal cursor-pointer text-sm font-medium text-slate-800 dark:text-slate-200">
                     <input
                       type="radio"
                       name="usarSugerida"
@@ -817,11 +817,11 @@ export function LoanCalculatorView() {
                         setUsarSugerida(true);
                         markStale();
                       }}
-                      className="h-4 w-4 accent-[#175cb9]"
+                      className="h-4 w-4 accent-[#0066FF]"
                     />
                     <span>Sí</span>
                   </label>
-                  <label className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-[#091020] cursor-pointer text-sm font-medium text-slate-800 dark:text-slate-200">
+                  <label className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl axy-surface-tonal cursor-pointer text-sm font-medium text-slate-800 dark:text-slate-200">
                     <input
                       type="radio"
                       name="usarSugerida"
@@ -830,7 +830,7 @@ export function LoanCalculatorView() {
                         setUsarSugerida(false);
                         markStale();
                       }}
-                      className="h-4 w-4 accent-[#175cb9]"
+                      className="h-4 w-4 accent-[#0066FF]"
                     />
                     <span>No</span>
                   </label>
@@ -858,7 +858,7 @@ export function LoanCalculatorView() {
                       setTasaPersonalizada(e.target.value);
                       markStale();
                     }}
-                    className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                    className="axy-input w-full h-11 px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100"
                   />
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
                     Reemplaza la tasa sugerida solamente en esta simulación.
@@ -884,7 +884,7 @@ export function LoanCalculatorView() {
                       runCalculation(nextTipo);
                     }
                   }}
-                  className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                  className="axy-input w-full h-11 px-3 text-sm text-slate-900 dark:text-slate-100"
                 >
                   <option value="Fija">Fija</option>
                   <option value="Insoluta">Insoluta</option>
@@ -911,7 +911,7 @@ export function LoanCalculatorView() {
                     setModalidadPago(e.target.value as CalculatorPaymentMode);
                     markStale();
                   }}
-                  className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                  className="axy-input w-full h-11 px-3 text-sm text-slate-900 dark:text-slate-100"
                 >
                   <option value="Normal">Normal</option>
                   <option value="SoloInteresesInicial">Por período</option>
@@ -942,7 +942,7 @@ export function LoanCalculatorView() {
                       setCuotasSoloInteres(e.target.value);
                       markStale();
                     }}
-                    className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                    className="axy-input w-full h-11 px-3 text-sm font-mono tabular-nums text-slate-900 dark:text-slate-100"
                   />
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
                     Primeras {soloInteresInt} cuotas: solo intereses. Las {amortizanRestantes} cuotas restantes amortizarán el capital.
@@ -978,7 +978,7 @@ export function LoanCalculatorView() {
                     setGastos(e.target.value as CalculatorExpensesMode);
                     markStale();
                   }}
-                  className="w-full h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40 focus:border-[#175cb9]"
+                  className="axy-input w-full h-11 px-3 text-sm text-slate-900 dark:text-slate-100"
                 >
                   <option value="Descontar">Descontar del desembolso</option>
                   <option value="Financiar">Financiar los gastos legales</option>
@@ -1001,7 +1001,7 @@ export function LoanCalculatorView() {
           {/* Submit CTA */}
           <button
             type="submit"
-            className="w-full py-3.5 px-5 rounded-xl bg-[#175cb9] hover:bg-[#104f9e] text-white font-bold text-sm tracking-wide shadow-sm cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#175cb9] focus-visible:ring-offset-2"
+            className="axy-btn-primary w-full py-3.5 px-5 text-sm tracking-wide cursor-pointer"
           >
             CALCULAR PRÉSTAMO
           </button>
@@ -1014,11 +1014,11 @@ export function LoanCalculatorView() {
         {/* Right Result Column */}
         <div className="space-y-5">
           {!actual || !comparison ? (
-            <section className="rounded-2xl bg-white dark:bg-[#0D1628] border border-slate-200/90 dark:border-slate-800 p-10 sm:p-16 text-center shadow-sm">
-              <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-[#edf4ff] dark:bg-[#0066FF]/15 border border-[#c8dcfa] dark:border-[#0066FF]/30 grid place-items-center text-[#175cb9] dark:text-[#38BDF8]">
+            <section className="rounded-2xl axy-surface p-10 sm:p-16 text-center">
+              <div className="mx-auto mb-4 h-14 w-14 rounded-2xl axy-surface-tonal border border-[#0066FF]/20 dark:border-[#00B8FF]/25 grid place-items-center text-[#0052CC] dark:text-[#00D1FF]">
                 <Calculator className="w-7 h-7" />
               </div>
-              <h2 className="font-display text-xl font-bold text-[#244a7c] dark:text-slate-100 mb-2">
+              <h2 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
                 Su préstamo, en detalle
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
@@ -1028,16 +1028,16 @@ export function LoanCalculatorView() {
           ) : (
             <>
               {/* Card 3: Resultado */}
-              <section className="rounded-2xl bg-white dark:bg-[#0D1628] border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm">
+              <section className="rounded-2xl axy-surface p-5 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-2.5">
-                    <span className="h-7 w-7 rounded-lg bg-sky-50 dark:bg-[#0066FF]/15 text-[#175cb9] dark:text-[#38BDF8] text-xs font-bold grid place-items-center shrink-0">
+                    <span className="h-7 w-7 rounded-lg bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0052CC] dark:text-[#00D1FF] text-xs font-bold grid place-items-center shrink-0">
                       3
                     </span>
                     <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                       Resultado
                     </h2>
-                    <span className="inline-flex items-center rounded-md border border-[#b7d0f1] dark:border-[#1D4ED8]/50 bg-[#e7f0ff] dark:bg-[#0A1D3D] px-2.5 py-0.5 text-xs font-bold text-[#155398] dark:text-[#7CE4FF]">
+                    <span className="inline-flex items-center rounded-md border border-[#0066FF]/25 dark:border-[#00B8FF]/30 bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 px-2.5 py-0.5 text-xs font-bold text-[#0052CC] dark:text-[#00D1FF]">
                       {actual.tipo}
                     </span>
                   </div>
@@ -1045,7 +1045,7 @@ export function LoanCalculatorView() {
                     <button
                       type="button"
                       onClick={handleTransferToOrigination}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#eaf1fc] hover:bg-[#dce9fc] dark:bg-[#0A1D3D] dark:hover:bg-[#102952] text-[#175cb9] dark:text-[#7CE4FF] text-xs font-semibold cursor-pointer transition-colors"
+                      className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-[#0052CC] dark:text-[#00D1FF] text-xs font-semibold cursor-pointer"
                     >
                       <span>Llevar a Nueva Solicitud</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -1061,20 +1061,20 @@ export function LoanCalculatorView() {
                 )}
 
                 {/* Hero installment box */}
-                <div className="rounded-xl bg-gradient-to-br from-[#103b78] to-[#1966c9] text-white p-5 mb-5">
-                  <div className="text-xs font-semibold text-[#d2e5ff] mb-1">
+                <div className="rounded-xl axy-brand-gradient text-white p-5 mb-5 shadow-md">
+                  <div className="text-xs font-semibold text-white/80 mb-1">
                     {actual.cuotasIguales ? 'Valor de cada cuota' : 'Cuota inicial'}
                   </div>
                   <div className="text-3xl sm:text-4xl font-extrabold font-mono tabular-nums tracking-tight">
                     {formatMoneyCalc(actual.cuotaInicial, actual.moneda)}
                   </div>
-                  <div className="text-xs sm:text-sm text-[#e4efff] mt-1.5">
+                  <div className="text-xs sm:text-sm text-white/90 mt-1.5">
                     {actual.cuotasIguales
                       ? `${actual.numeroCuotas} cuotas ${FREQ_PLURAL[actual.frecuencia]}`
                       : `Cuota final: ${formatMoneyCalc(actual.cuotaFinal, actual.moneda)} · ${actual.numeroCuotas} cuotas`}
                   </div>
                   {actual.moneda === 'USD' && dEq && (
-                    <div className="text-xs sm:text-sm font-mono tabular-nums text-[#d8e9ff] mt-2">
+                    <div className="text-xs sm:text-sm font-mono tabular-nums text-white/85 mt-2">
                       {formatMoneyCalc(dEq.cuotaInicial, 'DOP')}
                       {actual.cuotasIguales ? '' : ` · Final: ${formatMoneyCalc(dEq.cuotaFinal, 'DOP')}`}
                     </div>
@@ -1095,7 +1095,7 @@ export function LoanCalculatorView() {
                   ).map(([label, key]) => (
                     <div
                       key={key}
-                      className="rounded-xl bg-[#f7f9fd] dark:bg-[#091020] border border-slate-200/80 dark:border-slate-800 p-3.5"
+                      className="rounded-xl axy-surface-tonal p-3.5"
                     >
                       <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                         {label}
@@ -1126,7 +1126,7 @@ export function LoanCalculatorView() {
                 {/* Summary Key-Value Detail Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-xs sm:text-sm">
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-[var(--axy-border)]">
                       <tr>
                         <td className="py-2.5 pr-4 text-slate-500 dark:text-slate-400">Moneda</td>
                         <td className="py-2.5 text-right font-semibold text-slate-900 dark:text-slate-100">
@@ -1300,20 +1300,20 @@ export function LoanCalculatorView() {
               </section>
 
               {/* Fija vs. Insoluta Side-by-Side Comparison */}
-              <section className="rounded-2xl bg-white dark:bg-[#0D1628] border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm">
+              <section className="rounded-2xl axy-surface p-5 sm:p-6">
                 <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100 mb-3.5">
                   Fija vs. Insoluta
                 </h2>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-xs sm:text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                      <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                         <th className="py-2.5 px-3 text-left font-medium">Concepto</th>
                         <th className="py-2.5 px-3 text-right font-medium">Fija</th>
                         <th className="py-2.5 px-3 text-right font-medium">Insoluta</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody>
                       {(
                         [
                           ['Cuota inicial', 'cuotaInicial'],
@@ -1322,14 +1322,14 @@ export function LoanCalculatorView() {
                           ['Total a pagar', 'totalAPagar'],
                         ] as const
                       ).map(([label, key]) => (
-                        <tr key={key}>
+                        <tr key={key} className="axy-table-row">
                           <td className="py-3 px-3 text-slate-700 dark:text-slate-300 font-medium">
                             {label}
                           </td>
                           <td
                             className={`py-3 px-3 text-right font-mono tabular-nums ${
                               actual.tipo === 'Fija'
-                                ? 'bg-[#eef4ff] dark:bg-[#0A1D3D] font-bold text-[#175cb9] dark:text-[#60A5FA]'
+                                ? 'bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 font-bold text-[#0052CC] dark:text-[#00D1FF]'
                                 : 'text-slate-700 dark:text-slate-300'
                             }`}
                           >
@@ -1338,7 +1338,7 @@ export function LoanCalculatorView() {
                           <td
                             className={`py-3 px-3 text-right font-mono tabular-nums ${
                               actual.tipo === 'Insoluta'
-                                ? 'bg-[#eef4ff] dark:bg-[#0A1D3D] font-bold text-[#175cb9] dark:text-[#60A5FA]'
+                                ? 'bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 font-bold text-[#0052CC] dark:text-[#00D1FF]'
                                 : 'text-slate-700 dark:text-slate-300'
                             }`}
                           >
@@ -1360,16 +1360,16 @@ export function LoanCalculatorView() {
 
       {/* Full-Width Card 4: Amortization Schedule */}
       {actual && (
-        <section className="rounded-2xl bg-white dark:bg-[#0D1628] border border-slate-200/90 dark:border-slate-800 p-5 sm:p-6 shadow-sm">
+        <section className="rounded-2xl axy-surface p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <span className="h-7 w-7 rounded-lg bg-sky-50 dark:bg-[#0066FF]/15 text-[#175cb9] dark:text-[#38BDF8] text-xs font-bold grid place-items-center shrink-0">
+              <span className="h-7 w-7 rounded-lg bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0052CC] dark:text-[#00D1FF] text-xs font-bold grid place-items-center shrink-0">
                 4
               </span>
               <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Tabla de amortización
               </h2>
-              <span className="inline-flex items-center rounded-md border border-[#b7d0f1] dark:border-[#1D4ED8]/50 bg-[#e7f0ff] dark:bg-[#0A1D3D] px-2.5 py-0.5 text-xs font-bold font-mono tabular-nums text-[#155398] dark:text-[#7CE4FF]">
+              <span className="inline-flex items-center rounded-md border border-[#0066FF]/25 dark:border-[#00B8FF]/30 bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 px-2.5 py-0.5 text-xs font-bold font-mono tabular-nums text-[#0052CC] dark:text-[#00D1FF]">
                 {actual.numeroCuotas} cuotas
               </span>
             </div>
@@ -1387,7 +1387,7 @@ export function LoanCalculatorView() {
                     id="calc-tabla-moneda"
                     value={tablaMoneda}
                     onChange={(e) => setTablaMoneda(e.target.value as 'original' | 'DOP')}
-                    className="h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#091020] px-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#175cb9]/40"
+                    className="axy-input h-9 px-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200"
                   >
                     <option value="original">USD</option>
                     <option value="DOP">Equivalente DOP</option>
@@ -1398,7 +1398,7 @@ export function LoanCalculatorView() {
               <button
                 type="button"
                 onClick={handleExportScheduleCsv}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-[#eaf1fc] hover:bg-[#dce9fc] dark:bg-[#0A1D3D] dark:hover:bg-[#102952] text-[#175cb9] dark:text-[#7CE4FF] text-xs font-semibold cursor-pointer transition-colors"
+                className="axy-btn-secondary inline-flex items-center gap-1.5 h-9 px-3 text-[#0052CC] dark:text-[#00D1FF] text-xs font-semibold cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Exportar CSV</span>
@@ -1412,42 +1412,38 @@ export function LoanCalculatorView() {
               : `Valores en ${actual.moneda}. El balance termina en cero y la última cuota absorbe la diferencia de redondeo.`}
           </p>
 
-          <div className="mt-4 overflow-auto max-h-[580px] rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="mt-4 overflow-auto max-h-[580px] rounded-xl border border-[var(--axy-border)]">
             <table className="w-full border-collapse whitespace-nowrap text-xs sm:text-sm">
               <thead>
-                <tr className="bg-[#eaf1fc] dark:bg-[#0A1D3D] text-[#214e84] dark:text-[#93C5FD] border-b border-slate-200 dark:border-slate-800">
-                  <th className="sticky top-0 z-10 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-3 px-4 text-left font-bold">
+                <tr className="axy-table-head text-[#041B4E] dark:text-[#00D1FF]">
+                  <th className="sticky top-0 z-10 bg-[var(--axy-surface-tonal)] py-3 px-4 text-left font-bold">
                     # Cuota
                   </th>
-                  <th className="sticky top-0 z-10 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-3 px-4 text-left font-bold">
+                  <th className="sticky top-0 z-10 bg-[var(--axy-surface-tonal)] py-3 px-4 text-left font-bold">
                     Fecha
                   </th>
-                  <th className="sticky top-0 z-10 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-3 px-4 text-left font-bold">
+                  <th className="sticky top-0 z-10 bg-[var(--axy-surface-tonal)] py-3 px-4 text-left font-bold">
                     Etapa
                   </th>
-                  <th className="sticky top-0 z-10 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-3 px-4 text-right font-bold">
+                  <th className="sticky top-0 z-10 bg-[var(--axy-surface-tonal)] py-3 px-4 text-right font-bold">
                     Capital
                   </th>
-                  <th className="sticky top-0 z-10 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-3 px-4 text-right font-bold">
+                  <th className="sticky top-0 z-10 bg-[var(--axy-surface-tonal)] py-3 px-4 text-right font-bold">
                     Interés
                   </th>
-                  <th className="sticky top-0 z-10 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-3 px-4 text-right font-bold">
+                  <th className="sticky top-0 z-10 bg-[var(--axy-surface-tonal)] py-3 px-4 text-right font-bold">
                     Cuota
                   </th>
-                  <th className="sticky top-0 z-10 bg-[#eaf1fc] dark:bg-[#0A1D3D] py-3 px-4 text-right font-bold">
+                  <th className="sticky top-0 z-10 bg-[var(--axy-surface-tonal)] py-3 px-4 text-right font-bold">
                     Balance
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                {scheduleRows.map((row, idx) => (
+              <tbody>
+                {scheduleRows.map((row) => (
                   <tr
                     key={row.numero}
-                    className={
-                      idx % 2 === 1
-                        ? 'bg-[#f9fbfe] dark:bg-[#091020]/70'
-                        : 'bg-white dark:bg-[#0D1628]'
-                    }
+                    className="axy-table-row even:bg-[var(--axy-surface-tonal)]/60"
                   >
                     <td className="py-2.5 px-4 text-left font-mono tabular-nums text-slate-800 dark:text-slate-200">
                       {row.numero}
@@ -1474,7 +1470,7 @@ export function LoanCalculatorView() {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-[#edf4ff] dark:bg-[#0A1D3D] font-bold text-slate-900 dark:text-slate-100 border-t border-slate-200 dark:border-slate-700">
+                <tr className="bg-[var(--axy-surface-tonal)] font-bold text-slate-900 dark:text-slate-100 border-t border-[var(--axy-border-strong)]">
                   <td className="py-3 px-4 text-left">Total</td>
                   <td className="py-3 px-4" />
                   <td className="py-3 px-4" />
@@ -1502,7 +1498,7 @@ export function LoanCalculatorView() {
         <div className="font-bold text-slate-700 dark:text-slate-300">
           AxyCore · Calculadora de Préstamos
         </div>
-        <div className="font-semibold text-[#29456d] dark:text-[#7CE4FF]">
+        <div className="font-semibold text-[#0052CC] dark:text-[#00D1FF]">
           Mano Amiga · Distribuidor oficial
         </div>
       </footer>

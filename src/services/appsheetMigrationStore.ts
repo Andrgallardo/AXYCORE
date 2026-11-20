@@ -187,16 +187,20 @@ export async function executeAppSheetMigrationToFirestore(params: {
     })),
   ];
 
+  const safeActorDisplayName = (user.displayName || user.email || 'Administrador').trim().slice(0, 160);
   const step2Ops: Array<{ collectionName: string; docId: string; payload: Record<string, unknown> }> = [
     ...bundle.applications.map((a) => ({
       collectionName: 'applications',
       docId: a.id,
       payload: {
         ...a,
+        applicantDisplayName: (a.applicantDisplayName || 'Solicitante').slice(0, 200),
+        requestedAmount: Math.max(0, Math.min(100_000_000, Number(a.requestedAmount) || 0)),
+        requestedTermMonths: Math.max(0, Math.min(360, Math.round(Number(a.requestedTermMonths) || 0))),
         createdBy: user.uid,
-        createdByName: user.displayName || user.email,
+        createdByName: safeActorDisplayName,
         assignedTo: user.uid,
-        assignedToName: user.displayName || user.email,
+        assignedToName: safeActorDisplayName,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },

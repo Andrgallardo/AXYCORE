@@ -238,10 +238,10 @@ export function RecoveryBotAndSentinelView({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            {mode === 'contact_center' && <Headphones className="w-5 h-5 text-sky-600" />}
-            {mode === 'bot' && <Bot className="w-5 h-5 text-sky-600" />}
-            {mode === 'sentinel' && <Radar className="w-5 h-5 text-amber-600" />}
-            {mode === 'assignment' && <Users className="w-5 h-5 text-sky-600" />}
+            {mode === 'contact_center' && <Headphones className="w-5 h-5 text-[#0066FF] dark:text-[#00B8FF]" />}
+            {mode === 'bot' && <Bot className="w-5 h-5 text-[#0066FF] dark:text-[#00B8FF]" />}
+            {mode === 'sentinel' && <Radar className="w-5 h-5 text-amber-500" />}
+            {mode === 'assignment' && <Users className="w-5 h-5 text-[#0066FF] dark:text-[#00B8FF]" />}
             {mode === 'contact_center'
               ? 'Contact Center y Desempeño de Gestores'
               : mode === 'bot'
@@ -286,7 +286,7 @@ export function RecoveryBotAndSentinelView({
               });
               setBusy(false);
             }}
-            className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-semibold cursor-pointer"
+            className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
           >
             Ejecutar Escaneo Centinela (13 Reglas)
           </button>
@@ -308,55 +308,55 @@ export function RecoveryBotAndSentinelView({
       {mode === 'contact_center' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <p className="text-slate-500">Contactabilidad</p>
+            <div className="p-4 rounded-2xl axy-surface">
+              <p className="text-slate-500 dark:text-slate-400">Contactabilidad</p>
               <p className="font-mono tabular-nums text-xl font-bold text-slate-900 dark:text-white">
                 {kpis.contactabilityPct}%
               </p>
-              <p className="text-slate-500">
+              <p className="text-slate-500 dark:text-slate-400">
                 {kpis.effectiveContacts} / {kpis.totalActions} gestiones
               </p>
             </div>
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <p className="text-slate-500">Promesas Cumplidas</p>
+            <div className="p-4 rounded-2xl axy-surface">
+              <p className="text-slate-500 dark:text-slate-400">Promesas Cumplidas</p>
               <p className="font-mono tabular-nums text-xl font-bold text-emerald-700 dark:text-emerald-400">
                 {kpis.promiseFulfillmentPct}%
               </p>
-              <p className="text-slate-500">
+              <p className="text-slate-500 dark:text-slate-400">
                 {kpis.promisesFulfilledCount} / {kpis.promisesEvaluatedCount} evaluadas
               </p>
             </div>
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <p className="text-slate-500">Recuperado APLICADO DOP</p>
-              <p className="font-mono tabular-nums text-lg font-bold text-sky-700 dark:text-sky-400">
+            <div className="p-4 rounded-2xl axy-surface">
+              <p className="text-slate-500 dark:text-slate-400">Recuperado APLICADO DOP</p>
+              <p className="font-mono tabular-nums text-lg font-bold text-[#0052CC] dark:text-[#00D1FF]">
                 {formatMoney(kpis.recoveredAppliedDop, 'DOP')}
               </p>
               <p className="text-amber-700 dark:text-amber-400 font-mono">
                 Pend: {formatMoney(kpis.pendingVerificationDop, 'DOP')}
               </p>
             </div>
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <p className="text-slate-500">Recuperado APLICADO USD</p>
-              <p className="font-mono tabular-nums text-lg font-bold text-sky-700 dark:text-sky-400">
+            <div className="p-4 rounded-2xl axy-surface">
+              <p className="text-slate-500 dark:text-slate-400">Recuperado APLICADO USD</p>
+              <p className="font-mono tabular-nums text-lg font-bold text-[#0052CC] dark:text-[#00D1FF]">
                 {formatMoney(kpis.recoveredAppliedUsd, 'USD')}
               </p>
               <p className="text-amber-700 dark:text-amber-400 font-mono">
                 Pend: {formatMoney(kpis.pendingVerificationUsd, 'USD')}
               </p>
             </div>
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              <p className="text-slate-500">Vencidas Sin Gestión</p>
+            <div className="p-4 rounded-2xl axy-surface">
+              <p className="text-slate-500 dark:text-slate-400">Vencidas Sin Gestión</p>
               <p className="font-mono tabular-nums text-xl font-bold text-rose-700 dark:text-rose-400">
                 {kpis.overdueAccountsWithoutAction}
               </p>
-              <p className="text-slate-500">Requieren primer contacto</p>
+              <p className="text-slate-500 dark:text-slate-400">Requieren primer contacto</p>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-3 px-4">Gestor / Oficial</th>
                   <th className="py-3 px-3">Cuentas Asignadas</th>
                   <th className="py-3 px-3">Gestiones</th>
@@ -366,10 +366,10 @@ export function RecoveryBotAndSentinelView({
                   <th className="py-3 px-3">Recuperado USD</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono tabular-nums">
+              <tbody className="font-mono tabular-nums">
                 {kpis.collectorBreakdown.map((row) => (
-                  <tr key={row.collectorId}>
-                    <td className="py-2.5 px-4 font-sans font-semibold">{row.collectorName}</td>
+                  <tr key={row.collectorId} className="axy-table-row">
+                    <td className="py-2.5 px-4 font-sans font-semibold text-slate-900 dark:text-white">{row.collectorName}</td>
                     <td className="py-2.5 px-3">{row.assignedAccounts}</td>
                     <td className="py-2.5 px-3">{row.actionsCount}</td>
                     <td className="py-2.5 px-3">{row.effectiveContactsCount}</td>
@@ -398,40 +398,40 @@ export function RecoveryBotAndSentinelView({
           {rbac.hasPermission('ASSIGN_COLLECTIONS_PORTFOLIO') && (
             <form
               onSubmit={handleSaveTarget}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3"
+              className="p-4 rounded-2xl axy-surface space-y-3"
             >
-              <h3 className="font-display text-sm font-bold">Configurar Metas Mensuales por Gestor</h3>
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">Configurar Metas Mensuales por Gestor</h3>
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                 <input
                   value={targetUserId}
                   onChange={(e) => setTargetUserId(e.target.value)}
                   placeholder="UID Gestor (o vacío = mi UID)"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
                 <input
                   value={targetUserName}
                   onChange={(e) => setTargetUserName(e.target.value)}
                   placeholder="Nombre del gestor"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 />
                 <input
                   type="number"
                   value={targetDop}
                   onChange={(e) => setTargetDop(e.target.value)}
                   placeholder="Meta DOP"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
                 <input
                   type="number"
                   value={targetUsd}
                   onChange={(e) => setTargetUsd(e.target.value)}
                   placeholder="Meta USD"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="px-2.5 py-2 axy-input font-mono text-slate-900 dark:text-white"
                 />
                 <button
                   type="submit"
                   disabled={busy}
-                  className="px-4 py-2 rounded-lg bg-sky-700 text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
                 >
                   Guardar Meta
                 </button>
@@ -445,32 +445,32 @@ export function RecoveryBotAndSentinelView({
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Dispatch & Templates */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-              <h3 className="font-display text-sm font-bold flex items-center gap-1.5">
-                <Plus className="w-4 h-4 text-sky-600" />
+            <div className="p-5 rounded-2xl axy-surface space-y-4">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
+                <Plus className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                 Plantillas Aprobadas ({messageTemplates.length}) y Campañas ({collectionCampaigns.length})
               </h3>
               {rbac.hasPermission('MANAGE_COLLECTION_BOT') && userProfile && (
-                <div className="space-y-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+                <div className="space-y-2 border-b border-[var(--axy-border)] pb-4">
                   <div className="grid grid-cols-3 gap-2">
                     <input
                       value={tplCode}
                       onChange={(e) => setTplCode(e.target.value)}
                       placeholder="Código (ej. MORA_TEMPRANA_V1)"
-                      className="px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="px-2.5 py-1.5 axy-input font-mono text-slate-900 dark:text-white"
                     />
                     <input
                       value={tplName}
                       onChange={(e) => setTplName(e.target.value)}
                       placeholder="Nombre de plantilla"
-                      className="px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                     />
                     <select
                       value={tplStage}
                       onChange={(e) =>
                         setTplStage(e.target.value as MessageTemplateRecord['stageTarget'])
                       }
-                      className="px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                     >
                       <option value="VENCIMIENTO_PROXIMO">Vencimiento Próximo</option>
                       <option value="PREVENTIVA">Preventiva</option>
@@ -483,7 +483,7 @@ export function RecoveryBotAndSentinelView({
                     rows={2}
                     value={tplBody}
                     onChange={(e) => setTplBody(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="w-full px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -507,7 +507,7 @@ export function RecoveryBotAndSentinelView({
                       setTplName('');
                       setFeedback({ type: 'ok', msg: `Plantilla ${code} guardada como APROBADA.` });
                     }}
-                    className="px-3 py-1.5 rounded-lg bg-sky-700 text-white font-semibold cursor-pointer"
+                    className="px-3.5 py-1.5 axy-btn-primary cursor-pointer"
                   >
                     Guardar Plantilla Aprobada
                   </button>
@@ -517,12 +517,12 @@ export function RecoveryBotAndSentinelView({
               {/* Dispatch single compliant message */}
               {activeAccounts.length > 0 && messageTemplates.length > 0 && userProfile && (
                 <div className="space-y-2">
-                  <p className="font-semibold">Enviar Recordatorio Regulado (Valida Opt-In, Reclamación, Horario y Límite Semanal)</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">Enviar Recordatorio Regulado (Valida Opt-In, Reclamación, Horario y Límite Semanal)</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <select
                       value={dispatchLoanId || activeAccounts[0].loanId}
                       onChange={(e) => setDispatchLoanId(e.target.value)}
-                      className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                     >
                       {activeAccounts.map((a) => (
                         <option key={a.loanId} value={a.loanId}>
@@ -533,7 +533,7 @@ export function RecoveryBotAndSentinelView({
                     <select
                       value={dispatchTplId || messageTemplates[0].id}
                       onChange={(e) => setDispatchTplId(e.target.value)}
-                      className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                     >
                       {messageTemplates.map((t) => (
                         <option key={t.id} value={t.id}>
@@ -569,7 +569,7 @@ export function RecoveryBotAndSentinelView({
                       });
                       setBusy(false);
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white font-semibold cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
                     Ejecutar Envío Regulado
@@ -578,12 +578,12 @@ export function RecoveryBotAndSentinelView({
               )}
 
               {rbac.hasPermission('MANAGE_COLLECTION_BOT') && messageTemplates.length > 0 && userProfile && (
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+                <div className="pt-3 border-t border-[var(--axy-border)] flex gap-2">
                   <input
                     value={campName}
                     onChange={(e) => setCampName(e.target.value)}
                     placeholder="Nombre de campaña preventiva..."
-                    className="flex-1 px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="flex-1 px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -602,7 +602,7 @@ export function RecoveryBotAndSentinelView({
                       await saveBotCampaign({ campaign: camp, user: userProfile });
                       setCampName('');
                     }}
-                    className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer"
+                    className="px-3 py-1.5 axy-btn-secondary font-semibold cursor-pointer text-slate-700 dark:text-slate-200"
                   >
                     Crear Campaña
                   </button>
@@ -611,13 +611,13 @@ export function RecoveryBotAndSentinelView({
             </div>
 
             {/* Safe Identity-Verified Bot Simulator */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="p-5 rounded-2xl axy-surface-ai space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-display text-sm font-bold flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-sky-600" />
+                <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                   Simulador Seguro de Conversación (Verificación Ley 172-13)
                 </h3>
-                <span className="font-mono text-slate-500">
+                <span className="font-mono text-slate-500 dark:text-slate-400">
                   Identidad: {simVerified ? 'VERIFICADA' : 'PENDIENTE'}
                 </span>
               </div>
@@ -630,7 +630,7 @@ export function RecoveryBotAndSentinelView({
                     setSimVerified(false);
                     setSimTranscript([]);
                   }}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="w-full px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   {activeAccounts.map((a) => (
                     <option key={a.loanId} value={a.loanId}>
@@ -640,16 +640,16 @@ export function RecoveryBotAndSentinelView({
                 </select>
               )}
 
-              <div className="h-44 overflow-y-auto p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 space-y-2">
+              <div className="h-44 overflow-y-auto p-3 rounded-xl axy-surface-tonal space-y-2">
                 {simTranscript.length === 0 ? (
-                  <p className="text-slate-500">
+                  <p className="text-slate-500 dark:text-slate-400">
                     Prueba escribir «saldo», «4 dígitos de cédula», «ya pagué ref 123» o «STOP» para verificar el comportamiento regulado del Bot.
                   </p>
                 ) : (
                   simTranscript.map((m, i) => (
                     <div key={i} className={m.from === 'CLIENTE' ? 'text-right' : 'text-left'}>
                       <span className="font-mono text-[10px] text-slate-400 block">{m.from}</span>
-                      <span className="inline-block px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <span className="inline-block px-3 py-1.5 rounded-lg axy-surface text-slate-900 dark:text-white">
                         {m.text}
                       </span>
                     </div>
@@ -662,41 +662,41 @@ export function RecoveryBotAndSentinelView({
                   value={simInput}
                   onChange={(e) => setSimInput(e.target.value)}
                   placeholder="Mensaje entrante simulado del cliente..."
-                  className="flex-1 px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="flex-1 px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-sky-700 text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 axy-btn-primary cursor-pointer"
                 >
                   Enviar
                 </button>
               </form>
 
               {paymentIntents.length > 0 && (
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                   Intenciones de pago reportadas por Bot: <strong className="font-mono">{paymentIntents.length}</strong> (ninguna rebaja saldo hasta conciliación).
                 </p>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="font-display text-sm font-bold">Bitácora de Mensajes y Bloqueos ({messageEvents.length})</h3>
+          <div className="rounded-2xl axy-surface overflow-x-auto">
+            <div className="p-4 border-b border-[var(--axy-border)]">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">Bitácora de Mensajes y Bloqueos ({messageEvents.length})</h3>
             </div>
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-2.5 px-4">Préstamo</th>
                   <th className="py-2.5 px-3">Destinatario</th>
                   <th className="py-2.5 px-3">Estado Entrega</th>
                   <th className="py-2.5 px-3">Motivo / Vista Previa</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {messageEvents.map((m) => (
-                  <tr key={m.id}>
-                    <td className="py-2.5 px-4 font-mono font-bold">{m.loanNumber}</td>
+                  <tr key={m.id} className="axy-table-row">
+                    <td className="py-2.5 px-4 font-mono font-bold text-slate-900 dark:text-white">{m.loanNumber}</td>
                     <td className="py-2.5 px-3 font-mono">{m.recipientMasked}</td>
                     <td className="py-2.5 px-3 font-semibold">{m.deliveryStatus}</td>
                     <td className="py-2.5 px-3">{m.blockReason || m.messagePreview}</td>
@@ -711,14 +711,14 @@ export function RecoveryBotAndSentinelView({
       {mode === 'sentinel' && (
         <div className="space-y-6">
           <div className="space-y-2">
-            <h3 className="font-display text-sm font-bold flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+            <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
               Alertas Tempranas Centinela ({riskAlerts.length})
             </h3>
             {riskAlerts.map((a) => (
               <div
                 key={a.id}
-                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                className="p-4 rounded-2xl axy-surface flex flex-wrap items-center justify-between gap-3"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -738,7 +738,7 @@ export function RecoveryBotAndSentinelView({
                   <button
                     type="button"
                     onClick={() => setSelectedCollectionLoanId(a.loanId)}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer"
+                    className="px-3 py-1.5 axy-btn-secondary font-semibold cursor-pointer text-slate-700 dark:text-slate-200"
                   >
                     Ficha 360°
                   </button>
@@ -753,7 +753,7 @@ export function RecoveryBotAndSentinelView({
                           user: userProfile,
                         })
                       }
-                      className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-semibold cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                     >
                       Marcar Atendida
                     </button>
@@ -762,24 +762,24 @@ export function RecoveryBotAndSentinelView({
               </div>
             ))}
             {riskAlerts.length === 0 && (
-              <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center text-slate-500">
+              <div className="p-6 rounded-2xl axy-surface text-center text-slate-500 dark:text-slate-400">
                 Sin alertas Centinela activas. Usa «Ejecutar Escaneo Centinela» para auditar las 13 reglas.
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <h3 className="font-display text-sm font-bold flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4 text-rose-600" />
+            <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
               Reclamaciones y Casos Especiales ({customerDisputes.length})
             </h3>
             {customerDisputes.map((d) => (
               <div
                 key={d.id}
-                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3"
+                className="p-4 rounded-2xl axy-surface flex flex-wrap items-center justify-between gap-3"
               >
                 <div>
-                  <p className="font-semibold">
+                  <p className="font-semibold text-slate-950 dark:text-white">
                     {d.loanNumber} · {d.customerName} · {d.disputeType} ({d.status})
                   </p>
                   <p className="text-slate-600 dark:text-slate-300">{d.description}</p>
@@ -801,7 +801,7 @@ export function RecoveryBotAndSentinelView({
                             user: userProfile,
                           })
                         }
-                        className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white font-semibold cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                       >
                         Resolver a Favor
                       </button>
@@ -815,7 +815,7 @@ export function RecoveryBotAndSentinelView({
                             user: userProfile,
                           })
                         }
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                        className="px-3 py-1.5 axy-btn-secondary text-slate-700 dark:text-slate-200 font-semibold cursor-pointer"
                       >
                         Cerrar Improcedente
                       </button>
@@ -830,9 +830,9 @@ export function RecoveryBotAndSentinelView({
       {mode === 'assignment' && (
         <div className="space-y-5">
           {rbac.hasPermission('ASSIGN_COLLECTIONS_PORTFOLIO') && userProfile && (
-            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="p-5 rounded-2xl axy-surface space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-display text-sm font-bold">
+                <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                   Asignación Masiva / Balanceo Automático (Preserva Historial Previo)
                 </h3>
                 <button
@@ -861,7 +861,7 @@ export function RecoveryBotAndSentinelView({
                     });
                     setBusy(false);
                   }}
-                  className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
                 >
                   Ejecutar Auto-Balanceo Equitativo ({autoAssignPlan.length})
                 </button>
@@ -871,7 +871,7 @@ export function RecoveryBotAndSentinelView({
                 <select
                   value={targetCollectorId}
                   onChange={(e) => setTargetCollectorId(e.target.value)}
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 >
                   <option value="">Seleccionar gestor de directorio...</option>
                   {collectorsList.map((c) => (
@@ -884,13 +884,13 @@ export function RecoveryBotAndSentinelView({
                   value={customCollectorName}
                   onChange={(e) => setCustomCollectorName(e.target.value)}
                   placeholder="O nombre personalizado"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 />
                 <input
                   value={assignReason}
                   onChange={(e) => setAssignReason(e.target.value)}
                   placeholder="Motivo de asignación"
-                  className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="px-2.5 py-2 axy-input text-slate-900 dark:text-white"
                 />
                 <button
                   type="button"
@@ -924,7 +924,7 @@ export function RecoveryBotAndSentinelView({
                     });
                     setBusy(false);
                   }}
-                  className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-slate-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-[#040C1E] hover:bg-[#0B1E47] border border-[#00B8FF]/30 text-white font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Asignar Seleccionadas ({selectedLoanIds.length})
                 </button>
@@ -932,10 +932,10 @@ export function RecoveryBotAndSentinelView({
             </div>
           )}
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto">
+          <div className="rounded-2xl axy-surface overflow-x-auto">
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-500">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-2.5 px-4">Sel.</th>
                   <th className="py-2.5 px-3">Préstamo / Cliente</th>
                   <th className="py-2.5 px-3">Tramo / DPD</th>
@@ -943,11 +943,11 @@ export function RecoveryBotAndSentinelView({
                   <th className="py-2.5 px-3">Gestor Actual</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody>
                 {activeAccounts.map((acc) => {
                   const checked = selectedLoanIds.includes(acc.loanId);
                   return (
-                    <tr key={acc.loanId}>
+                    <tr key={acc.loanId} className="axy-table-row">
                       <td className="py-2.5 px-4">
                         <input
                           type="checkbox"
@@ -962,7 +962,7 @@ export function RecoveryBotAndSentinelView({
                         />
                       </td>
                       <td className="py-2.5 px-3">
-                        <span className="font-mono font-bold">{acc.loanNumber}</span> · {acc.applicantDisplayName}
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{acc.loanNumber}</span> · {acc.applicantDisplayName}
                       </td>
                       <td className="py-2.5 px-3 font-mono">{acc.stage} ({acc.dpd} DPD)</td>
                       <td className="py-2.5 px-3 font-mono">
@@ -977,8 +977,8 @@ export function RecoveryBotAndSentinelView({
           </div>
 
           {collectionAssignments.length > 0 && (
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
-              <h3 className="font-display text-sm font-bold">
+            <div className="p-4 rounded-2xl axy-surface space-y-2">
+              <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
                 Historial de Reasignaciones ({collectionAssignments.length})
               </h3>
               {collectionAssignments.slice(0, 10).map((asg) => (

@@ -39,11 +39,11 @@ export class ErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
-          <div className="max-w-lg w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
+        <div className="min-h-screen flex items-center justify-center bg-[var(--axy-canvas)] p-6">
+          <div className="max-w-lg w-full axy-surface rounded-2xl p-6 space-y-4">
             <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
               <AlertTriangle className="w-6 h-6 shrink-0" />
-              <h2 className="text-lg font-semibold">Interrupción de operación en AxyCore</h2>
+              <h2 className="font-display text-lg font-semibold">Interrupción de operación en AxyCore</h2>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed break-words">
               {friendlyText}
@@ -51,7 +51,7 @@ export class ErrorBoundary extends React.Component<
             <button
               type="button"
               onClick={() => this.setState({ hasError: false, errorMessage: '' })}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 px-4 py-2 axy-btn-primary text-sm cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
               Restablecer vista

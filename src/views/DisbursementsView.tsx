@@ -197,7 +197,7 @@ export function DisbursementsView() {
       </div>
 
       {readyInbox.length === 0 ? (
-        <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+        <div className="axy-surface p-8 rounded-2xl text-center space-y-3">
           {feedback && (
             <div
               className={`p-3.5 rounded-xl border text-xs flex flex-wrap items-center justify-between gap-2 text-left ${
@@ -209,11 +209,11 @@ export function DisbursementsView() {
               <span>{feedback.msg}</span>
             </div>
           )}
-          <p className="text-sm text-slate-500">No hay expedientes formalizados listos para desembolso.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No hay expedientes formalizados listos para desembolso.</p>
           <button
             type="button"
             onClick={() => setActiveSection('loans')}
-            className="px-4 py-2 rounded-lg axy-brand-gradient text-white text-xs font-semibold cursor-pointer"
+            className="axy-btn-primary px-4 py-2 text-xs cursor-pointer"
           >
             Ir a Activos
           </button>
@@ -226,21 +226,21 @@ export function DisbursementsView() {
                 key={app.id}
                 type="button"
                 onClick={() => setSelectedApplicationId(app.id)}
-                className={`w-full text-left p-4 rounded-xl border cursor-pointer ${
+                className={`w-full text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                   activeApp?.id === app.id
-                    ? 'border-sky-700 bg-sky-50/70 dark:bg-sky-950/40'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                    ? 'border-[#0066FF] bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/16 dark:border-[#00B8FF]'
+                    : 'axy-surface hover:bg-slate-50/90 dark:hover:bg-[#0E1D40]/70'
                 }`}
               >
                 <p className="font-mono text-xs text-slate-500">{app.applicationNumber}</p>
-                <p className="font-semibold text-sm mt-1">{app.applicantDisplayName}</p>
-                <p className="text-xs font-mono">{formatMoney(app.recommendedAmount ?? app.requestedAmount, app.currency)}</p>
+                <p className="font-semibold text-sm text-slate-950 dark:text-white mt-1">{app.applicantDisplayName}</p>
+                <p className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300">{formatMoney(app.recommendedAmount ?? app.requestedAmount, app.currency)}</p>
               </button>
             ))}
           </div>
 
           {activeApp && !formalization && (
-            <div className="lg:col-span-8 p-6 rounded-2xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 space-y-3 text-xs">
+            <div className="lg:col-span-8 axy-surface p-6 rounded-2xl border-amber-200 dark:border-amber-800/60 space-y-3 text-xs">
               <p className="font-semibold text-sm text-amber-800 dark:text-amber-300">
                 Expediente {activeApp.applicationNumber} sin paquete de formalización registrado
               </p>
@@ -253,7 +253,7 @@ export function DisbursementsView() {
                   setSelectedApplicationId(activeApp.id);
                   setActiveSection('formalization');
                 }}
-                className="px-4 py-2 rounded-lg axy-brand-gradient text-white font-semibold cursor-pointer"
+                className="axy-btn-primary px-4 py-2 cursor-pointer"
               >
                 Ir a Formalización
               </button>
@@ -284,9 +284,9 @@ export function DisbursementsView() {
               )}
 
               {/* 7 Controls Checklist */}
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-sky-600" />
+              <div className="axy-surface p-5 rounded-2xl space-y-3">
+                <h3 className="font-semibold text-sm text-slate-950 dark:text-white flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                   Verificación de Precondiciones de Control Interno
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -300,7 +300,7 @@ export function DisbursementsView() {
                     ['7. Sin desembolso previo (Idempotencia)', !existingDisb],
                   ].map(([label, ok]) => (
                     <div key={String(label)} className="flex items-center gap-2">
-                      <CheckCircle2 className={`w-4 h-4 ${ok ? 'text-emerald-600' : 'text-rose-600'}`} />
+                      <CheckCircle2 className={`w-4 h-4 ${ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`} />
                       <span>{String(label)}</span>
                     </div>
                   ))}
@@ -313,28 +313,28 @@ export function DisbursementsView() {
                 </div>
               )}
 
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 font-mono">
+              <div className="axy-surface p-5 rounded-2xl space-y-4">
+                <div className="axy-surface-tonal grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl font-mono">
                   <div>
                     <p className="font-sans text-slate-500">Monto Aprobado</p>
-                    <p className="font-bold text-sm">{formatMoney(formalization.approvedCapital, activeApp.currency)}</p>
+                    <p className="font-bold text-sm tabular-nums">{formatMoney(formalization.approvedCapital, activeApp.currency)}</p>
                   </div>
                   <div>
                     <p className="font-sans text-slate-500">Total Financiado</p>
-                    <p className="font-bold text-sm">{formatMoney(formalization.totalFinanced, activeApp.currency)}</p>
+                    <p className="font-bold text-sm tabular-nums">{formatMoney(formalization.totalFinanced, activeApp.currency)}</p>
                   </div>
                   <div>
                     <p className="font-sans text-slate-500">Gastos Totales</p>
-                    <p className="font-bold text-sm">{formatMoney(formalization.financedExpenses + formalization.deductedExpenses, activeApp.currency)}</p>
+                    <p className="font-bold text-sm tabular-nums">{formatMoney(formalization.financedExpenses + formalization.deductedExpenses, activeApp.currency)}</p>
                   </div>
                   <div>
-                    <p className="font-sans text-sky-700 dark:text-sky-400">Neto a Entregar</p>
-                    <p className="font-bold text-sm">{formatMoney(formalization.netDisbursementAmount, activeApp.currency)}</p>
+                    <p className="font-sans text-[#0066FF] dark:text-[#00D1FF] font-semibold">Neto a Entregar</p>
+                    <p className="font-bold text-sm tabular-nums">{formatMoney(formalization.netDisbursementAmount, activeApp.currency)}</p>
                   </div>
                 </div>
 
                 {/* Upload Comprobante de Desembolso */}
-                <div className="p-4 rounded-xl border-2 border-dashed border-[#00B8FF]/40 bg-sky-50/40 dark:bg-[#040C1E]/70 space-y-2.5">
+                <div className="p-4 rounded-xl border-2 border-dashed border-[#0066FF]/35 dark:border-[#00B8FF]/35 bg-[#0066FF]/[0.04] dark:bg-[#040C1E]/75 space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-semibold text-sm text-slate-900 dark:text-white flex items-center gap-2">
@@ -345,7 +345,7 @@ export function DisbursementsView() {
                         Adjunta el comprobante bancario de transferencia o depósito (máx. 500 KB) antes de marcar Desembolsado.
                       </p>
                     </div>
-                    <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg axy-brand-gradient text-white font-semibold cursor-pointer">
+                    <label className="axy-btn-primary inline-flex items-center gap-1.5 px-3 py-2 cursor-pointer">
                       <FileUp className="w-3.5 h-3.5" />
                       <span>{voucherFile ? 'Cambiar Archivo' : 'Seleccionar Archivo'}</span>
                       <input
@@ -362,13 +362,13 @@ export function DisbursementsView() {
                   )}
 
                   {voucherFile && (
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                    <div className="axy-surface flex items-center justify-between gap-3 p-2.5 rounded-xl">
                       <div className="flex items-center gap-3 min-w-0">
                         {voucherFile.mimeType.startsWith('image/') && (
                           <img
                             src={voucherFile.dataUrl}
                             alt={voucherFile.fileName}
-                            className="w-10 h-10 rounded object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                            className="w-10 h-10 rounded object-cover border border-slate-200 dark:border-white/12 shrink-0"
                           />
                         )}
                         <div className="min-w-0">
@@ -399,7 +399,7 @@ export function DisbursementsView() {
                       type="date"
                       value={disbursementDate}
                       onChange={(e) => setDisbursementDate(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -407,7 +407,7 @@ export function DisbursementsView() {
                     <select
                       value={paymentMethod}
                       onChange={(e) => setPaymentMethod(e.target.value as DisbursementRecord['paymentMethod'])}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                     >
                       <option value="TRANSFERENCIA">Transferencia Bancaria</option>
                       <option value="CHEQUE">Cheque</option>
@@ -420,7 +420,7 @@ export function DisbursementsView() {
                     <input
                       value={financialEntity}
                       onChange={(e) => setFinancialEntity(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -429,7 +429,7 @@ export function DisbursementsView() {
                       value={destinationAccount}
                       onChange={(e) => setDestinationAccount(e.target.value)}
                       placeholder="Ej. 7845123456"
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -438,7 +438,7 @@ export function DisbursementsView() {
                       value={referenceNumber}
                       onChange={(e) => setReferenceNumber(e.target.value)}
                       placeholder="Ej. LBTR-2026-99102"
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -447,7 +447,7 @@ export function DisbursementsView() {
                       value={authorizerName}
                       onChange={(e) => setAuthorizerName(e.target.value)}
                       placeholder={userProfile?.displayName}
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -459,17 +459,17 @@ export function DisbursementsView() {
                     value={receiptNotes}
                     onChange={(e) => setReceiptNotes(e.target.value)}
                     placeholder="Detalle de comprobante bancario verificado por Operaciones/Finanzas..."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/80 dark:border-[#00B8FF]/14">
                   <span className="font-mono text-slate-500">Llave idempotencia: {idempotencyKey}</span>
                   <button
                     type="button"
                     disabled={processing || !preCheck?.allowed}
                     onClick={handleConfirmDisbursement}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
                     {processing ? 'Procesando desembolso...' : 'Desembolsado'}
@@ -482,27 +482,27 @@ export function DisbursementsView() {
       )}
 
       {disbursements.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800">
-            <h3 className="font-display text-sm font-semibold">Desembolsos Confirmados ({disbursements.length})</h3>
+        <div className="axy-surface rounded-2xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/14">
+            <h3 className="font-display text-sm font-semibold text-slate-950 dark:text-white">Desembolsos Confirmados ({disbursements.length})</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-                  <th className="py-2 px-3">N.º Desembolso</th>
-                  <th className="py-2 px-3">Fecha</th>
-                  <th className="py-2 px-3">Medio / Banco</th>
-                  <th className="py-2 px-3">Cuenta Destino</th>
-                  <th className="py-2 px-3">Referencia</th>
-                  <th className="py-2 px-3">Comprobante</th>
-                  <th className="py-2 px-3 text-right">Neto Entregado</th>
-                  <th className="py-2 px-3">Estado</th>
+                <tr className="axy-table-head text-slate-600 dark:text-slate-300">
+                  <th className="py-2.5 px-3 font-semibold">N.º Desembolso</th>
+                  <th className="py-2.5 px-3 font-semibold">Fecha</th>
+                  <th className="py-2.5 px-3 font-semibold">Medio / Banco</th>
+                  <th className="py-2.5 px-3 font-semibold">Cuenta Destino</th>
+                  <th className="py-2.5 px-3 font-semibold">Referencia</th>
+                  <th className="py-2.5 px-3 font-semibold">Comprobante</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Neto Entregado</th>
+                  <th className="py-2.5 px-3 font-semibold">Estado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
+              <tbody className="divide-y divide-slate-200/80 dark:divide-[#00B8FF]/12 font-mono">
                 {disbursements.map((d) => (
-                  <tr key={d.id}>
+                  <tr key={d.id} className="axy-table-row">
                     <td className="py-2 px-3 font-semibold">{d.disbursementNumber}</td>
                     <td className="py-2 px-3">{d.disbursementDate}</td>
                     <td className="py-2 px-3 font-sans">{d.paymentMethod} · {d.financialEntity}</td>
@@ -510,7 +510,7 @@ export function DisbursementsView() {
                     <td className="py-2 px-3">{d.referenceNumber}</td>
                     <td className="py-2 px-3 font-sans">{d.voucherFileName || '—'}</td>
                     <td className="py-2 px-3 text-right tabular-nums">{d.netDeliveredAmount.toLocaleString()}</td>
-                    <td className="py-2 px-3 font-sans text-emerald-700 dark:text-emerald-400">{d.status}</td>
+                    <td className="py-2 px-3 font-sans text-emerald-700 dark:text-emerald-400 font-semibold">{d.status}</td>
                   </tr>
                 ))}
               </tbody>

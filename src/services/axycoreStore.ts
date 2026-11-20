@@ -221,6 +221,67 @@ const APPLICATION_ALLOWED_KEYS = new Set<string>([
   'createdByName',
 ]);
 
+const VALID_APP_CHANNELS = new Set(['INTERNAL', 'EXTERNAL']);
+const VALID_APPLICANT_TYPES = new Set(['INDIVIDUAL', 'BUSINESS']);
+const VALID_PRODUCT_CODES = new Set([
+  'PERSONAL_DOP',
+  'EMPRESARIAL_DOP',
+  'PERSONAL_USD',
+  'EMPRESARIAL_USD',
+]);
+const VALID_CURRENCIES = new Set(['DOP', 'USD']);
+const VALID_PAYMENT_FREQUENCIES = new Set(['MENSUAL', 'QUINCENAL', 'SEMANAL']);
+const VALID_AMORTIZATION_METHODS = new Set(['SALDO_INSOLUTO', 'INTERES_FIJO']);
+const VALID_APPLICATION_STATUSES = new Set([
+  'BORRADOR',
+  'RECIBIDA',
+  'EN_EVALUACION',
+  'EN_COMITE',
+  'APROBADA',
+  'APROBADA_CONDICIONADA',
+  'DEVUELTA',
+  'RECHAZADA',
+  'FORMALIZADA',
+  'DESEMBOLSADA',
+]);
+
+function isFirestoreTimestampLike(val: unknown): boolean {
+  if (!val || typeof val !== 'object') return false;
+  const candidate = val as { toDate?: unknown; _methodName?: unknown };
+  return (
+    typeof candidate.toDate === 'function' ||
+    candidate._methodName === 'serverTimestamp'
+  );
+}
+
+function isValidCreatedAtValue(val: unknown): boolean {
+  if (isFirestoreTimestampLike(val)) return true;
+  if (typeof val === 'string') {
+    return val.length >= 10 && val.length <= 40;
+  }
+  return false;
+}
+
+function normalizePreservedCreatedAt(val: unknown): unknown {
+  if (isFirestoreTimestampLike(val)) return val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.length >= 10 && trimmed.length <= 40) return trimmed;
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  if (val instanceof Date && !Number.isNaN(val.getTime())) {
+    return val.toISOString();
+  }
+  if (val && typeof val === 'object' && 'seconds' in (val as Record<string, unknown>)) {
+    const sec = Number((val as { seconds?: unknown }).seconds);
+    if (Number.isFinite(sec) && sec > 0) {
+      return new Date(sec * 1000).toISOString();
+    }
+  }
+  return serverTimestamp();
+}
+
 export function hasApplicationSchemaDrift(
   data: Record<string, unknown> | null | undefined,
   applicationId: string
@@ -237,35 +298,184 @@ export function hasApplicationSchemaDrift(
     }
   }
   if (data.id !== applicationId || !VALID_ID_REGEX.test(String(data.id))) return true;
-  if (!VALID_ID_REGEX.test(String(data.organizationId || ''))) return true;
-  if (!VALID_ID_REGEX.test(String(data.customerId || ''))) return true;
-  if (!VALID_ID_REGEX.test(String(data.createdBy || ''))) return true;
-  if (typeof data.applicationNumber !== 'string' || data.applicationNumber.length < 3 || data.applicationNumber.length > 64) {
-    return true;
-  }
-  if (typeof data.fileNumber !== 'string' || data.fileNumber.length < 3 || data.fileNumber.length > 64) {
+  if (typeof data.organizationId !== 'string' || !VALID_ID_REGEX.test(data.organizationId)) return true;
+  if (typeof data.customerId !== 'string' || !VALID_ID_REGEX.test(data.customerId)) return true;
+  if (typeof data.createdBy !== 'string' || !VALID_ID_REGEX.test(data.createdBy)) return true;
+  if (
+    typeof data.applicationNumber !== 'string' ||
+    data.applicationNumber.length < 3 ||
+    data.applicationNumber.length > 64
+  ) {
     return true;
   }
   if (
-    'latestScoringExecutionId' in data &&
-    data.latestScoringExecutionId !== null &&
-    !VALID_ID_REGEX.test(String(data.latestScoringExecutionId))
+    typeof data.fileNumber !== 'string' ||
+    data.fileNumber.length < 3 ||
+    data.fileNumber.length > 64
   ) {
+    return true;
+  }
+  if (typeof data.channel !== 'string' || !VALID_APP_CHANNELS.has(data.channel)) return true;
+  if (typeof data.applicantType !== 'string' || !VALID_APPLICANT_TYPES.has(data.applicantType)) {
+    return true;
+  }
+  if (
+    typeof data.applicantDisplayName !== 'string' ||
+    data.applicantDisplayName.length < 1 ||
+    data.applicantDisplayName.length > 200
+  ) {
+    return true;
+  }
+  if (typeof data.productCode !== 'string' || !VALID_PRODUCT_CODES.has(data.productCode)) {
+    return true;
+  }
+  if (typeof data.currency !== 'string' || !VALID_CURRENCIES.has(data.currency)) return true;
+  if (
+    typeof data.requestedAmount !== 'number' ||
+    !Number.isFinite(data.requestedAmount) ||
+    data.requestedAmount < 0 ||
+    data.requestedAmount > 100_000_000
+  ) {
+    return true;
+  }
+  if (
+    typeof data.requestedTermMonths !== 'number' ||
+    !Number.isFinite(data.requestedTermMonths) ||
+    data.requestedTermMonths < 0 ||
+    data.requestedTermMonths > 360
+  ) {
+    return true;
+  }
+  if (
+    typeof data.paymentFrequency !== 'string' ||
+    !VALID_PAYMENT_FREQUENCIES.has(data.paymentFrequency)
+  ) {
+    return true;
+  }
+  if (
+    typeof data.amortizationMethod !== 'string' ||
+    !VALID_AMORTIZATION_METHODS.has(data.amortizationMethod)
+  ) {
+    return true;
+  }
+  if (typeof data.status !== 'string' || !VALID_APPLICATION_STATUSES.has(data.status)) {
     return true;
   }
   if (
     'businessId' in data &&
     data.businessId !== null &&
-    !VALID_ID_REGEX.test(String(data.businessId))
+    (typeof data.businessId !== 'string' || !VALID_ID_REGEX.test(data.businessId))
   ) {
     return true;
   }
-  if (Array.isArray(data.references) && data.references.length > 4) return true;
-  if (Array.isArray(data.movementHistory) && data.movementHistory.length > 50) return true;
+  if (
+    'loanPurpose' in data &&
+    data.loanPurpose !== null &&
+    (typeof data.loanPurpose !== 'string' || data.loanPurpose.length > 120)
+  ) {
+    return true;
+  }
+  if (
+    'loanPurposeDescription' in data &&
+    data.loanPurposeDescription !== null &&
+    (typeof data.loanPurposeDescription !== 'string' || data.loanPurposeDescription.length > 1000)
+  ) {
+    return true;
+  }
+  if (
+    'proposedCollateral' in data &&
+    data.proposedCollateral !== null &&
+    (typeof data.proposedCollateral !== 'string' || data.proposedCollateral.length > 500)
+  ) {
+    return true;
+  }
+  if ('financialData' in data && !isPlainObject(data.financialData)) return true;
+  if (
+    'businessFinancialData' in data &&
+    data.businessFinancialData !== null &&
+    !isPlainObject(data.businessFinancialData)
+  ) {
+    return true;
+  }
+  if (
+    'verifiedFinancialData' in data &&
+    data.verifiedFinancialData !== null &&
+    !isPlainObject(data.verifiedFinancialData)
+  ) {
+    return true;
+  }
+  if (
+    'verifiedBusinessFinancialData' in data &&
+    data.verifiedBusinessFinancialData !== null &&
+    !isPlainObject(data.verifiedBusinessFinancialData)
+  ) {
+    return true;
+  }
+  if ('references' in data && (!Array.isArray(data.references) || data.references.length > 4)) {
+    return true;
+  }
+  if ('declaredDocumentsSummary' in data && !isPlainObject(data.declaredDocumentsSummary)) {
+    return true;
+  }
+  if (
+    'prequalificationStatus' in data &&
+    data.prequalificationStatus !== null &&
+    (typeof data.prequalificationStatus !== 'string' || data.prequalificationStatus.length > 64)
+  ) {
+    return true;
+  }
+  if (
+    'latestScoringExecutionId' in data &&
+    data.latestScoringExecutionId !== null &&
+    (typeof data.latestScoringExecutionId !== 'string' ||
+      !VALID_ID_REGEX.test(data.latestScoringExecutionId))
+  ) {
+    return true;
+  }
   if (
     'latestScore' in data &&
     data.latestScore !== null &&
-    (typeof data.latestScore !== 'number' || data.latestScore < 0 || data.latestScore > 100)
+    (typeof data.latestScore !== 'number' ||
+      !Number.isFinite(data.latestScore) ||
+      data.latestScore < 0 ||
+      data.latestScore > 100)
+  ) {
+    return true;
+  }
+  if (
+    'latestRiskBand' in data &&
+    data.latestRiskBand !== null &&
+    (typeof data.latestRiskBand !== 'string' || data.latestRiskBand.length > 64)
+  ) {
+    return true;
+  }
+  for (const numKey of [
+    'recommendedAmount',
+    'recommendedRateMonthly',
+    'recommendedTermMonths',
+    'recommendedInstallment',
+    'authorizedAlternateAmount',
+  ]) {
+    if (
+      numKey in data &&
+      data[numKey] !== null &&
+      (typeof data[numKey] !== 'number' || !Number.isFinite(data[numKey] as number))
+    ) {
+      return true;
+    }
+  }
+  if (
+    'alternateAmountAuthorizedBy' in data &&
+    data.alternateAmountAuthorizedBy !== null &&
+    (typeof data.alternateAmountAuthorizedBy !== 'string' ||
+      data.alternateAmountAuthorizedBy.length > 128)
+  ) {
+    return true;
+  }
+  if (
+    'consentVersion' in data &&
+    data.consentVersion !== null &&
+    (typeof data.consentVersion !== 'string' || data.consentVersion.length > 40)
   ) {
     return true;
   }
@@ -279,6 +489,35 @@ export function hasApplicationSchemaDrift(
   ) {
     return true;
   }
+  if (
+    'assignedTo' in data &&
+    data.assignedTo !== null &&
+    (typeof data.assignedTo !== 'string' || data.assignedTo.length > 128)
+  ) {
+    return true;
+  }
+  if (
+    'assignedToName' in data &&
+    data.assignedToName !== null &&
+    (typeof data.assignedToName !== 'string' || data.assignedToName.length > 160)
+  ) {
+    return true;
+  }
+  if (
+    'movementHistory' in data &&
+    (!Array.isArray(data.movementHistory) || data.movementHistory.length > 50)
+  ) {
+    return true;
+  }
+  if (
+    'createdByName' in data &&
+    data.createdByName !== null &&
+    (typeof data.createdByName !== 'string' || data.createdByName.length > 160)
+  ) {
+    return true;
+  }
+  if (!isValidCreatedAtValue(data.createdAt)) return true;
+  if (!isFirestoreTimestampLike(data.updatedAt)) return true;
   return false;
 }
 
@@ -479,13 +718,18 @@ export function buildMaterializedApplicationPayload(
 
   const effectiveCreatedAt =
     options?.preserveCreatedAt !== undefined && options?.preserveCreatedAt !== null
-      ? options.preserveCreatedAt
+      ? normalizePreservedCreatedAt(options.preserveCreatedAt)
       : serverTimestamp();
 
   const rawAppNum = String(merged.applicationNumber || merged.id || 'SOL').trim();
   const safeAppNum = (rawAppNum.length >= 3 ? rawAppNum : `SOL-${merged.id}`).slice(0, 64);
   const rawFileNum = String(merged.fileNumber || `EXP-${merged.id}`).trim();
   const safeFileNum = (rawFileNum.length >= 3 ? rawFileNum : `EXP-${merged.id}`).slice(0, 64);
+
+  const safeCustomerId =
+    typeof merged.customerId === 'string' && VALID_ID_REGEX.test(merged.customerId.trim())
+      ? merged.customerId.trim()
+      : sanitizeIdSegment(String(merged.customerId || merged.id)) || `cust_${merged.id}`.slice(0, 128);
 
   const safeBusinessId =
     typeof merged.businessId === 'string' && VALID_ID_REGEX.test(merged.businessId.trim())
@@ -498,22 +742,52 @@ export function buildMaterializedApplicationPayload(
       ? merged.latestScoringExecutionId.trim()
       : null;
 
+  const safeCurrency = merged.currency === 'USD' ? 'USD' : 'DOP';
+  const safeApplicantType = merged.applicantType === 'BUSINESS' ? 'BUSINESS' : 'INDIVIDUAL';
+  const defaultProductCode =
+    safeApplicantType === 'BUSINESS'
+      ? safeCurrency === 'USD'
+        ? 'EMPRESARIAL_USD'
+        : 'EMPRESARIAL_DOP'
+      : safeCurrency === 'USD'
+      ? 'PERSONAL_USD'
+      : 'PERSONAL_DOP';
+  const safeProductCode = VALID_PRODUCT_CODES.has(String(merged.productCode))
+    ? merged.productCode
+    : defaultProductCode;
+  const safeFrequency = VALID_PAYMENT_FREQUENCIES.has(String(merged.paymentFrequency))
+    ? merged.paymentFrequency
+    : 'MENSUAL';
+  const safeAmortization = VALID_AMORTIZATION_METHODS.has(String(merged.amortizationMethod))
+    ? merged.amortizationMethod
+    : 'SALDO_INSOLUTO';
+  const safeStatus = VALID_APPLICATION_STATUSES.has(String(merged.status))
+    ? merged.status
+    : 'RECIBIDA';
+
+  const toFiniteNumOrNull = (val: unknown): number | null => {
+    if (val === null) return null;
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    const parsed = Number(val);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   return cleanObject({
     id: merged.id,
     organizationId: effectiveOrgId,
     applicationNumber: safeAppNum,
     fileNumber: safeFileNum,
     channel: merged.channel === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL',
-    applicantType: merged.applicantType === 'BUSINESS' ? 'BUSINESS' : 'INDIVIDUAL',
-    customerId: merged.customerId,
+    applicantType: safeApplicantType,
+    customerId: safeCustomerId,
     ...(safeBusinessId ? { businessId: safeBusinessId } : {}),
     applicantDisplayName: (String(merged.applicantDisplayName || '').trim() || 'Solicitante').slice(0, 200),
-    productCode: merged.productCode || 'PERSONAL_DOP',
-    currency: merged.currency === 'USD' ? 'USD' : 'DOP',
-    requestedAmount: Math.max(0, Number(merged.requestedAmount) || 0),
+    productCode: safeProductCode,
+    currency: safeCurrency,
+    requestedAmount: Math.max(0, Math.min(100_000_000, Number(merged.requestedAmount) || 0)),
     requestedTermMonths: Math.max(0, Math.min(360, Math.round(Number(merged.requestedTermMonths) || 0))),
-    paymentFrequency: merged.paymentFrequency || 'MENSUAL',
-    amortizationMethod: merged.amortizationMethod || 'SALDO_INSOLUTO',
+    paymentFrequency: safeFrequency,
+    amortizationMethod: safeAmortization,
     ...(merged.loanPurpose ? { loanPurpose: String(merged.loanPurpose).slice(0, 120) } : {}),
     ...(merged.loanPurposeDescription
       ? { loanPurposeDescription: String(merged.loanPurposeDescription).slice(0, 1000) }
@@ -521,22 +795,33 @@ export function buildMaterializedApplicationPayload(
     ...(merged.proposedCollateral
       ? { proposedCollateral: String(merged.proposedCollateral).slice(0, 500) }
       : {}),
-    ...(merged.financialData ? { financialData: merged.financialData } : {}),
-    ...(merged.businessFinancialData !== undefined
+    ...(isPlainObject(merged.financialData) ? { financialData: merged.financialData } : {}),
+    ...(merged.businessFinancialData !== undefined &&
+    (merged.businessFinancialData === null || isPlainObject(merged.businessFinancialData))
       ? { businessFinancialData: merged.businessFinancialData }
       : {}),
-    ...(merged.verifiedFinancialData !== undefined
+    ...(merged.verifiedFinancialData !== undefined &&
+    (merged.verifiedFinancialData === null || isPlainObject(merged.verifiedFinancialData))
       ? { verifiedFinancialData: merged.verifiedFinancialData }
       : {}),
-    ...(merged.verifiedBusinessFinancialData !== undefined
+    ...(merged.verifiedBusinessFinancialData !== undefined &&
+    (merged.verifiedBusinessFinancialData === null ||
+      isPlainObject(merged.verifiedBusinessFinancialData))
       ? { verifiedBusinessFinancialData: merged.verifiedBusinessFinancialData }
       : {}),
     references: Array.isArray(merged.references) ? merged.references.slice(0, 4) : [],
-    ...(merged.declaredDocumentsSummary
+    ...(isPlainObject(merged.declaredDocumentsSummary)
       ? { declaredDocumentsSummary: merged.declaredDocumentsSummary }
       : {}),
-    status: merged.status,
-    ...(merged.prequalificationStatus ? { prequalificationStatus: merged.prequalificationStatus } : {}),
+    status: safeStatus,
+    ...(merged.prequalificationStatus !== undefined
+      ? {
+          prequalificationStatus:
+            merged.prequalificationStatus === null
+              ? null
+              : String(merged.prequalificationStatus).slice(0, 64),
+        }
+      : {}),
     ...(merged.latestScoringExecutionId !== undefined
       ? { latestScoringExecutionId: safeScoringExecId }
       : {}),
@@ -554,7 +839,9 @@ export function buildMaterializedApplicationPayload(
             merged.latestRiskBand === null ? null : String(merged.latestRiskBand).slice(0, 64),
         }
       : {}),
-    ...(merged.recommendedAmount !== undefined ? { recommendedAmount: merged.recommendedAmount } : {}),
+    ...(merged.recommendedAmount !== undefined
+      ? { recommendedAmount: toFiniteNumOrNull(merged.recommendedAmount) }
+      : {}),
     ...(merged.recommendedRateMonthly !== undefined
       ? {
           recommendedRateMonthly:
@@ -564,21 +851,32 @@ export function buildMaterializedApplicationPayload(
         }
       : {}),
     ...(merged.recommendedTermMonths !== undefined
-      ? { recommendedTermMonths: merged.recommendedTermMonths }
+      ? { recommendedTermMonths: toFiniteNumOrNull(merged.recommendedTermMonths) }
       : {}),
     ...(merged.recommendedInstallment !== undefined
-      ? { recommendedInstallment: merged.recommendedInstallment }
+      ? { recommendedInstallment: toFiniteNumOrNull(merged.recommendedInstallment) }
       : {}),
     ...(merged.authorizedAlternateAmount !== undefined
-      ? { authorizedAlternateAmount: merged.authorizedAlternateAmount }
+      ? { authorizedAlternateAmount: toFiniteNumOrNull(merged.authorizedAlternateAmount) }
       : {}),
     ...(merged.alternateAmountAuthorizedBy !== undefined
-      ? { alternateAmountAuthorizedBy: merged.alternateAmountAuthorizedBy }
+      ? {
+          alternateAmountAuthorizedBy:
+            merged.alternateAmountAuthorizedBy === null
+              ? null
+              : String(merged.alternateAmountAuthorizedBy).slice(0, 128),
+        }
       : {}),
     consentVersion: String(merged.consentVersion || 'v1.0-Ley172-13').slice(0, 40),
     consentAcceptedAt: consentAt,
-    ...(merged.assignedTo ? { assignedTo: String(merged.assignedTo).slice(0, 128) } : {}),
-    ...(merged.assignedToName ? { assignedToName: String(merged.assignedToName).slice(0, 160) } : {}),
+    ...(merged.assignedTo !== undefined && merged.assignedTo !== null && String(merged.assignedTo).trim()
+      ? { assignedTo: String(merged.assignedTo).trim().slice(0, 128) }
+      : {}),
+    ...(merged.assignedToName !== undefined &&
+    merged.assignedToName !== null &&
+    String(merged.assignedToName).trim()
+      ? { assignedToName: String(merged.assignedToName).trim().slice(0, 160) }
+      : {}),
     movementHistory: Array.isArray(merged.movementHistory)
       ? merged.movementHistory.slice(-50)
       : [],
@@ -1381,6 +1679,9 @@ export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserPro
       const explicitlyDisabledAltera =
         typeof window !== 'undefined' &&
         window.localStorage.getItem(`axycore_altera_disabled_${DEFAULT_ORG_ID}`) === 'true';
+      const explicitlyDisabledRegula =
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem(`axycore_regula_disabled_${DEFAULT_ORG_ID}`) === 'true';
       const needsDgiiModuleBackfill =
         !explicitlyDisabled &&
         (!baseEnabled.includes('facturacion_electronica') ||
@@ -1390,6 +1691,10 @@ export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserPro
         !explicitlyDisabledAltera &&
         (!baseEnabled.includes('altera') ||
           !(currentOrg.modulesEnabled || []).includes('altera'));
+      const needsRegulaModuleBackfill =
+        !explicitlyDisabledRegula &&
+        (!baseEnabled.includes('regula') ||
+          !(currentOrg.modulesEnabled || []).includes('regula'));
       if (
         !currentOrg.tradeName ||
         !currentOrg.rnc ||
@@ -1397,13 +1702,15 @@ export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserPro
         currentOrg.name === 'AxyCore Servicios Financieros' ||
         !currentOrg.enabledModules ||
         needsDgiiModuleBackfill ||
-        needsAlteraModuleBackfill
+        needsAlteraModuleBackfill ||
+        needsRegulaModuleBackfill
       ) {
         const mergedEnabled = Array.from(
           new Set([
             ...baseEnabled,
             ...(needsDgiiModuleBackfill ? (['contabilidad', 'facturacion_electronica'] as AxyCoreModuleCode[]) : []),
             ...(needsAlteraModuleBackfill ? (['altera'] as AxyCoreModuleCode[]) : []),
+            ...(needsRegulaModuleBackfill ? (['regula'] as AxyCoreModuleCode[]) : []),
           ])
         );
         const upgradedOrg = cleanObject({
@@ -1470,9 +1777,14 @@ export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserPro
         await setDoc(licRef, licDoc).catch(() => {});
       } else if (licSnap && licSnap.exists()) {
         const curLic = licSnap.data() as TenantLicenseRecord;
+        const licExplicitlyDisabledRegula =
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem(`axycore_regula_disabled_${DEFAULT_ORG_ID}`) === 'true';
         const licNeedsEcf = !curLic.enabledModules?.includes('facturacion_electronica');
         const licNeedsAltera = !curLic.enabledModules?.includes('altera');
-        if (licNeedsEcf || licNeedsAltera) {
+        const licNeedsRegula =
+          !licExplicitlyDisabledRegula && !curLic.enabledModules?.includes('regula');
+        if (licNeedsEcf || licNeedsAltera || licNeedsRegula) {
           await setDoc(
             licRef,
             {
@@ -1482,6 +1794,7 @@ export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserPro
                   ...(curLic.enabledModules || []),
                   ...(licNeedsEcf ? (['contabilidad', 'facturacion_electronica'] as AxyCoreModuleCode[]) : []),
                   ...(licNeedsAltera ? (['altera'] as AxyCoreModuleCode[]) : []),
+                  ...(licNeedsRegula ? (['regula'] as AxyCoreModuleCode[]) : []),
                 ])
               ),
               updatedBy: fbUser.uid,
@@ -1916,27 +2229,50 @@ export async function submitOrSaveApplication(params: {
 
     try {
       if (isExisting) {
-        await updateDoc(
-          appRef,
-          cleanObject({
-            productCode: draftPayload.productCode,
-            currency: draftPayload.currency,
-            requestedAmount: draftPayload.requestedAmount,
-            requestedTermMonths: draftPayload.requestedTermMonths,
-            paymentFrequency: draftPayload.paymentFrequency,
-            amortizationMethod: draftPayload.amortizationMethod,
-            loanPurpose: draftPayload.loanPurpose ?? '',
-            loanPurposeDescription: draftPayload.loanPurposeDescription ?? '',
-            proposedCollateral: draftPayload.proposedCollateral ?? '',
-            financialData: draftPayload.financialData,
-            businessFinancialData: draftPayload.businessFinancialData ?? null,
-            references: draftPayload.references ?? [],
-            declaredDocumentsSummary: draftPayload.declaredDocumentsSummary,
-            status: 'BORRADOR',
-            movementHistory: draftPayload.movementHistory ?? [],
-            updatedAt: serverTimestamp(),
-          })
-        );
+        if (user.role === 'ADMIN' && hasApplicationSchemaDrift(existingData, normalizedApp.id)) {
+          const healedDraft = buildMaterializedApplicationPayload(
+            {
+              ...normalizedApp,
+              ...(existingData as Partial<ApplicationRecord>),
+              id: normalizedApp.id,
+            },
+            { ...draftPayload, status: 'BORRADOR' },
+            user.uid,
+            safeActorName,
+            {
+              preserveOrganizationId:
+                typeof existingData?.organizationId === 'string' &&
+                VALID_ID_REGEX.test(existingData.organizationId)
+                  ? existingData.organizationId
+                  : effectiveOrgId,
+              preserveCreatedBy: existingData?.createdBy ?? user.uid,
+              preserveCreatedAt: existingData?.createdAt,
+            }
+          );
+          await setDoc(appRef, healedDraft);
+        } else {
+          await updateDoc(
+            appRef,
+            cleanObject({
+              productCode: draftPayload.productCode,
+              currency: draftPayload.currency,
+              requestedAmount: draftPayload.requestedAmount,
+              requestedTermMonths: draftPayload.requestedTermMonths,
+              paymentFrequency: draftPayload.paymentFrequency,
+              amortizationMethod: draftPayload.amortizationMethod,
+              loanPurpose: draftPayload.loanPurpose ?? '',
+              loanPurposeDescription: draftPayload.loanPurposeDescription ?? '',
+              proposedCollateral: draftPayload.proposedCollateral ?? '',
+              financialData: draftPayload.financialData,
+              businessFinancialData: draftPayload.businessFinancialData ?? null,
+              references: draftPayload.references ?? [],
+              declaredDocumentsSummary: draftPayload.declaredDocumentsSummary,
+              status: 'BORRADOR',
+              movementHistory: draftPayload.movementHistory ?? [],
+              updatedAt: serverTimestamp(),
+            })
+          );
+        }
       } else {
         await setDoc(appRef, draftPayload);
       }
@@ -2064,9 +2400,16 @@ export async function submitOrSaveApplication(params: {
     timestamp: serverTimestamp(),
   };
 
+  const shouldSelfHealExisting =
+    isExisting && user.role === 'ADMIN' && hasApplicationSchemaDrift(existingData, normalizedApp.id);
+
   const batch = writeBatch(db);
   if (isExisting) {
-    batch.update(appRef, existingUpdatePayload);
+    if (shouldSelfHealExisting) {
+      batch.set(appRef, finalApp);
+    } else {
+      batch.update(appRef, existingUpdatePayload);
+    }
   } else {
     batch.set(appRef, finalApp);
   }
@@ -2084,7 +2427,11 @@ export async function submitOrSaveApplication(params: {
     // 1) Persistir primero `applications/{id}` para garantizar que el expediente exista en disco.
     try {
       if (isExisting) {
-        await updateDoc(appRef, existingUpdatePayload);
+        if (shouldSelfHealExisting) {
+          await setDoc(appRef, finalApp);
+        } else {
+          await updateDoc(appRef, existingUpdatePayload);
+        }
       } else {
         await setDoc(appRef, finalApp);
       }
@@ -2791,6 +3138,466 @@ export async function advanceApplicationToEvaluation(params: {
   });
 
   return { application: updatedApp, reScored, validation: resolvedValidation };
+}
+
+export const EDITABLE_APPLICATION_STATUSES = [
+  'BORRADOR',
+  'RECIBIDA',
+  'DEVUELTA',
+  'EN_EVALUACION',
+] as const;
+
+export function canEditApplicationRecord(
+  status: ApplicationRecord['status'] | string,
+  role?: UserProfile['role'] | null
+): boolean {
+  if (!role || role === 'EXTERNAL_CLIENT' || role === 'AUDITOR') return false;
+  return (EDITABLE_APPLICATION_STATUSES as readonly string[]).includes(status);
+}
+
+export interface ReceivedApplicationEditInput {
+  productCode: ApplicationRecord['productCode'];
+  currency: ApplicationRecord['currency'];
+  requestedAmount: number;
+  requestedTermMonths: number;
+  paymentFrequency: ApplicationRecord['paymentFrequency'];
+  amortizationMethod: ApplicationRecord['amortizationMethod'];
+  loanPurpose?: string;
+  loanPurposeDescription?: string;
+  proposedCollateral?: string;
+  financialData: ApplicationRecord['financialData'];
+  businessFinancialData?: ApplicationRecord['businessFinancialData'];
+  references: ApplicationRecord['references'];
+  declaredDocumentsSummary: ApplicationRecord['declaredDocumentsSummary'];
+}
+
+export interface ReceivedBusinessEditInput {
+  legalName: string;
+  tradeName?: string;
+  companyType?: string;
+  economicActivity?: string;
+  operationsStartDate?: string;
+  authorizedRepName: string;
+  authorizedRepDoc?: string;
+  corporateDocsSummary?: string;
+}
+
+export async function updateReceivedApplicationAndReevaluate(params: {
+  application: ApplicationRecord;
+  customer?: CustomerRecord | null;
+  business?: BusinessRecord | null;
+  updates: ReceivedApplicationEditInput;
+  customerUpdates?: CustomerUpdateInput | null;
+  businessUpdates?: ReceivedBusinessEditInput | null;
+  reevaluateWithEngine: boolean;
+  policy: CreditPolicyRecord;
+  user: UserProfile;
+  correctionNote?: string;
+}): Promise<{
+  application: ApplicationRecord;
+  customer: CustomerRecord | null;
+  newScoring?: ScoringExecutionRecord;
+  previousScore: number | null;
+  changedFields: string[];
+}> {
+  const {
+    application,
+    updates,
+    customerUpdates,
+    businessUpdates,
+    reevaluateWithEngine,
+    policy,
+    user,
+    correctionNote,
+  } = params;
+
+  if (user.status !== 'ACTIVE') {
+    throw new Error('Tu usuario está INACTIVO y no puede modificar solicitudes.');
+  }
+  if (!canEditApplicationRecord(application.status, user.role)) {
+    throw new Error(
+      `No es posible editar la solicitud ${application.applicationNumber} en estado ${application.status} o con el rol ${user.role}.`
+    );
+  }
+  if (!user.isSuperAdmin && application.organizationId !== user.organizationId) {
+    throw new Error('Aislamiento multi-tenant: no puedes modificar solicitudes de otra organización.');
+  }
+
+  const nextAmount = Math.max(1, Math.min(100_000_000, Number(updates.requestedAmount) || 0));
+  const nextTerm = Math.max(1, Math.min(360, Math.round(Number(updates.requestedTermMonths) || 0)));
+  if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+    throw new Error('El monto solicitado debe ser mayor a cero.');
+  }
+  if (!Number.isFinite(nextTerm) || nextTerm <= 0) {
+    throw new Error('El plazo solicitado en meses debe ser mayor a cero.');
+  }
+
+  const appRef = doc(db, 'applications', application.id);
+  let existingAppData: Record<string, unknown> | null = null;
+  try {
+    const existingSnap = await getDoc(appRef);
+    if (existingSnap.exists()) {
+      existingAppData = existingSnap.data() as Record<string, unknown>;
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.GET, `applications/${application.id}`);
+  }
+
+  const persistedStatus =
+    typeof existingAppData?.status === 'string'
+      ? (existingAppData.status as ApplicationRecord['status'])
+      : application.status;
+
+  if (!canEditApplicationRecord(persistedStatus, user.role)) {
+    throw new Error(
+      `La solicitud ${application.applicationNumber} cambió a estado ${persistedStatus} y ya no admite edición directa.`
+    );
+  }
+
+  const effectiveOrgId =
+    typeof existingAppData?.organizationId === 'string' &&
+    VALID_ID_REGEX.test(existingAppData.organizationId)
+      ? existingAppData.organizationId
+      : application.organizationId || user.organizationId || DEFAULT_ORG_ID;
+
+  // 1. Resolve & optionally update linked customer master record
+  let effectiveCustomer = params.customer ?? null;
+  if (!effectiveCustomer && application.customerId) {
+    const custSnap = await getDoc(doc(db, 'customers', application.customerId)).catch(() => null);
+    if (custSnap?.exists()) {
+      effectiveCustomer = custSnap.data() as CustomerRecord;
+    }
+  }
+
+  const changedFields: string[] = [];
+
+  if (effectiveCustomer && customerUpdates) {
+    effectiveCustomer = await updateCustomerRecord({
+      customer: effectiveCustomer,
+      updates: customerUpdates,
+      user,
+    });
+    changedFields.push('Datos del cliente');
+  }
+
+  // 2. Optionally update linked business record for BUSINESS applications
+  let updatedBusinessLegalName: string | null = null;
+  if (params.business && businessUpdates && application.businessId) {
+    const cleanLegalName = businessUpdates.legalName.trim().slice(0, 180);
+    const cleanRepName = businessUpdates.authorizedRepName.trim().slice(0, 160);
+    if (!cleanLegalName) {
+      throw new Error('La razón social de la empresa es obligatoria.');
+    }
+    if (!cleanRepName) {
+      throw new Error('El nombre del representante autorizado es obligatorio.');
+    }
+    try {
+      await updateDoc(
+        doc(db, 'businesses', params.business.id),
+        cleanObject({
+          legalName: cleanLegalName,
+          tradeName: (businessUpdates.tradeName ?? '').trim().slice(0, 180),
+          companyType: (businessUpdates.companyType ?? '').trim().slice(0, 80),
+          economicActivity: (businessUpdates.economicActivity ?? '').trim().slice(0, 160),
+          operationsStartDate: (businessUpdates.operationsStartDate ?? '').trim().slice(0, 20),
+          authorizedRepName: cleanRepName,
+          authorizedRepDoc: (businessUpdates.authorizedRepDoc ?? '').trim().slice(0, 40),
+          corporateDocsSummary: (businessUpdates.corporateDocsSummary ?? '').trim().slice(0, 400),
+          updatedAt: serverTimestamp(),
+        })
+      );
+      updatedBusinessLegalName = cleanLegalName;
+      changedFields.push('Datos de empresa');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `businesses/${params.business.id}`);
+    }
+  }
+
+  // 3. Detect changed application fields for clean audit trace
+  if (updates.productCode !== application.productCode) changedFields.push('Producto');
+  if (updates.currency !== application.currency) changedFields.push('Moneda');
+  if (nextAmount !== application.requestedAmount) changedFields.push('Monto solicitado');
+  if (nextTerm !== application.requestedTermMonths) changedFields.push('Plazo');
+  if (updates.paymentFrequency !== application.paymentFrequency) changedFields.push('Frecuencia de pago');
+  if (updates.amortizationMethod !== application.amortizationMethod) changedFields.push('Amortización');
+  if ((updates.loanPurpose ?? '') !== (application.loanPurpose ?? '')) changedFields.push('Destino');
+  if ((updates.proposedCollateral ?? '') !== (application.proposedCollateral ?? '')) changedFields.push('Garantía');
+  if (JSON.stringify(updates.financialData) !== JSON.stringify(application.financialData)) {
+    changedFields.push('Datos financieros');
+  }
+  if (
+    application.applicantType === 'BUSINESS' &&
+    JSON.stringify(updates.businessFinancialData ?? null) !==
+      JSON.stringify(application.businessFinancialData ?? null)
+  ) {
+    changedFields.push('Finanzas empresariales');
+  }
+  if (JSON.stringify(updates.references ?? []) !== JSON.stringify(application.references ?? [])) {
+    changedFields.push('Referencias');
+  }
+  if (
+    JSON.stringify(updates.declaredDocumentsSummary) !==
+    JSON.stringify(application.declaredDocumentsSummary)
+  ) {
+    changedFields.push('Documentos declarados');
+  }
+
+  const nextApplicantDisplayName =
+    application.applicantType === 'BUSINESS' && updatedBusinessLegalName
+      ? updatedBusinessLegalName
+      : effectiveCustomer
+      ? `${effectiveCustomer.firstName} ${effectiveCustomer.lastName}`.trim()
+      : application.applicantDisplayName;
+
+  if (nextApplicantDisplayName !== application.applicantDisplayName) {
+    changedFields.push('Nombre solicitante');
+  }
+
+  const sanitizedRefs = (updates.references ?? [])
+    .map((r) => ({
+      name: (r.name ?? '').trim().slice(0, 120),
+      relationship: (r.relationship ?? '').trim().slice(0, 80),
+      phone: (r.phone ?? '').trim().slice(0, 40),
+      ...(r.verified !== undefined ? { verified: r.verified } : {}),
+      ...(r.verificationNotes ? { verificationNotes: r.verificationNotes.trim().slice(0, 300) } : {}),
+    }))
+    .filter((r) => r.name.length > 0 || r.phone.length > 0);
+
+  const normalizedFinancialData: ApplicationRecord['financialData'] = {
+    ...updates.financialData,
+    incomeCurrency: updates.financialData.incomeCurrency || updates.currency,
+    debtDeclarationStatus: updates.financialData.debtDeclarationStatus || 'NO_DECLARADO',
+  };
+
+  const normalizedBusinessFinancialData: ApplicationRecord['businessFinancialData'] =
+    application.applicantType === 'BUSINESS' && updates.businessFinancialData
+      ? {
+          ...updates.businessFinancialData,
+          incomeCurrency: updates.businessFinancialData.incomeCurrency || updates.currency,
+          debtDeclarationStatus: updates.businessFinancialData.debtDeclarationStatus || 'NO_DECLARADO',
+        }
+      : application.businessFinancialData ?? null;
+
+  const updatedFieldsBase: Partial<ApplicationRecord> = {
+    applicantDisplayName: nextApplicantDisplayName.slice(0, 180),
+    productCode: updates.productCode,
+    currency: updates.currency,
+    requestedAmount: nextAmount,
+    requestedTermMonths: nextTerm,
+    paymentFrequency: updates.paymentFrequency,
+    amortizationMethod: updates.amortizationMethod,
+    loanPurpose: (updates.loanPurpose ?? '').trim().slice(0, 160),
+    loanPurposeDescription: (updates.loanPurposeDescription ?? '').trim().slice(0, 600),
+    proposedCollateral: (updates.proposedCollateral ?? '').trim().slice(0, 400),
+    financialData: normalizedFinancialData,
+    businessFinancialData: normalizedBusinessFinancialData,
+    references: sanitizedRefs,
+    declaredDocumentsSummary: {
+      hasIdentityDoc: Boolean(updates.declaredDocumentsSummary?.hasIdentityDoc),
+      hasIncomeEvidence: Boolean(updates.declaredDocumentsSummary?.hasIncomeEvidence),
+      hasAddressProof: Boolean(updates.declaredDocumentsSummary?.hasAddressProof),
+      hasCorporateDocs: Boolean(updates.declaredDocumentsSummary?.hasCorporateDocs),
+    },
+    status: persistedStatus,
+  };
+
+  const previousScore = application.latestScore ?? null;
+  let newScoring: ScoringExecutionRecord | undefined;
+  const batch = writeBatch(db);
+  const nowIso = new Date().toISOString();
+
+  // Fallback synthetic customer if customer record missing in legacy migrated doc
+  const scoringCustomer: CustomerRecord = effectiveCustomer ?? {
+    id: application.customerId,
+    organizationId: effectiveOrgId,
+    documentType: 'CEDULA',
+    documentNumber: `MIG-${application.customerId}`.slice(0, 40),
+    documentKey: `${effectiveOrgId}_CEDULA_${application.customerId}`.slice(0, 175),
+    firstName: (nextApplicantDisplayName.split(/\s+/)[0] || 'Cliente').slice(0, 120),
+    lastName: (nextApplicantDisplayName.split(/\s+/).slice(1).join(' ') || 'Registrado').slice(0, 120),
+    phone: '809-000-0000',
+    createdBy: user.uid,
+  };
+
+  let scoringAppFields: Partial<ApplicationRecord> = {};
+  if (reevaluateWithEngine) {
+    const appForScoring: ApplicationRecord = {
+      ...application,
+      ...updatedFieldsBase,
+      organizationId: effectiveOrgId,
+    };
+    newScoring = await runBackendDecisionEngine({
+      application: appForScoring,
+      customer: { ...scoringCustomer, organizationId: effectiveOrgId },
+      policy,
+      useVerifiedData: false,
+      executionTrigger: 'MANUAL_RERUN',
+      executedBy: user.uid,
+      executedByName: user.displayName || user.email || 'Usuario AxyCore',
+    });
+
+    const validScoringDoc =
+      Array.isArray(newScoring.indicatorDetails) &&
+      (newScoring.indicatorDetails.length === 22 || newScoring.status === 'ERROR_CALCULO');
+
+    if (validScoringDoc) {
+      batch.set(
+        doc(db, 'scoring_executions', newScoring.id),
+        sanitizeScoringExecutionPayload({
+          ...newScoring,
+          organizationId: effectiveOrgId,
+        })
+      );
+    }
+
+    scoringAppFields = {
+      prequalificationStatus: newScoring.status,
+      ...(validScoringDoc ? { latestScoringExecutionId: newScoring.id } : {}),
+      latestScore: newScoring.totalScore,
+      latestRiskBand: newScoring.riskBand.code,
+      recommendedAmount: newScoring.recommendedAmount,
+      recommendedRateMonthly: normalizeMonthlyRateDecimal(newScoring.recommendedRateMonthly, 0),
+      recommendedTermMonths: newScoring.recommendedTermMonths,
+      recommendedInstallment: newScoring.recommendedInstallment,
+    };
+  }
+
+  const fieldsSummary =
+    changedFields.length > 0 ? changedFields.join(', ') : 'Revisión y confirmación de datos';
+  const actionLabel = reevaluateWithEngine && newScoring
+    ? `Solicitud actualizada (${fieldsSummary}) y reevaluada por Motor V2 (Score ${
+        previousScore !== null ? `${previousScore} → ` : ''
+      }${newScoring.totalScore}/100 · ${newScoring.status})`
+    : `Solicitud actualizada (${fieldsSummary})`;
+
+  const baseHistory = Array.isArray(existingAppData?.movementHistory)
+    ? (existingAppData.movementHistory as MovementHistoryEntry[])
+    : application.movementHistory;
+
+  const newHistory = appendMovementHistory(baseHistory, {
+    timestamp: nowIso,
+    action: actionLabel,
+    fromStatus: persistedStatus,
+    toStatus: persistedStatus,
+    userId: user.uid,
+    userName: user.displayName || user.email || 'Usuario AxyCore',
+    note: correctionNote?.trim() || null,
+  });
+
+  const persistedMeta = await ensureApplicationPersistedInBatch({
+    batch,
+    application: { ...application, organizationId: effectiveOrgId },
+    customer: scoringCustomer,
+    user,
+    existingAppData,
+    updates: {
+      ...updatedFieldsBase,
+      ...scoringAppFields,
+      movementHistory: newHistory,
+    },
+  });
+
+  const auditId = generateId('audit');
+  batch.set(doc(db, 'audit_logs', auditId), {
+    ...buildCriticalAuditEntryPayload({
+      id: auditId,
+      organizationId: persistedMeta.organizationId,
+      eventType: reevaluateWithEngine
+        ? 'APPLICATION_UPDATED_AND_REEVALUATED'
+        : 'APPLICATION_DATA_UPDATED',
+      entityType: 'applications',
+      entityId: application.id,
+      action: actionLabel,
+      previousState: previousScore !== null ? `${persistedStatus} (Score ${previousScore})` : persistedStatus,
+      newState:
+        reevaluateWithEngine && newScoring
+          ? `${persistedStatus} (Score ${newScoring.totalScore} · ${newScoring.status})`
+          : persistedStatus,
+      justification:
+        correctionNote?.trim() ||
+        `Actualización de solicitud recibida (${fieldsSummary})${
+          reevaluateWithEngine ? ' con reevaluación de Motor V2' : ''
+        }.`,
+      transactionId: generateId('tx'),
+      engineVersion: policy.version,
+      userId: user.uid,
+      userEmail: user.email,
+      userRole: user.role,
+    }),
+    timestamp: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `applications/${application.id}`);
+  }
+
+  const finalApp: ApplicationRecord = {
+    ...application,
+    organizationId: persistedMeta.organizationId,
+    createdBy: persistedMeta.createdBy,
+    ...updatedFieldsBase,
+    ...scoringAppFields,
+    movementHistory: newHistory,
+  };
+
+  return {
+    application: finalApp,
+    customer: effectiveCustomer,
+    newScoring,
+    previousScore,
+    changedFields,
+  };
+}
+
+export async function reevaluateApplicationWithEngine(params: {
+  application: ApplicationRecord;
+  customer?: CustomerRecord | null;
+  policy: CreditPolicyRecord;
+  user: UserProfile;
+  note?: string;
+}): Promise<{
+  application: ApplicationRecord;
+  newScoring: ScoringExecutionRecord;
+  previousScore: number | null;
+}> {
+  const result = await updateReceivedApplicationAndReevaluate({
+    application: params.application,
+    customer: params.customer,
+    updates: {
+      productCode: params.application.productCode,
+      currency: params.application.currency,
+      requestedAmount: params.application.requestedAmount,
+      requestedTermMonths: params.application.requestedTermMonths,
+      paymentFrequency: params.application.paymentFrequency,
+      amortizationMethod: params.application.amortizationMethod,
+      loanPurpose: params.application.loanPurpose,
+      loanPurposeDescription: params.application.loanPurposeDescription,
+      proposedCollateral: params.application.proposedCollateral,
+      financialData: params.application.financialData,
+      businessFinancialData: params.application.businessFinancialData,
+      references: params.application.references ?? [],
+      declaredDocumentsSummary: params.application.declaredDocumentsSummary ?? {
+        hasIdentityDoc: false,
+        hasIncomeEvidence: false,
+      },
+    },
+    reevaluateWithEngine: true,
+    policy: params.policy,
+    user: params.user,
+    correctionNote: params.note || 'Reevaluación manual solicitada con Motor de Decisiones V2.',
+  });
+
+  if (!result.newScoring) {
+    throw new Error('No se recibió respuesta del Motor de Decisiones Crediticias V2.');
+  }
+
+  return {
+    application: result.application,
+    newScoring: result.newScoring,
+    previousScore: result.previousScore,
+  };
 }
 
 export async function saveAnalystEvaluationAndRecalc(params: {
@@ -4036,11 +4843,40 @@ export async function executeIdempotentDisbursement(params: {
           })
         );
       }
-      tx.update(appRef, {
-        status: 'DESEMBOLSADA',
-        movementHistory: newHistory,
-        updatedAt: serverTimestamp(),
-      });
+      const freshAppRecord = freshApp as unknown as Record<string, unknown>;
+      if (
+        user.role === 'ADMIN' &&
+        hasApplicationSchemaDrift(freshAppRecord, application.id)
+      ) {
+        tx.set(
+          appRef,
+          buildMaterializedApplicationPayload(
+            {
+              ...application,
+              ...(freshApp as Partial<ApplicationRecord>),
+              id: application.id,
+            },
+            { status: 'DESEMBOLSADA', movementHistory: newHistory },
+            user.uid,
+            user.displayName || user.email,
+            {
+              preserveOrganizationId:
+                typeof freshAppRecord.organizationId === 'string' &&
+                VALID_ID_REGEX.test(freshAppRecord.organizationId)
+                  ? freshAppRecord.organizationId
+                  : application.organizationId,
+              preserveCreatedBy: freshAppRecord.createdBy ?? user.uid,
+              preserveCreatedAt: freshAppRecord.createdAt ?? serverTimestamp(),
+            }
+          )
+        );
+      } else {
+        tx.update(appRef, {
+          status: 'DESEMBOLSADA',
+          movementHistory: newHistory,
+          updatedAt: serverTimestamp(),
+        });
+      }
 
       for (const row of schedule.rows) {
         const instId = `${loanId}_cuota_${String(row.installmentNumber).padStart(3, '0')}`;
@@ -5319,6 +6155,13 @@ export async function toggleTenantModuleInStore(params: {
       window.localStorage.removeItem(`axycore_altera_disabled_${targetId}`);
     } else {
       window.localStorage.setItem(`axycore_altera_disabled_${targetId}`, 'true');
+    }
+  }
+  if (typeof window !== 'undefined' && params.targetModule === 'regula') {
+    if (params.enable) {
+      window.localStorage.removeItem(`axycore_regula_disabled_${targetId}`);
+    } else {
+      window.localStorage.setItem(`axycore_regula_disabled_${targetId}`, 'true');
     }
   }
   const updatedOrg: OrganizationRecord = cleanObject({

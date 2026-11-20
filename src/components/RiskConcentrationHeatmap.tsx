@@ -466,14 +466,14 @@ export function RiskConcentrationHeatmap({
 
   return (
     <section
-      className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5"
+      className="p-5 rounded-2xl axy-surface space-y-5"
       aria-label="Mapa de calor de concentración de riesgos"
     >
       {/* Header & Controls */}
       <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4">
         <div className="space-y-1">
           <h3 className="font-display text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-sky-700 dark:text-sky-400 shrink-0" />
+            <MapPin className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF] shrink-0" />
             <span>Mapa de Calor de Concentración de Riesgos (Zona × Perfil de Cliente)</span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
@@ -499,16 +499,16 @@ export function RiskConcentrationHeatmap({
         {/* Interactive Axis & Metric Controls */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800"
+            className="inline-flex items-center gap-1 p-1 rounded-xl axy-surface-tonal"
             role="group"
             aria-label="Granularidad geográfica"
           >
             <button
               type="button"
               onClick={() => setGeoGranularity('PROVINCE')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 geoGranularity === 'PROVINCE'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -517,9 +517,9 @@ export function RiskConcentrationHeatmap({
             <button
               type="button"
               onClick={() => setGeoGranularity('MUNICIPALITY')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 geoGranularity === 'MUNICIPALITY'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -528,16 +528,16 @@ export function RiskConcentrationHeatmap({
           </div>
 
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800"
+            className="inline-flex items-center gap-1 p-1 rounded-xl axy-surface-tonal"
             role="group"
             aria-label="Dimensión de perfil"
           >
             <button
               type="button"
               onClick={() => setProfileDimension('INCOME_SEGMENT')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 profileDimension === 'INCOME_SEGMENT'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -546,9 +546,9 @@ export function RiskConcentrationHeatmap({
             <button
               type="button"
               onClick={() => setProfileDimension('HOUSING_TENURE')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 profileDimension === 'HOUSING_TENURE'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -557,9 +557,9 @@ export function RiskConcentrationHeatmap({
             <button
               type="button"
               onClick={() => setProfileDimension('PRODUCT')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 profileDimension === 'PRODUCT'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -568,16 +568,16 @@ export function RiskConcentrationHeatmap({
           </div>
 
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800"
+            className="inline-flex items-center gap-1 p-1 rounded-xl axy-surface-tonal"
             role="group"
             aria-label="Métrica de intensidad"
           >
             <button
               type="button"
               onClick={() => setMetricMode('RISK_INDEX')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 metricMode === 'RISK_INDEX'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -586,9 +586,9 @@ export function RiskConcentrationHeatmap({
             <button
               type="button"
               onClick={() => setMetricMode('HIGH_RISK_PCT')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 metricMode === 'HIGH_RISK_PCT'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -597,9 +597,9 @@ export function RiskConcentrationHeatmap({
             <button
               type="button"
               onClick={() => setMetricMode('EXPOSURE_SHARE')}
-              className={`px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 metricMode === 'EXPOSURE_SHARE'
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  ? 'bg-[var(--axy-surface)] text-[#0052CC] dark:text-[#00D1FF] shadow-xs font-semibold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -612,7 +612,7 @@ export function RiskConcentrationHeatmap({
       {/* D3 Heatmap Viewport */}
       <div ref={wrapperRef} className="relative w-full overflow-x-auto">
         {matrix.zones.length === 0 ? (
-          <div className="py-12 px-4 text-center rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-dashed border-slate-200 dark:border-white/10 text-xs text-slate-500">
+          <div className="py-12 px-4 text-center rounded-xl axy-surface-tonal border-dashed text-xs text-slate-500">
             No se han registrado operaciones con ubicación geográfica clasificada en este filtro.
           </div>
         ) : (
@@ -622,7 +622,7 @@ export function RiskConcentrationHeatmap({
         {/* Dynamic D3 Hover Tooltip */}
         {hoveredTooltip && (
           <div
-            className="pointer-events-none absolute z-20 w-64 p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md text-xs space-y-1.5"
+            className="pointer-events-none absolute z-20 w-64 p-3 rounded-xl axy-surface text-xs space-y-1.5"
             style={{
               left: Math.min(Math.max(8, hoveredTooltip.x + 14), Math.max(8, containerWidth - 270)),
               top: Math.max(8, hoveredTooltip.y - 10),
@@ -660,7 +660,7 @@ export function RiskConcentrationHeatmap({
                 {hoveredTooltip.cell.dominantBand}
               </span>
             </div>
-            <p className="text-[10px] text-sky-700 dark:text-sky-400 pt-0.5">
+            <p className="text-[10px] text-[#0066FF] dark:text-[#00D1FF] pt-0.5">
               Clic para inspeccionar expedientes en esta intersección
             </p>
           </div>
@@ -669,7 +669,7 @@ export function RiskConcentrationHeatmap({
 
       {/* Selected Cell Drilldown Table (Hairline Separated, Zero Nested Cards) */}
       {selectedCell && (
-        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="pt-4 border-t border-[var(--axy-border)] space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="space-y-0.5">
               <h4 className="font-display text-xs font-semibold text-slate-900 dark:text-white">
@@ -683,7 +683,7 @@ export function RiskConcentrationHeatmap({
             <button
               type="button"
               onClick={() => setSelectedCellKey(null)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1 px-2.5 py-1 axy-btn-secondary text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer whitespace-nowrap shrink-0"
             >
               <X className="w-3.5 h-3.5" />
               <span>Cerrar detalle</span>
@@ -693,7 +693,7 @@ export function RiskConcentrationHeatmap({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-3 font-medium">Solicitud</th>
                   <th className="py-2 px-3 font-medium">Solicitante</th>
                   <th className="py-2 px-3 font-medium">Municipio / Zona</th>
@@ -704,11 +704,11 @@ export function RiskConcentrationHeatmap({
                   <th className="py-2 pl-3 font-medium text-right">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+              <tbody>
                 {selectedCell.items.map((item) => (
                   <tr
                     key={item.application.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                    className="axy-table-row transition-colors"
                   >
                     <td className="py-2.5 pr-3 font-mono tabular-nums text-slate-900 dark:text-white whitespace-nowrap">
                       {item.application.applicationNumber}
@@ -744,7 +744,7 @@ export function RiskConcentrationHeatmap({
                       <button
                         type="button"
                         onClick={() => handleOpenApplication(item.application)}
-                        className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-400 hover:underline font-medium cursor-pointer whitespace-nowrap shrink-0"
+                        className="inline-flex items-center gap-1 text-[#0066FF] dark:text-[#00D1FF] hover:underline font-medium cursor-pointer whitespace-nowrap shrink-0"
                       >
                         <span>Abrir</span>
                         <ArrowUpRight className="w-3.5 h-3.5" />

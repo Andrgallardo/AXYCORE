@@ -2682,7 +2682,7 @@ describe('Arquitectura SaaS Multiempresa, Platform Control y Aislamiento (20 Pru
     expect(secondCustomerMigration.duplicateIdsDetected).toBe(0);
     expect(secondCustomerMigration.migratedToSuGloriaCount).toBe(0);
     expect(secondCustomerMigration.alreadyAssignedSuGloriaCount).toBe(2);
-    expect(AXYCORE_MODULE_CATALOG.length).toBe(34);
+    expect(AXYCORE_MODULE_CATALOG.length).toBe(35);
   });
 
   it('Pruebas 21 y 22: Validar los esquemas y validadores de las colecciones organizations y organization_memberships', () => {

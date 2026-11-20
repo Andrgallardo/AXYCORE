@@ -160,10 +160,10 @@ export const SITEMAP_DOMAINS: SitemapDomainDefinition[] = [
   {
     key: 'inteligencia',
     order: '08',
-    title: 'Suite de Inteligencia',
-    shortTitle: 'Inteligencia',
+    title: 'Inteligencia y Control Institucional',
+    shortTitle: 'Inteligencia y Control',
     layer: 'INTELLIGENCE_GOVERNANCE',
-    description: 'AxyCore Director, Bela IA, Centinela, Anticípate, ALTERA, Mapa del Sistema e Impulsa.',
+    description: 'AxyCore Director, Bela IA, Altera, Centinela, Anticípate, AxyCore REGULA, Mapa del Sistema e Impulsa.',
     canvasPos: { x: 315, y: 500 },
     accentHex: '#00D1FF',
   },

@@ -98,9 +98,9 @@ export function PaymentAgreementModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-[#030816]/75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-xl rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200 dark:border-[#00B8FF]/25 shadow-2xl overflow-hidden text-xs">
+      <div className="w-full max-w-xl rounded-2xl axy-surface axy-panel-in shadow-2xl overflow-hidden text-xs">
         <div className="h-[2px] w-full axy-infinity-line" />
-        <div className="px-5 py-4 border-b border-slate-200/80 dark:border-white/[0.08] flex items-center justify-between gap-3">
+        <div className="px-5 py-4 border-b border-[var(--axy-border)] flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[#0052CC] dark:text-[#00D1FF] font-semibold">
               <Handshake className="w-4 h-4 shrink-0" />
@@ -113,7 +113,7 @@ export function PaymentAgreementModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer"
+            className="p-2 axy-btn-secondary text-slate-500 cursor-pointer"
             aria-label="Cerrar modal de acuerdo"
           >
             <X className="w-4 h-4" />
@@ -122,7 +122,7 @@ export function PaymentAgreementModal({
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Context Strip */}
-          <div className="grid grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-[#040C1E] border border-slate-200/80 dark:border-[#00B8FF]/15">
+          <div className="grid grid-cols-3 gap-3 p-3 rounded-xl axy-surface-tonal">
             <div>
               <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Días de Atraso</span>
               <span className="font-mono tabular-nums font-bold text-rose-700 dark:text-rose-400">
@@ -159,7 +159,7 @@ export function PaymentAgreementModal({
                 onChange={(e) =>
                   setAgreementType(e.target.value as PaymentAgreementRecord['agreementType'])
                 }
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#040C1E] text-slate-950 dark:text-white"
+                className="w-full px-3 py-2 axy-input text-slate-950 dark:text-white"
               >
                 <option value="ACUERDO_PAGO">Acuerdo de Pago</option>
                 <option value="REESTRUCTURACION">Reestructuración</option>
@@ -178,7 +178,7 @@ export function PaymentAgreementModal({
                   required
                   value={firstDueDate}
                   onChange={(e) => setFirstDueDate(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#040C1E] font-mono text-slate-950 dark:text-white"
+                  className="w-full pl-8 pr-3 py-2 axy-input font-mono text-slate-950 dark:text-white"
                 />
               </div>
             </div>
@@ -193,7 +193,7 @@ export function PaymentAgreementModal({
                 required
                 value={totalAgreedAmount}
                 onChange={(e) => setTotalAgreedAmount(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#040C1E] font-mono tabular-nums text-slate-950 dark:text-white"
+                className="w-full px-3 py-2 axy-input font-mono tabular-nums text-slate-950 dark:text-white"
               />
             </div>
 
@@ -207,7 +207,7 @@ export function PaymentAgreementModal({
                   step="0.01"
                   value={downPaymentAmount}
                   onChange={(e) => setDownPaymentAmount(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#040C1E] font-mono tabular-nums text-slate-950 dark:text-white"
+                  className="w-full px-2.5 py-2 axy-input font-mono tabular-nums text-slate-950 dark:text-white"
                 />
               </div>
               <div>
@@ -220,7 +220,7 @@ export function PaymentAgreementModal({
                   required
                   value={installmentCount}
                   onChange={(e) => setInstallmentCount(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#040C1E] font-mono tabular-nums text-slate-950 dark:text-white"
+                  className="w-full px-2.5 py-2 axy-input font-mono tabular-nums text-slate-950 dark:text-white"
                 />
               </div>
             </div>
@@ -236,7 +236,7 @@ export function PaymentAgreementModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ej. Cliente se compromete a depositar inicial hoy antes de las 4:00 PM y saldar cuotas quincenales..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#040C1E] text-slate-950 dark:text-white"
+              className="w-full px-3 py-2 axy-input text-slate-950 dark:text-white"
             />
           </div>
 
@@ -253,18 +253,18 @@ export function PaymentAgreementModal({
             </label>
           )}
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/80 dark:border-white/[0.08]">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--axy-border)]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-white/15 font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"
+              className="px-4 py-2 axy-btn-secondary font-semibold text-slate-600 dark:text-slate-300 cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={busy}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl axy-brand-gradient hover:brightness-110 text-white font-semibold cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 axy-btn-primary cursor-pointer disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
               {busy ? 'Guardando...' : 'Guardar Acuerdo de Pago'}

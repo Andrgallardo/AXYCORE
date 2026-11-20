@@ -208,14 +208,14 @@ export function DisbursedLoansView() {
           </p>
         </div>
 
-        <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 text-xs">
+        <div className="axy-surface inline-flex rounded-xl p-1 text-xs">
           <button
             type="button"
             onClick={() => setTab('PORTFOLIO')}
-            className={`px-3.5 py-1.5 rounded-lg font-medium cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg font-medium cursor-pointer flex items-center gap-1.5 transition-colors ${
               tab === 'PORTFOLIO'
-                ? 'bg-sky-700 text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                ? 'bg-[#0066FF] text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06]'
             }`}
           >
             <Landmark className="w-3.5 h-3.5" />
@@ -224,10 +224,10 @@ export function DisbursedLoansView() {
           <button
             type="button"
             onClick={() => setTab('SIMULATOR')}
-            className={`px-3.5 py-1.5 rounded-lg font-medium cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg font-medium cursor-pointer flex items-center gap-1.5 transition-colors ${
               tab === 'SIMULATOR'
-                ? 'bg-sky-700 text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                ? 'bg-[#0066FF] text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06]'
             }`}
           >
             <Calculator className="w-3.5 h-3.5" />
@@ -246,13 +246,13 @@ export function DisbursedLoansView() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar por préstamo o cliente activo..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs"
+                  className="axy-input w-full pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'ACTIVO' | 'TODOS')}
-                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs"
+                className="axy-input px-3 py-2 text-xs text-slate-900 dark:text-white"
               >
                 <option value="ACTIVO">Solo Activos</option>
                 <option value="TODOS">Todos ({loans.length})</option>
@@ -260,7 +260,7 @@ export function DisbursedLoansView() {
             </div>
 
             {filteredLoans.length === 0 ? (
-              <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
+              <div className="axy-surface p-8 rounded-2xl text-center text-xs text-slate-500">
                 No existen préstamos activos que coincidan con el filtro. Complete un Desembolso para incorporar clientes a Activos.
               </div>
             ) : (
@@ -274,12 +274,12 @@ export function DisbursedLoansView() {
                       onClick={() => setSelectedLoan(loan)}
                       className={`w-full text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                         selected
-                          ? 'border-sky-700 bg-sky-50/70 dark:bg-sky-950/40'
-                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                          ? 'border-[#0066FF] bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/15 dark:border-[#00B8FF]/60 shadow-sm'
+                          : 'axy-surface hover:bg-slate-50/70 dark:hover:bg-white/[0.04]'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-mono font-semibold text-sky-700 dark:text-sky-400">
+                        <span className="font-mono font-semibold text-[#0066FF] dark:text-[#00D1FF]">
                           {loan.loanNumber}
                         </span>
                         <span className="text-emerald-700 dark:text-emerald-400 font-medium">
@@ -306,13 +306,13 @@ export function DisbursedLoansView() {
             {selectedLoan ? (
               <div className="space-y-4">
                 {/* Ficha Completa del Cliente */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 text-xs">
-                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200 dark:border-slate-800">
+                <div className="axy-surface p-5 rounded-2xl space-y-3 text-xs">
+                  <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80 dark:border-[#00B8FF]/15">
                     <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       <UserRoundCheck className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                       Ficha Completa del Cliente Activo
                     </h3>
-                    <span className="font-mono text-slate-500">ID Cliente: {selectedLoan.customerId}</span>
+                    <span className="font-mono text-slate-500 dark:text-slate-400">ID Cliente: {selectedLoan.customerId}</span>
                   </div>
 
                   {selectedCustomer ? (
@@ -355,42 +355,42 @@ export function DisbursedLoansView() {
                 </div>
 
                 {/* Ficha del Préstamo Adquirido y Desembolso */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
-                  <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+                <div className="axy-surface p-5 rounded-2xl space-y-4 text-xs">
+                  <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15">
                     <div>
-                      <p className="font-mono text-slate-500">{selectedLoan.loanNumber} · Ref. {selectedLoan.disbursementId}</p>
+                      <p className="font-mono text-slate-500 dark:text-slate-400">{selectedLoan.loanNumber} · Ref. {selectedLoan.disbursementId}</p>
                       <h3 className="font-display text-base font-bold text-slate-900 dark:text-white mt-0.5">
                         Ficha del Préstamo Adquirido — {PRODUCT_LABELS[selectedLoan.productCode]}
                       </h3>
                     </div>
                     <div className="text-right">
-                      <p className="text-slate-500">Estado Operativo</p>
+                      <p className="text-slate-500 dark:text-slate-400">Estado Operativo</p>
                       <p className="font-semibold text-emerald-700 dark:text-emerald-400">{selectedLoan.status}</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                      <p className="font-sans text-slate-500">Capital Aprobado</p>
-                      <p className="font-bold text-sm tabular-nums mt-0.5">
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <p className="font-sans text-slate-500 dark:text-slate-400">Capital Aprobado</p>
+                      <p className="font-bold text-sm tabular-nums mt-0.5 text-slate-900 dark:text-white">
                         {formatMoney(selectedLoan.approvedPrincipal, selectedLoan.currency)}
                       </p>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                      <p className="font-sans text-slate-500">Capital Financiado</p>
-                      <p className="font-bold text-sm tabular-nums mt-0.5">
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <p className="font-sans text-slate-500 dark:text-slate-400">Capital Financiado</p>
+                      <p className="font-bold text-sm tabular-nums mt-0.5 text-slate-900 dark:text-white">
                         {formatMoney(selectedLoan.totalFinancedPrincipal, selectedLoan.currency)}
                       </p>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                      <p className="font-sans text-slate-500">Saldo Capital Actual</p>
-                      <p className="font-bold text-sm tabular-nums mt-0.5">
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <p className="font-sans text-slate-500 dark:text-slate-400">Saldo Capital Actual</p>
+                      <p className="font-bold text-sm tabular-nums mt-0.5 text-[#0066FF] dark:text-[#00D1FF]">
                         {formatMoney(selectedLoan.currentPrincipalBalance, selectedLoan.currency)}
                       </p>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
-                      <p className="font-sans text-slate-500">Total Contractual</p>
-                      <p className="font-bold text-sm tabular-nums mt-0.5">
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <p className="font-sans text-slate-500 dark:text-slate-400">Total Contractual</p>
+                      <p className="font-bold text-sm tabular-nums mt-0.5 text-slate-900 dark:text-white">
                         {formatMoney(selectedLoan.totalContractualPayable, selectedLoan.currency)}
                       </p>
                     </div>
@@ -406,7 +406,7 @@ export function DisbursedLoansView() {
                   </div>
 
                   {selectedDisbursement && (
-                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                    <div className="axy-surface-tonal p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3">
                       <div className="space-y-1 text-slate-600 dark:text-slate-300">
                         <p className="font-semibold text-slate-900 dark:text-white">
                           Evidencia de Desembolso ({selectedDisbursement.disbursementNumber})
@@ -421,7 +421,7 @@ export function DisbursedLoansView() {
                         <a
                           href={voucherDoc.fileDataUrl}
                           download={voucherDoc.fileName}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0066FF] hover:bg-[#0052CC] text-white font-semibold"
+                          className="axy-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
                         >
                           <Download className="w-3.5 h-3.5" />
                           Descargar Comprobante
@@ -430,9 +430,9 @@ export function DisbursedLoansView() {
                     </div>
                   )}
 
-                  <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-slate-600 dark:text-slate-300">
+                  <div className="axy-surface-tonal p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-slate-600 dark:text-slate-300">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Layers className="w-4 h-4 text-sky-600 shrink-0" />
+                      <Layers className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF] shrink-0" />
                       <span>
                         Sincronizado con el Módulo Integral de Cobranza (<code className="font-mono">loan_installments</code> y <code className="font-mono">collection_accounts</code>).
                       </span>
@@ -441,7 +441,7 @@ export function DisbursedLoansView() {
                       <button
                         type="button"
                         onClick={() => setSelectedCollectionLoanId(selectedLoan.id)}
-                        className="px-3 py-1.5 rounded-lg bg-[#0f3d91] hover:bg-[#0c3176] dark:bg-sky-600 dark:hover:bg-sky-500 text-white text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+                        className="axy-btn-primary px-3 py-1.5 text-xs whitespace-nowrap shrink-0 cursor-pointer"
                       >
                         Abrir Ficha 360° Cobranza
                       </button>
@@ -449,30 +449,30 @@ export function DisbursedLoansView() {
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                  <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <h4 className="font-display text-sm font-semibold flex items-center gap-2">
-                      <CalendarDays className="w-4 h-4 text-sky-600" />
+                <div className="axy-surface rounded-2xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex items-center justify-between">
+                    <h4 className="font-display text-sm font-semibold flex items-center gap-2 text-slate-900 dark:text-white">
+                      <CalendarDays className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                       Plan de Cuotas Inmutable ({installments.length})
                     </h4>
                     {loadingInstallments && <span className="text-xs text-slate-500">Cargando cuotas...</span>}
                   </div>
                   <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
-                        <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500">
-                          <th className="py-2 px-3">Cuota</th>
-                          <th className="py-2 px-3">Vencimiento</th>
-                          <th className="py-2 px-3 text-right">Capital</th>
-                          <th className="py-2 px-3 text-right">Interés</th>
-                          <th className="py-2 px-3 text-right">Total Cuota</th>
-                          <th className="py-2 px-3 text-right">Saldo Insoluto</th>
-                          <th className="py-2 px-3">Estado</th>
+                      <thead className="axy-table-head sticky top-0 text-slate-500 dark:text-slate-400">
+                        <tr>
+                          <th className="py-2.5 px-3 font-semibold">Cuota</th>
+                          <th className="py-2.5 px-3 font-semibold">Vencimiento</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Capital</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Interés</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Total Cuota</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Saldo Insoluto</th>
+                          <th className="py-2.5 px-3 font-semibold">Estado</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono tabular-nums">
+                      <tbody className="font-mono tabular-nums">
                         {installments.map((inst) => (
-                          <tr key={inst.id}>
+                          <tr key={inst.id} className="axy-table-row">
                             <td className="py-2 px-3 font-semibold">#{inst.installmentNumber}</td>
                             <td className="py-2 px-3">{inst.dueDate}</td>
                             <td className="py-2 px-3 text-right">{inst.principalAmount.toFixed(2)}</td>
@@ -488,7 +488,7 @@ export function DisbursedLoansView() {
                 </div>
               </div>
             ) : (
-              <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
+              <div className="axy-surface p-8 rounded-2xl text-center text-xs text-slate-500">
                 Seleccione un cliente activo para inspeccionar su ficha completa y plan de cuotas.
               </div>
             )}
@@ -498,7 +498,7 @@ export function DisbursedLoansView() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <form
             onSubmit={handleSimulate}
-            className="lg:col-span-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 text-xs h-fit"
+            className="axy-surface lg:col-span-4 p-5 rounded-2xl space-y-3 text-xs h-fit"
           >
             <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
               Parámetros de Simulación (Aritmética en Centavos)
@@ -506,55 +506,55 @@ export function DisbursedLoansView() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block mb-1 text-slate-500">Capital Financiado</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Capital Financiado</label>
                 <input
                   type="number"
                   min={1}
                   step="0.01"
                   value={simPrincipal}
                   onChange={(e) => setSimPrincipal(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block mb-1 text-slate-500">Moneda</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Moneda</label>
                 <select
                   value={simCurrency}
                   onChange={(e) => setSimCurrency(e.target.value as CurrencyCode)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                 >
                   <option value="DOP">DOP</option>
                   <option value="USD">USD</option>
                 </select>
               </div>
               <div>
-                <label className="block mb-1 text-slate-500">Tasa Mensual (%)</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Tasa Mensual (%)</label>
                 <input
                   type="number"
                   min={0}
                   step="0.01"
                   value={simMonthlyRatePct}
                   onChange={(e) => setSimMonthlyRatePct(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block mb-1 text-slate-500">Plazo (Meses)</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Plazo (Meses)</label>
                 <input
                   type="number"
                   min={1}
                   max={120}
                   value={simTermMonths}
                   onChange={(e) => setSimTermMonths(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block mb-1 text-slate-500">Frecuencia</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Frecuencia</label>
                 <select
                   value={simFrequency}
                   onChange={(e) => setSimFrequency(e.target.value as PaymentFrequency)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                 >
                   <option value="MENSUAL">Mensual</option>
                   <option value="QUINCENAL">Quincenal</option>
@@ -562,45 +562,45 @@ export function DisbursedLoansView() {
                 </select>
               </div>
               <div>
-                <label className="block mb-1 text-slate-500">Método</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Método</label>
                 <select
                   value={simMethod}
                   onChange={(e) => setSimMethod(e.target.value as AmortizationMethod)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="axy-input w-full px-2.5 py-2 text-slate-900 dark:text-white"
                 >
                   <option value="SALDO_INSOLUTO">Saldo Insoluto</option>
                   <option value="INTERES_FIJO">Interés Fijo</option>
                 </select>
               </div>
               <div>
-                <label className="block mb-1 text-slate-500">Fecha Desembolso</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Fecha Desembolso</label>
                 <input
                   type="date"
                   value={simDisbDate}
                   onChange={(e) => setSimDisbDate(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block mb-1 text-slate-500">Primer Vencimiento</label>
+                <label className="block mb-1 text-slate-500 dark:text-slate-400">Primer Vencimiento</label>
                 <input
                   type="date"
                   value={simFirstDate}
                   onChange={(e) => setSimFirstDate(e.target.value)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                  className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block mb-1 text-slate-500">Otros Cargos por Cuota (Opcional)</label>
+              <label className="block mb-1 text-slate-500 dark:text-slate-400">Otros Cargos por Cuota (Opcional)</label>
               <input
                 type="number"
                 min={0}
                 step="0.01"
                 value={simOtherCharges}
                 onChange={(e) => setSimOtherCharges(e.target.value)}
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                className="axy-input w-full px-2.5 py-2 font-mono text-slate-900 dark:text-white"
               />
             </div>
 
@@ -613,7 +613,7 @@ export function DisbursedLoansView() {
             <button
               type="submit"
               disabled={simLoading}
-              className="w-full py-2.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+              className="axy-btn-primary w-full py-2.5 cursor-pointer disabled:opacity-50"
             >
               {simLoading ? 'Calculando...' : 'Calcular Tabla de Amortización'}
             </button>
@@ -623,55 +623,55 @@ export function DisbursedLoansView() {
             {simResult ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <p className="font-sans text-slate-500">Cuota Base</p>
-                    <p className="font-bold text-base tabular-nums mt-1">
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="font-sans text-slate-500 dark:text-slate-400">Cuota Base</p>
+                    <p className="font-bold text-base tabular-nums mt-1 text-[#0066FF] dark:text-[#00D1FF]">
                       {formatMoney(simResult.periodicInstallmentEstimate, simCurrency)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <p className="font-sans text-slate-500">Total Intereses</p>
-                    <p className="font-bold text-base tabular-nums mt-1">
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="font-sans text-slate-500 dark:text-slate-400">Total Intereses</p>
+                    <p className="font-bold text-base tabular-nums mt-1 text-slate-900 dark:text-white">
                       {formatMoney(simResult.totalInterestScheduled, simCurrency)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <p className="font-sans text-slate-500">Total a Pagar</p>
-                    <p className="font-bold text-base tabular-nums mt-1">
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="font-sans text-slate-500 dark:text-slate-400">Total a Pagar</p>
+                    <p className="font-bold text-base tabular-nums mt-1 text-slate-900 dark:text-white">
                       {formatMoney(simResult.totalContractualPayable, simCurrency)}
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    <p className="font-sans text-slate-500">Cuotas / Vence</p>
-                    <p className="font-bold text-sm mt-1">
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="font-sans text-slate-500 dark:text-slate-400">Cuotas / Vence</p>
+                    <p className="font-bold text-sm mt-1 text-slate-900 dark:text-white">
                       {simResult.rows.length} · {simResult.maturityDate}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                  <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-display font-semibold text-sm">Calendario Simulado</span>
+                <div className="axy-surface rounded-2xl overflow-hidden">
+                  <div className="px-5 py-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex items-center justify-between text-xs">
+                    <span className="font-display font-semibold text-sm text-slate-900 dark:text-white">Calendario Simulado</span>
                     <span className="text-emerald-700 dark:text-emerald-400">
                       Reconciliación exacta de capital: {simResult.isReconciled ? 'Verificada' : 'Pendiente'}
                     </span>
                   </div>
                   <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
-                        <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500">
-                          <th className="py-2 px-3">#</th>
-                          <th className="py-2 px-3">Vencimiento</th>
-                          <th className="py-2 px-3 text-right">Capital</th>
-                          <th className="py-2 px-3 text-right">Interés</th>
-                          <th className="py-2 px-3 text-right">Cargos</th>
-                          <th className="py-2 px-3 text-right">Total Cuota</th>
-                          <th className="py-2 px-3 text-right">Saldo Final</th>
+                      <thead className="axy-table-head sticky top-0 text-slate-500 dark:text-slate-400">
+                        <tr>
+                          <th className="py-2.5 px-3 font-semibold">#</th>
+                          <th className="py-2.5 px-3 font-semibold">Vencimiento</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Capital</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Interés</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Cargos</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Total Cuota</th>
+                          <th className="py-2.5 px-3 text-right font-semibold">Saldo Final</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono tabular-nums">
+                      <tbody className="font-mono tabular-nums">
                         {simResult.rows.map((r) => (
-                          <tr key={r.installmentNumber}>
+                          <tr key={r.installmentNumber} className="axy-table-row">
                             <td className="py-2 px-3 font-semibold">{r.installmentNumber}</td>
                             <td className="py-2 px-3">{r.dueDate}</td>
                             <td className="py-2 px-3 text-right">{r.principalAmount.toFixed(2)}</td>
@@ -687,7 +687,7 @@ export function DisbursedLoansView() {
                 </div>
               </>
             ) : (
-              <div className="p-10 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
+              <div className="axy-surface p-10 rounded-2xl text-center text-xs text-slate-500">
                 Configure los parámetros del préstamo y presione <strong>Calcular Tabla de Amortización</strong> para generar el calendario real con conciliación exacta de la última cuota.
               </div>
             )}

@@ -284,11 +284,11 @@ export function BelaDashboardCard() {
   const { setBelaOpen, setActiveSection } = useAxyCore();
 
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/90 dark:border-[#00B8FF]/15 p-5 flex flex-col justify-between gap-4 shadow-xs w-full">
+    <section className="axy-surface-ai rounded-2xl p-5 flex flex-col justify-between gap-4 w-full">
       <div className="flex items-start gap-3.5">
         <BelaAvatar size="md" />
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-[#0066FF] dark:text-[#00B8FF]">Asistente Virtual Inteligente</p>
+          <p className="text-[11px] font-semibold text-[#0066FF] dark:text-[#00D1FF]">Asistente Virtual Inteligente</p>
           <h3 className="font-display text-base font-bold text-slate-950 dark:text-white">
             Bela
           </h3>
@@ -306,7 +306,7 @@ export function BelaDashboardCard() {
         <button
           type="button"
           onClick={() => setBelaOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold cursor-pointer transition-all shadow-[0_6px_16px_-4px_rgba(0,102,255,0.45)]"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl axy-btn-primary text-xs cursor-pointer"
         >
           <MessageSquare className="w-3.5 h-3.5" />
           <span>Conversar con Bela</span>
@@ -314,7 +314,7 @@ export function BelaDashboardCard() {
         <button
           type="button"
           onClick={() => setActiveSection('bela')}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-[#00B8FF]/20 hover:bg-slate-50 dark:hover:bg-[#0E1D40] text-xs font-medium text-slate-700 dark:text-slate-200 cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl axy-btn-secondary text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
         >
           <span>Vista completa</span>
           <ArrowRight className="w-3.5 h-3.5" />
@@ -329,12 +329,12 @@ export function BelaDedicatedView() {
 
   return (
     <div className="space-y-5">
-      <div className="relative overflow-hidden rounded-2xl bg-[#040C1E] text-white p-6 border border-[#00B8FF]/20 flex flex-wrap items-center justify-between gap-4">
-        <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-infinity-line" />
+      <div className="relative overflow-hidden rounded-2xl bg-[#040C1E] text-white p-6 border border-[#00B8FF]/22 flex flex-wrap items-center justify-between gap-4">
+        <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-ai-line" />
         <div className="flex items-center gap-4">
           <BelaAvatar size="lg" />
           <div>
-            <p className="text-xs font-medium text-[#00B8FF]">Asistente Virtual de Inteligencia</p>
+            <p className="text-xs font-medium text-[#00D1FF]">Asistente Virtual de Inteligencia</p>
             <h2 className="font-display text-xl font-bold text-white">
               Bela, tu asistente inteligente de Axy<span className="text-[#00B8FF]">Core</span>.
             </h2>
@@ -349,7 +349,7 @@ export function BelaDedicatedView() {
         </div>
       </div>
 
-      <div className="h-[580px] rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/90 dark:border-[#00B8FF]/15 overflow-hidden shadow-xs">
+      <div className="h-[580px] rounded-2xl axy-surface overflow-hidden">
         <BelaChatCore compact={false} />
       </div>
     </div>

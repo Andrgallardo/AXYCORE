@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, Bell, CheckCheck, Eye, Mail, Radio, RefreshCw, Search, ShieldAlert, UserCheck, X } from 'lucide-react';
+import { ArrowRight, Bell, CheckCheck, Cpu, Eye, Mail, Pencil, Radio, RefreshCw, Search, ShieldAlert, UserCheck, X } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { ApplicationDetailDrawer } from '../components/ApplicationDetailDrawer';
+import { ApplicationEditModal } from '../components/ApplicationEditModal';
 import { PreEvaluationValidationAlert } from '../components/PreEvaluationValidationAlert';
 import { EMAIL_EVENT_LABELS } from '../engine/emailTemplates';
 import {
@@ -10,6 +11,8 @@ import {
 } from '../engine/preEvaluationValidation';
 import {
   advanceApplicationToEvaluation,
+  canEditApplicationRecord,
+  reevaluateApplicationWithEngine,
   retryCustomerEmailNotification,
   validateApplicationPreEvaluationInFirestore,
 } from '../services/axycoreStore';
@@ -66,6 +69,8 @@ export function ApplicationsInboxView() {
   const [alternateAmountInput, setAlternateAmountInput] = useState<string>('');
   const [alternateNoteInput, setAlternateNoteInput] = useState<string>('');
   const [alternateModalError, setAlternateModalError] = useState<string | null>(null);
+  const [editingApp, setEditingApp] = useState<ApplicationRecord | null>(null);
+  const [reevaluatingAppId, setReevaluatingAppId] = useState<string | null>(null);
 
   const handleRevalidateAlert = async () => {
     if (!validationAlert || !userProfile) return;
@@ -153,13 +158,13 @@ export function ApplicationsInboxView() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar solicitud o cliente..."
-              className="pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+              className="axy-input pl-8 pr-3 py-1.5 text-slate-900 dark:text-white"
             />
           </div>
           <select
             value={prequalFilter}
             onChange={(e) => setPrequalFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Toda precalificación</option>
             {Object.entries(SCORING_STATUS_LABELS).map(([k, v]) => (
@@ -171,7 +176,7 @@ export function ApplicationsInboxView() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Todos los estados</option>
             {Object.entries(APPLICATION_STATUS_LABELS).map(([k, v]) => (
@@ -184,15 +189,15 @@ export function ApplicationsInboxView() {
       </div>
 
       {/* Sub-navigation: Solicitudes vs Notificaciones Email */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2 text-xs">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 dark:border-[#00B8FF]/14 pb-2.5 text-xs">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-[#08132B] border border-slate-200/80 dark:border-[#00B8FF]/16">
           <button
             type="button"
             onClick={() => setActiveTab('applications')}
-            className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
               activeTab === 'applications'
-                ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                ? 'bg-[#0066FF] text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             Solicitudes ({filtered.length})
@@ -200,10 +205,10 @@ export function ApplicationsInboxView() {
           <button
             type="button"
             onClick={() => setActiveTab('emails')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
               activeTab === 'emails'
-                ? 'bg-slate-900 dark:bg-sky-600 text-white'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                ? 'bg-[#0066FF] text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Mail className="w-3.5 h-3.5" />
@@ -211,37 +216,43 @@ export function ApplicationsInboxView() {
           </button>
         </div>
 
-        <span className="text-slate-500 dark:text-slate-400">
-          Cloud Functions v2 (`functions/src/index.ts`) · Relay SMTP servidor:{' '}
-          <strong className="text-slate-800 dark:text-slate-200">
-            {smtpConfigured ? 'Activo' : 'Cola Firestore activa (SMTP pendiente de credenciales)'}
-          </strong>
-        </span>
+        {activeTab === 'emails' && (
+          <span className="text-slate-500 dark:text-slate-400">
+            Envío automático por correo:{' '}
+            <strong className="text-slate-800 dark:text-slate-200">
+              {smtpConfigured ? 'Activo' : 'En cola institucional'}
+            </strong>
+          </span>
+        )}
       </div>
 
       {activeTab === 'applications' && (
         <>
 
       {rbac.isInternalStaff && (
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="space-y-0.5">
+        <div
+          className={`px-4 py-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 text-xs ${
+            inboxAlerts.length > 0
+              ? 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-700/35'
+              : 'bg-white dark:bg-[#08132B] border-slate-200/85 dark:border-[#00B8FF]/18'
+          }`}
+        >
+          <div className="space-y-0.5 min-w-0">
             <p className="font-semibold text-slate-900 dark:text-white">
               {inboxAlerts.length > 0
-                ? `${inboxAlerts.length} solicitudes requieren atención inmediata (${unreadAlertCount} sin leer)`
-                : 'Alertas en tiempo real y Push Web (FCM) para el equipo de crédito'}
+                ? `${inboxAlerts.length} solicitudes requieren atención prioritaria (${unreadAlertCount} sin leer)`
+                : 'Alertas operativas en tiempo real activas'}
             </p>
             <p className="text-slate-500 dark:text-slate-400">
               {fcmStatus === 'active'
-                ? `Push Web FCM activo (${fcmActiveDevicesCount} dispositivo(s) vinculado(s)). Los nuevos expedientes en Inbox notifican en primer y segundo plano.`
-                : fcmStatus === 'vapid_missing'
-                ? 'Alertas en vivo vía Firestore activas. Configura VITE_FIREBASE_VAPID_KEY para habilitar notificaciones Push Web FCM en segundo plano.'
+                ? `Notificaciones en segundo plano activas en ${fcmActiveDevicesCount} dispositivo(s).`
                 : fcmStatus === 'error'
-                ? fcmError || 'No se pudo completar el registro Push Web FCM.'
-                : 'Expedientes recién recibidos, devueltos o pendientes de Comité se notifican automáticamente al llegar a Firestore.'}
+                ? fcmError || 'No se pudo activar el envío de notificaciones en este dispositivo.'
+                : 'Los expedientes recibidos, devueltos o pendientes de Comité aparecen automáticamente en bandeja.'}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {inboxAlerts.length > 0 && (
               <button
                 type="button"
@@ -249,7 +260,7 @@ export function ApplicationsInboxView() {
                 className={`px-3 py-1.5 rounded-lg border font-medium whitespace-nowrap cursor-pointer ${
                   onlyUrgent
                     ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    : 'border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6'
                 }`}
               >
                 {onlyUrgent ? 'Mostrar todas' : `Ver urgentes (${inboxAlerts.length})`}
@@ -259,7 +270,7 @@ export function ApplicationsInboxView() {
               <button
                 type="button"
                 onClick={acknowledgeAllAlerts}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium whitespace-nowrap cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6 font-medium whitespace-nowrap cursor-pointer"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 Marcar todo leído
@@ -269,10 +280,10 @@ export function ApplicationsInboxView() {
               <button
                 type="button"
                 onClick={requestDesktopNotifications}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-medium whitespace-nowrap cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0052CC] hover:bg-[#0044AD] text-white font-medium whitespace-nowrap cursor-pointer"
               >
                 <Bell className="w-3.5 h-3.5" />
-                Activar Notificaciones de Escritorio
+                Activar avisos de escritorio
               </button>
             )}
             {fcmStatus === 'active' ? (
@@ -282,7 +293,7 @@ export function ApplicationsInboxView() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 font-medium whitespace-nowrap cursor-pointer"
               >
                 <Radio className="w-3.5 h-3.5" />
-                Push FCM Activo (Desactivar)
+                Notificaciones activas
               </button>
             ) : (
               fcmStatus !== 'unsupported' &&
@@ -294,7 +305,7 @@ export function ApplicationsInboxView() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg axy-brand-gradient text-white font-medium whitespace-nowrap cursor-pointer disabled:opacity-50"
                 >
                   <Radio className="w-3.5 h-3.5" />
-                  {fcmStatus === 'registering' ? 'Registrando FCM...' : 'Activar Push Web (FCM)'}
+                  {fcmStatus === 'registering' ? 'Activando…' : 'Activar notificaciones push'}
                 </button>
               )
             )}
@@ -339,11 +350,11 @@ export function ApplicationsInboxView() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] rounded-2xl overflow-hidden">
+      <div className="axy-surface rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-200/80 dark:border-white/[0.08] bg-slate-50/90 dark:bg-white/[0.03] text-slate-600 dark:text-slate-300">
+              <tr className="axy-table-head text-slate-600 dark:text-slate-300">
                 <th className="py-2.5 px-3 font-semibold whitespace-nowrap">N.º Solicitud</th>
                 <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Cliente</th>
                 <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Tipo Préstamo</th>
@@ -362,7 +373,7 @@ export function ApplicationsInboxView() {
                 <th className="py-2.5 px-3 font-semibold text-right whitespace-nowrap">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody className="divide-y divide-slate-200/80 dark:divide-[#00B8FF]/12">
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={16} className="py-10 text-center text-slate-500">
@@ -380,7 +391,7 @@ export function ApplicationsInboxView() {
                   return (
                     <tr
                       key={app.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                      className="axy-table-row"
                     >
                       <td className="py-2.5 px-3 font-mono font-medium whitespace-nowrap">
                         {app.applicationNumber}
@@ -415,7 +426,7 @@ export function ApplicationsInboxView() {
                         <span
                           className={
                             app.prequalificationStatus === 'PREOFERTA'
-                              ? 'text-sky-700 dark:text-sky-400 font-medium'
+                              ? 'text-[#0066FF] dark:text-[#00D1FF] font-semibold'
                               : 'text-amber-700 dark:text-amber-400 font-medium'
                           }
                         >
@@ -446,11 +457,65 @@ export function ApplicationsInboxView() {
                           <button
                             type="button"
                             onClick={() => setSelectedApplicationId(app.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium cursor-pointer"
+                            className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-slate-700 dark:text-slate-200 cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                             Ver Solicitud
                           </button>
+                          {canEditApplicationRecord(app.status, userProfile?.role) && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setEditingApp(app)}
+                                className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-[#0052CC] dark:text-[#00D1FF] font-semibold cursor-pointer"
+                                title="Actualizar datos de la solicitud y reevaluar con Motor V2"
+                              >
+                                <Pencil className="w-3 h-3" />
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={reevaluatingAppId === app.id || !userProfile}
+                                onClick={async () => {
+                                  if (!userProfile) return;
+                                  const cust = customers.find((c) => c.id === app.customerId) ?? null;
+                                  setReevaluatingAppId(app.id);
+                                  setRouteFeedback(null);
+                                  try {
+                                    const res = await reevaluateApplicationWithEngine({
+                                      application: app,
+                                      customer: cust,
+                                      policy: activeOrTestPolicy,
+                                      user: userProfile,
+                                    });
+                                    setRouteFeedback({
+                                      type: 'ok',
+                                      msg: `${app.applicationNumber} reevaluada por Motor V2: Score ${
+                                        res.previousScore !== null ? `${res.previousScore} → ` : ''
+                                      }${res.newScoring.totalScore}/100 (${
+                                        SCORING_STATUS_LABELS[res.newScoring.status]
+                                      } · Monto rec.: ${formatMoney(res.newScoring.recommendedAmount, app.currency)}).`,
+                                    });
+                                  } catch (err) {
+                                    setRouteFeedback({
+                                      type: 'err',
+                                      msg: formatUserFacingError(
+                                        err,
+                                        'No se pudo reevaluar la solicitud con el Motor de Decisiones.'
+                                      ),
+                                    });
+                                  } finally {
+                                    setReevaluatingAppId(null);
+                                  }
+                                }}
+                                className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-slate-700 dark:text-slate-200 cursor-pointer disabled:opacity-50"
+                                title="Reevaluar solicitud nuevamente con Motor V2"
+                              >
+                                <Cpu className={`w-3 h-3 ${reevaluatingAppId === app.id ? 'animate-spin' : ''}`} />
+                                {reevaluatingAppId === app.id ? 'Evaluando...' : 'Reevaluar'}
+                              </button>
+                            </>
+                          )}
                           {app.status === 'RECIBIDA' &&
                             rbac.isInternalStaff &&
                             !rbac.isReadOnlyAuditor &&
@@ -574,7 +639,7 @@ export function ApplicationsInboxView() {
 
       {activeTab === 'emails' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="axy-surface p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="space-y-0.5">
               <p className="font-semibold text-slate-900 dark:text-white">
                 Registro Automático de Emails por Cambio de Estado (Cloud Functions + Outbox)
@@ -586,7 +651,7 @@ export function ApplicationsInboxView() {
             <select
               value={emailEventFilter}
               onChange={(e) => setEmailEventFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+              className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
             >
               <option value="ALL">Todos los eventos</option>
               {Object.entries(EMAIL_EVENT_LABELS).map(([k, v]) => (
@@ -598,16 +663,16 @@ export function ApplicationsInboxView() {
           </div>
 
           {emailFeedback && (
-            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-700 dark:text-slate-200">
+            <div className="axy-surface-tonal p-3 rounded-xl text-xs text-slate-700 dark:text-slate-200">
               {emailFeedback}
             </div>
           )}
 
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="axy-surface rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
+                  <tr className="axy-table-head text-slate-600 dark:text-slate-300">
                     <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Solicitud</th>
                     <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Cliente</th>
                     <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Correo Destino</th>
@@ -618,7 +683,7 @@ export function ApplicationsInboxView() {
                     <th className="py-2.5 px-3 font-semibold text-right whitespace-nowrap">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-200/80 dark:divide-[#00B8FF]/12">
                   {sortedEmails.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-10 text-center text-slate-500">
@@ -644,7 +709,7 @@ export function ApplicationsInboxView() {
                           ? 'text-rose-700 dark:text-rose-400 font-semibold'
                           : 'text-amber-700 dark:text-amber-400 font-semibold';
                       return (
-                        <tr key={em.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <tr key={em.id} className="axy-table-row">
                           <td className="py-2.5 px-3 font-mono font-medium whitespace-nowrap">
                             {em.applicationNumber}
                           </td>
@@ -667,7 +732,7 @@ export function ApplicationsInboxView() {
                               <button
                                 type="button"
                                 onClick={() => setPreviewEmail(em)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-slate-700 dark:text-slate-200 cursor-pointer"
                               >
                                 <Eye className="w-3 h-3" />
                                 Vista previa
@@ -697,7 +762,7 @@ export function ApplicationsInboxView() {
                                         setRetryingId(null);
                                       }
                                     }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-700 hover:bg-sky-800 text-white cursor-pointer disabled:opacity-50"
+                                    className="axy-btn-primary inline-flex items-center gap-1 px-2.5 py-1 cursor-pointer disabled:opacity-50"
                                   >
                                     <RefreshCw className="w-3 h-3" />
                                     {retryingId === em.id ? 'Enviando...' : 'Reintentar'}
@@ -718,15 +783,15 @@ export function ApplicationsInboxView() {
 
       {previewEmail && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-[2px] flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[#030816]/65 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setPreviewEmail(null)}
         >
           <div
-            className="axy-panel-in relative w-full max-w-2xl bg-white dark:bg-[#08132B] rounded-2xl border border-slate-200 dark:border-[#00B8FF]/20 overflow-hidden shadow-2xl"
+            className="axy-panel-in axy-surface relative w-full max-w-2xl rounded-2xl border border-[var(--axy-border-strong)] overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="axy-infinity-line" />
-            <div className="px-5 py-3.5 border-b border-slate-200/80 dark:border-white/[0.08] flex items-center justify-between gap-4">
+            <div className="px-5 py-3.5 border-b border-[var(--axy-border)] flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <p className="font-semibold text-sm text-slate-900 dark:text-white truncate">
                   {previewEmail.subject}
@@ -738,18 +803,18 @@ export function ApplicationsInboxView() {
               <button
                 type="button"
                 onClick={() => setPreviewEmail(null)}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 cursor-pointer"
+                className="axy-btn-secondary p-1.5 text-slate-500 cursor-pointer"
                 aria-label="Cerrar vista previa"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-5 max-h-[70vh] overflow-y-auto bg-slate-50 dark:bg-slate-950">
+            <div className="p-5 max-h-[70vh] overflow-y-auto bg-[var(--axy-surface-tonal)]">
               <iframe
                 title="Vista previa del email"
                 sandbox=""
                 srcDoc={previewEmail.bodyHtml}
-                className="w-full h-[380px] rounded-xl border border-slate-200 dark:border-slate-800 bg-white"
+                className="w-full h-[380px] rounded-xl border border-[var(--axy-border)] bg-white"
               />
             </div>
           </div>
@@ -758,15 +823,15 @@ export function ApplicationsInboxView() {
 
       {alternateModalApp && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[2px] flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[#030816]/65 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setAlternateModalApp(null)}
         >
           <div
-            className="axy-panel-in relative w-full max-w-lg bg-white dark:bg-[#08132B] rounded-2xl border border-slate-200 dark:border-[#00B8FF]/25 overflow-hidden shadow-2xl"
+            className="axy-panel-in axy-surface relative w-full max-w-lg rounded-2xl border border-[var(--axy-border-strong)] overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="axy-infinity-line" />
-            <div className="px-5 py-4 border-b border-slate-200/80 dark:border-white/[0.08] flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-[var(--axy-border)] flex items-center justify-between">
               <div>
                 <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
                   Autorizar Evaluación con Otro Monto
@@ -778,7 +843,7 @@ export function ApplicationsInboxView() {
               <button
                 type="button"
                 onClick={() => setAlternateModalApp(null)}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 cursor-pointer"
+                className="axy-btn-secondary p-1.5 text-slate-500 cursor-pointer"
                 aria-label="Cerrar autorización"
               >
                 <X className="w-4 h-4" />
@@ -804,7 +869,7 @@ export function ApplicationsInboxView() {
                   min={1}
                   value={alternateAmountInput}
                   onChange={(e) => setAlternateAmountInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono text-sm font-semibold"
+                  className="axy-input w-full px-3 py-2 font-mono text-sm font-semibold text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -817,7 +882,7 @@ export function ApplicationsInboxView() {
                   value={alternateNoteInput}
                   onChange={(e) => setAlternateNoteInput(e.target.value)}
                   placeholder="Ej. Autorizado evaluar contrapropuesta ajustada a capacidad de pago..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                  className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -834,7 +899,7 @@ export function ApplicationsInboxView() {
                     setAlternateModalError(null);
                     setAlternateModalApp(null);
                   }}
-                  className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 font-medium cursor-pointer"
+                  className="axy-btn-secondary px-3.5 py-2 text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -914,6 +979,30 @@ export function ApplicationsInboxView() {
             </div>
           </div>
         </div>
+      )}
+
+      {editingApp && (
+        <ApplicationEditModal
+          application={editingApp}
+          onClose={() => setEditingApp(null)}
+          onSaved={(res) => {
+            setRouteFeedback({
+              type: 'ok',
+              msg: res.newScoring
+                ? `${res.application.applicationNumber} actualizada (${
+                    res.changedFields.join(', ') || 'confirmada'
+                  }) y reevaluada por Motor V2: Score ${
+                    res.previousScore !== null ? `${res.previousScore} → ` : ''
+                  }${res.newScoring.totalScore}/100 (${SCORING_STATUS_LABELS[res.newScoring.status]} · Rec.: ${formatMoney(
+                    res.newScoring.recommendedAmount,
+                    res.application.currency
+                  )}).`
+                : `${res.application.applicationNumber} actualizada correctamente (${
+                    res.changedFields.join(', ') || 'sin cambios estructurales'
+                  }).`,
+            });
+          }}
+        />
       )}
 
       <ApplicationDetailDrawer

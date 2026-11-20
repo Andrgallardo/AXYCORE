@@ -1268,6 +1268,9 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
               const explicitlyDisabledAltera =
                 typeof window !== 'undefined' &&
                 window.localStorage.getItem(`axycore_altera_disabled_${orgDocId}`) === 'true';
+              const explicitlyDisabledRegula =
+                typeof window !== 'undefined' &&
+                window.localStorage.getItem(`axycore_regula_disabled_${orgDocId}`) === 'true';
               const hasAccountingOrFinance =
                 currentModules.includes('contabilidad') || currentModules.includes('finanzas');
               const isEligibleTenant =
@@ -1280,6 +1283,12 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
                 raw.planCode === 'CORPORATIVO' ||
                 raw.planCode === 'EMPRESARIAL' ||
                 currentModules.includes('motor_decisiones');
+              const isEligibleRegula =
+                orgDocId === DEFAULT_ORG_ID ||
+                raw.planCode === 'CORPORATIVO' ||
+                raw.planCode === 'EMPRESARIAL' ||
+                currentModules.includes('clientes') ||
+                currentModules.length > 0;
               const shouldAutoIncludeEcf =
                 !explicitlyDisabled &&
                 isEligibleTenant &&
@@ -1290,7 +1299,11 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
                 !explicitlyDisabledAltera &&
                 isEligibleAltera &&
                 !currentModules.includes('altera');
-              if (!shouldAutoIncludeEcf && !shouldAutoIncludeAltera) {
+              const shouldAutoIncludeRegula =
+                !explicitlyDisabledRegula &&
+                isEligibleRegula &&
+                !currentModules.includes('regula');
+              if (!shouldAutoIncludeEcf && !shouldAutoIncludeAltera && !shouldAutoIncludeRegula) {
                 return {
                   ...raw,
                   enabledModules: currentModules,
@@ -1304,6 +1317,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
                     : (['facturacion_electronica'] as AxyCoreModuleCode[])
                   : []),
                 ...(shouldAutoIncludeAltera ? (['altera'] as AxyCoreModuleCode[]) : []),
+                ...(shouldAutoIncludeRegula ? (['regula'] as AxyCoreModuleCode[]) : []),
               ];
               const upgradedModules = Array.from(
                 new Set([...currentModules, ...extraModules])
@@ -1361,7 +1375,29 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     unsubs.push(
       onSnapshot(
         licQuery,
-        (snap) => setTenantLicenses(snap.docs.map((d) => d.data() as TenantLicenseRecord)),
+        (snap) =>
+          setTenantLicenses(
+            snap.docs.map((d) => {
+              const lic = d.data() as TenantLicenseRecord;
+              const licOrgId = lic.organizationId || DEFAULT_ORG_ID;
+              const disabledRegula =
+                typeof window !== 'undefined' &&
+                window.localStorage.getItem(`axycore_regula_disabled_${licOrgId}`) === 'true';
+              const licModules = Array.isArray(lic.enabledModules) ? lic.enabledModules : [];
+              const eligible =
+                licOrgId === DEFAULT_ORG_ID ||
+                lic.planCode === 'CORPORATIVO' ||
+                lic.planCode === 'EMPRESARIAL' ||
+                licModules.includes('clientes');
+              if (!disabledRegula && eligible && !licModules.includes('regula')) {
+                return {
+                  ...lic,
+                  enabledModules: [...licModules, 'regula'],
+                };
+              }
+              return lic;
+            })
+          ),
         () => {}
       )
     );

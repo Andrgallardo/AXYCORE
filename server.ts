@@ -18,6 +18,13 @@ import {
   runAxyCoreDirectorAnalysis,
   runBelaAssistantTurn,
 } from './server/geminiAssistant';
+import {
+  runRegulaAiAssistant,
+  runRegulaDocumentEvaluation,
+  runRegulaGapDiagnosis,
+  runRegulaNormativeAnalysis,
+  runRegulaReportDraft,
+} from './server/regulaAi';
 import { checkTenantApiAccess } from './src/engine/multiTenantEngine';
 import * as webpush from 'web-push';
 import {
@@ -749,7 +756,7 @@ async function startServer() {
     res.json({
       configured,
       model: 'gemini-4-hydrogen',
-      features: ['director', 'bela', 'ocr', 'biometrics'],
+      features: ['director', 'bela', 'ocr', 'biometrics', 'regula'],
     });
   });
 
@@ -1787,6 +1794,157 @@ async function startServer() {
         ok: false,
         error: err instanceof Error ? err.message : 'No se pudo consultar el estatus oficial de servicios DGII.',
       });
+    }
+  });
+
+  // =========================================================================
+  // AxyCore REGULA — Server-Side AI & Honest External Integrations Status
+  // =========================================================================
+  const assertRegulaServerAccess = (req: express.Request, res: express.Response): boolean => {
+    const { organization, actorRole } = req.body ?? {};
+    if (actorRole === 'EXTERNAL_CLIENT') {
+      res.status(403).json({ error: 'Acceso denegado: clientes externos no pueden operar en AxyCore REGULA.' });
+      return false;
+    }
+    if (organization) {
+      const apiAccess = checkTenantApiAccess({ apiPath: '/api/regula', organization });
+      if (!apiAccess.allowed) {
+        res.status(403).json({ error: apiAccess.reason });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleRegulaAiError = (res: express.Response, err: unknown, fallbackMsg: string) => {
+    const msg = err instanceof Error ? err.message : fallbackMsg;
+    const status = msg.includes('GEMINI_API_KEY no está configurada')
+      ? 503
+      : msg.includes('Límite temporal')
+      ? 429
+      : msg.includes('tiempo máximo')
+      ? 504
+      : 502;
+    console.error('REGULA AI Error:', err);
+    res.status(status).json({ error: msg });
+  };
+
+  app.get('/api/regula/integrations-status', (_req, res) => {
+    const geminiKey = process.env.GEMINI_API_KEY?.trim();
+    const regulaAiConfigured = Boolean(geminiKey && geminiKey !== 'MY_GEMINI_API_KEY');
+    const smtpConfigured = Boolean(
+      process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim()
+    );
+    const whatsappConfigured = Boolean(
+      process.env.WHATSAPP_CLOUD_API_TOKEN?.trim() && process.env.WHATSAPP_PHONE_NUMBER_ID?.trim()
+    );
+    const regulatoryFeedConfigured = Boolean(process.env.REGULA_OFFICIAL_FEED_URL?.trim());
+    const sanctionsApiConfigured = Boolean(process.env.REGULA_SANCTIONS_API_URL?.trim());
+    res.json({
+      regulaAiConfigured,
+      model: 'gemini-4-hydrogen',
+      smtpConfigured,
+      whatsappConfigured,
+      regulatoryFeedConfigured,
+      sanctionsApiConfigured,
+      regulatoryFeedNote: regulatoryFeedConfigured
+        ? 'Fuente regulatoria configurada mediante variable de entorno.'
+        : 'Requiere configuración de endpoint/credencial autorizada (REGULA_OFFICIAL_FEED_URL). No se simulan conexiones externas.',
+      sanctionsApiNote: sanctionsApiConfigured
+        ? 'Proveedor externo de listas restrictivas configurado.'
+        : 'Requiere integración con proveedor autorizado (OFAC/ONU/listas locales vía REGULA_SANCTIONS_API_URL).',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.post('/api/regula/ai/assistant', async (req, res) => {
+    if (!assertRegulaServerAccess(req, res)) return;
+    try {
+      const { question, regulaContext, actorId } = req.body ?? {};
+      if (!question || typeof question !== 'string' || !question.trim()) {
+        res.status(400).json({ error: 'Escribe una consulta válida para REGULA AI.' });
+        return;
+      }
+      const result = await runRegulaAiAssistant({
+        question: question.trim(),
+        regulaContext: typeof regulaContext === 'object' && regulaContext ? regulaContext : {},
+        actorId: typeof actorId === 'string' ? actorId : undefined,
+      });
+      res.json(result);
+    } catch (err) {
+      handleRegulaAiError(res, err, 'Error consultando al asistente REGULA AI.');
+    }
+  });
+
+  app.post('/api/regula/ai/normative-analysis', async (req, res) => {
+    if (!assertRegulaServerAccess(req, res)) return;
+    try {
+      const { normativeTitle, regulator, normativeText, institutionProfile, actorId } = req.body ?? {};
+      if (!normativeText || typeof normativeText !== 'string' || normativeText.trim().length < 20) {
+        res.status(400).json({ error: 'Proporciona el texto normativo completo o extracto (mínimo 20 caracteres).' });
+        return;
+      }
+      const result = await runRegulaNormativeAnalysis({
+        normativeTitle: String(normativeTitle || 'Normativa sin título'),
+        regulator: String(regulator || 'Ente Regulador'),
+        normativeText: normativeText.trim(),
+        institutionProfile: typeof institutionProfile === 'object' ? institutionProfile : undefined,
+        actorId: typeof actorId === 'string' ? actorId : undefined,
+      });
+      res.json(result);
+    } catch (err) {
+      handleRegulaAiError(res, err, 'Error ejecutando análisis normativo con REGULA AI.');
+    }
+  });
+
+  app.post('/api/regula/ai/gap-diagnosis', async (req, res) => {
+    if (!assertRegulaServerAccess(req, res)) return;
+    try {
+      const { focusArea, regulaContext, actorId } = req.body ?? {};
+      const result = await runRegulaGapDiagnosis({
+        focusArea: typeof focusArea === 'string' ? focusArea : undefined,
+        regulaContext: typeof regulaContext === 'object' && regulaContext ? regulaContext : {},
+        actorId: typeof actorId === 'string' ? actorId : undefined,
+      });
+      res.json(result);
+    } catch (err) {
+      handleRegulaAiError(res, err, 'Error ejecutando diagnóstico de brechas con REGULA AI.');
+    }
+  });
+
+  app.post('/api/regula/ai/document-evaluation', async (req, res) => {
+    if (!assertRegulaServerAccess(req, res)) return;
+    try {
+      const { documentTitle, documentType, documentText, actorId } = req.body ?? {};
+      if (!documentText || typeof documentText !== 'string' || documentText.trim().length < 20) {
+        res.status(400).json({ error: 'Proporciona el texto del documento a evaluar (mínimo 20 caracteres).' });
+        return;
+      }
+      const result = await runRegulaDocumentEvaluation({
+        documentTitle: String(documentTitle || 'Documento institucional'),
+        documentType: String(documentType || 'POLITICA'),
+        documentText: documentText.trim(),
+        actorId: typeof actorId === 'string' ? actorId : undefined,
+      });
+      res.json(result);
+    } catch (err) {
+      handleRegulaAiError(res, err, 'Error evaluando documento con REGULA AI.');
+    }
+  });
+
+  app.post('/api/regula/ai/generate-report', async (req, res) => {
+    if (!assertRegulaServerAccess(req, res)) return;
+    try {
+      const { reportType, audience, regulaContext, actorId } = req.body ?? {};
+      const result = await runRegulaReportDraft({
+        reportType: String(reportType || 'Informe Ejecutivo de Cumplimiento y Riesgos'),
+        audience: String(audience || 'Dirección General / Comité'),
+        regulaContext: typeof regulaContext === 'object' && regulaContext ? regulaContext : {},
+        actorId: typeof actorId === 'string' ? actorId : undefined,
+      });
+      res.json(result);
+    } catch (err) {
+      handleRegulaAiError(res, err, 'Error generando borrador de informe con REGULA AI.');
     }
   });
 

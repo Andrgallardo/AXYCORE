@@ -500,16 +500,16 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-slate-950/55 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex justify-end bg-[#030816]/65 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
-        className="axy-drawer-in relative w-full max-w-4xl bg-white dark:bg-[#08132B] h-full overflow-y-auto border-l border-slate-200/90 dark:border-[#00B8FF]/20 shadow-2xl flex flex-col"
+        className="axy-drawer-in axy-surface relative w-full max-w-4xl h-full overflow-y-auto border-l border-[var(--axy-border-strong)] shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="axy-infinity-line shrink-0" />
         {/* Top Bar */}
-        <div className="sticky top-0 z-20 bg-white/90 dark:bg-[#08132B]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-[#00B8FF]/15 px-6 py-4 flex items-start justify-between gap-4">
+        <div className="sticky top-0 z-20 bg-[var(--axy-surface)]/95 backdrop-blur-md border-b border-[var(--axy-border)] px-6 py-4 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs font-mono text-[#0066FF] dark:text-[#00D1FF]">
               <span>FICHA 360°</span>
@@ -531,7 +531,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 cursor-pointer"
+            className="axy-btn-secondary p-2 text-slate-500 cursor-pointer"
             aria-label="Cerrar Ficha 360"
           >
             <X className="w-4 h-4" />
@@ -539,7 +539,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
         </div>
 
         {/* Summary KPI Strip */}
-        <div className="px-6 py-4 bg-slate-50/90 dark:bg-white/[0.025] border-b border-slate-200/80 dark:border-white/[0.08] grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+        <div className="px-6 py-4 bg-[var(--axy-surface-tonal)] border-b border-[var(--axy-border)] grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
           <div>
             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Saldo Capital</p>
             <p className="font-mono tabular-nums font-bold text-sm text-slate-950 dark:text-white mt-0.5">
@@ -566,14 +566,14 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
           </div>
           <div>
             <p className="text-slate-500 dark:text-slate-400">Comportamiento / V2</p>
-            <p className="font-mono tabular-nums font-bold text-sm text-sky-700 dark:text-sky-400">
+            <p className="font-mono tabular-nums font-bold text-sm text-[#0052CC] dark:text-[#00D1FF]">
               {account.behaviorScore} ({account.behaviorBand})
             </p>
           </div>
         </div>
 
         {/* Customer & Origination Context Banner */}
-        <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-white dark:bg-slate-900">
+        <div className="px-6 py-3 border-b border-[var(--axy-border)] grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-[var(--axy-surface)]">
           <div>
             <p className="text-slate-500">Contacto Maestro</p>
             <p className="font-medium">
@@ -602,7 +602,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-6 pt-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 text-xs">
+        <div className="px-6 pt-3 border-b border-[var(--axy-border)] flex flex-wrap gap-2 text-xs">
           {[
             { id: 'cuotas', label: `Cuotas (${insts.length})` },
             { id: 'gestiones', label: `Gestiones (${loanActions.length}) & Promesas (${loanPromises.length})` },
@@ -616,7 +616,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
               onClick={() => setTab(t.id as DrawerTab)}
               className={`px-3 py-2 font-semibold border-b-2 transition-colors cursor-pointer ${
                 tab === t.id
-                  ? 'border-sky-600 text-sky-700 dark:text-sky-400'
+                  ? 'border-[#0066FF] dark:border-[#00D1FF] text-[#0052CC] dark:text-[#00D1FF]'
                   : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
@@ -648,10 +648,10 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                   Mora política: {activeCollectionPolicy.lateFeeRateMonthlyPct}% mensual tras {activeCollectionPolicy.graceDays}d de gracia
                 </span>
               </div>
-              <div className="overflow-x-auto border border-slate-200/85 dark:border-white/[0.08] rounded-xl">
+              <div className="overflow-x-auto axy-surface-tonal rounded-xl">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-slate-50/90 dark:bg-white/[0.04] border-b border-slate-200/80 dark:border-white/[0.08] text-slate-500 dark:text-slate-400">
+                    <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                       <th className="py-2.5 px-3 font-semibold">#</th>
                       <th className="py-2.5 px-3 font-semibold">Vence</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Capital</th>
@@ -662,7 +662,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                       <th className="py-2.5 px-3 font-semibold">Estado</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200/70 dark:divide-white/[0.06] font-mono tabular-nums">
+                  <tbody className="font-mono tabular-nums">
                     {(liveEval?.updatedInstallments ?? insts).map((inst) => {
                       const rem = computeInstallmentRemaining(inst);
                       const paidSum =
@@ -671,7 +671,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                         (inst.paidOtherCharges ?? 0) +
                         (inst.paidLateFee ?? 0);
                       return (
-                        <tr key={inst.id} className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02] transition-colors">
+                        <tr key={inst.id} className="axy-table-row">
                           <td className="py-2 px-3">{inst.installmentNumber}</td>
                           <td className="py-2 px-3">{inst.dueDate}</td>
                           <td className="py-2 px-3 text-right">{formatMoney(inst.principalAmount, loan.currency)}</td>
@@ -707,11 +707,11 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
               {rbac.hasPermission('LOG_COLLECTION_ACTIONS') && (
                 <form
                   onSubmit={handleLogAction}
-                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-3"
+                  className="axy-surface-tonal p-4 rounded-xl space-y-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="font-display text-sm font-bold flex items-center gap-1.5">
-                      <PhoneCall className="w-4 h-4 text-sky-600" />
+                      <PhoneCall className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                       Registrar Gestión de Cobranza
                     </h4>
                     {contactGuard && (
@@ -732,7 +732,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                       <select
                         value={actionChannel}
                         onChange={(e) => setActionChannel(e.target.value as CollectionChannel)}
-                        className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                        className="axy-input w-full px-2.5 py-2"
                       >
                         <option value="LLAMADA">Llamada</option>
                         <option value="WHATSAPP">WhatsApp</option>
@@ -747,7 +747,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                       <select
                         value={contactResult}
                         onChange={(e) => setContactResult(e.target.value as CollectionContactResult)}
-                        className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                        className="axy-input w-full px-2.5 py-2"
                       >
                         <option value="CONTACTO_EFECTIVO_PROMESA">Contacto efectivo con promesa</option>
                         <option value="CONTACTO_SIN_ACUERDO">Contacto sin acuerdo</option>
@@ -764,7 +764,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                         type="date"
                         value={nextActionDate}
                         onChange={(e) => setNextActionDate(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono"
+                        className="axy-input w-full px-2.5 py-2 font-mono"
                       />
                     </div>
                   </div>
@@ -777,7 +777,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                       value={actionNotes}
                       onChange={(e) => setActionNotes(e.target.value)}
                       placeholder="Detalle objetivo de la gestión..."
-                      className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                      className="axy-input w-full px-2.5 py-2"
                     />
                   </div>
 
@@ -799,7 +799,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           step="0.01"
                           value={promisedAmount}
                           onChange={(e) => setPromisedAmount(e.target.value)}
-                          className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono"
+                          className="axy-input w-full px-2.5 py-2 font-mono"
                         />
                       </div>
                       <div>
@@ -808,7 +808,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           type="date"
                           value={promisedDate}
                           onChange={(e) => setPromisedDate(e.target.value)}
-                          className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono"
+                          className="axy-input w-full px-2.5 py-2 font-mono"
                         />
                       </div>
                     </div>
@@ -818,7 +818,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                     <button
                       type="submit"
                       disabled={busy || (contactGuard ? !contactGuard.allowed : false)}
-                      className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                      className="axy-btn-primary px-4 py-2 cursor-pointer disabled:opacity-50"
                     >
                       {busy ? 'Guardando...' : 'Registrar Gestión Cerrada'}
                     </button>
@@ -828,16 +828,16 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
 
               {/* Promises & Agreements */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2">
+                <div className="axy-surface rounded-xl p-4 space-y-2">
                   <h4 className="font-display text-sm font-bold flex items-center gap-1.5">
-                    <Handshake className="w-4 h-4 text-sky-600" />
+                    <Handshake className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                     Promesas de Pago ({loanPromises.length})
                   </h4>
                   {loanPromises.length === 0 ? (
                     <p className="text-slate-500">Sin promesas registradas.</p>
                   ) : (
                     loanPromises.map((p) => (
-                      <div key={p.id} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <div key={p.id} className="axy-surface-tonal p-2.5 rounded-lg">
                         <div className="flex justify-between font-semibold">
                           <span className="font-mono">{formatMoney(p.promisedAmount, p.currency)}</span>
                           <span>{p.status}</span>
@@ -848,7 +848,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                   )}
                 </div>
 
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2">
+                <div className="axy-surface rounded-xl p-4 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="font-display text-sm font-bold">Acuerdos y Reestructuraciones ({loanAgreements.length})</h4>
                     {loan.status !== 'CANCELADO' &&
@@ -869,7 +869,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                     <p className="text-slate-500">Sin acuerdos especiales registrados.</p>
                   ) : (
                     loanAgreements.map((agr) => (
-                      <div key={agr.id} className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                      <div key={agr.id} className="axy-surface-tonal p-2.5 rounded-lg">
                         <div className="flex justify-between font-semibold">
                           <span>{agr.agreementType} · Vence {agr.firstDueDate}</span>
                           <span>{agr.status}</span>
@@ -894,13 +894,13 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                 {loanActions.map((act) => (
                   <div
                     key={act.id}
-                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5"
+                    className="axy-surface p-3 rounded-xl space-y-1.5"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-semibold">
                         {act.channel} · {act.contactResult}
                         {act.correctsActionId && (
-                          <span className="ml-2 text-sky-700 dark:text-sky-400">
+                          <span className="ml-2 text-[#0052CC] dark:text-[#00D1FF]">
                             (Corrige {act.correctsActionId})
                           </span>
                         )}
@@ -919,38 +919,38 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                             setCorrectingActionId(act.id);
                             setCorrectedNotes(act.notes);
                           }}
-                          className="text-sky-700 dark:text-sky-400 font-semibold hover:underline cursor-pointer"
+                          className="text-[#0052CC] dark:text-[#00D1FF] font-semibold hover:underline cursor-pointer"
                         >
                           Registrar corrección vinculada
                         </button>
                       )}
                     </div>
                     {correctingActionId === act.id && (
-                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                      <div className="pt-2 border-t border-[var(--axy-border)] space-y-2">
                         <input
                           value={correctionReason}
                           onChange={(e) => setCorrectionReason(e.target.value)}
                           placeholder="Motivo obligatorio de corrección..."
-                          className="w-full px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                          className="axy-input w-full px-2.5 py-1.5"
                         />
                         <textarea
                           rows={2}
                           value={correctedNotes}
                           onChange={(e) => setCorrectedNotes(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                          className="axy-input w-full px-2.5 py-1.5"
                         />
                         <div className="flex gap-2 justify-end">
                           <button
                             type="button"
                             onClick={() => setCorrectingActionId(null)}
-                            className="px-3 py-1 rounded border border-slate-200 dark:border-slate-700 cursor-pointer"
+                            className="axy-btn-secondary px-3 py-1 cursor-pointer"
                           >
                             Cancelar
                           </button>
                           <button
                             type="button"
                             onClick={() => handleCorrectAction(act.id)}
-                            className="px-3 py-1 rounded bg-sky-700 text-white font-semibold cursor-pointer"
+                            className="axy-btn-primary px-3 py-1 cursor-pointer"
                           >
                             Guardar Corrección
                           </button>
@@ -969,10 +969,10 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                 loan.status !== 'CANCELADO' && (
                   <form
                     onSubmit={handleReportPayment}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-3"
+                    className="axy-surface-tonal p-4 rounded-xl space-y-3"
                   >
                     <h4 className="font-display text-sm font-bold flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-sky-600" />
+                      <CreditCard className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                       Reportar Pago / Comprobante (Pendiente de Verificación en Finanzas)
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -984,7 +984,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           required
                           value={payAmount}
                           onChange={(e) => setPayAmount(e.target.value)}
-                          className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono"
+                          className="axy-input w-full px-2.5 py-2 font-mono"
                         />
                       </div>
                       <div>
@@ -994,7 +994,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           required
                           value={payDate}
                           onChange={(e) => setPayDate(e.target.value)}
-                          className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono"
+                          className="axy-input w-full px-2.5 py-2 font-mono"
                         />
                       </div>
                       <div>
@@ -1002,7 +1002,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                         <select
                           value={payMethod}
                           onChange={(e) => setPayMethod(e.target.value as PaymentChannelMethod)}
-                          className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                          className="axy-input w-full px-2.5 py-2"
                         >
                           <option value="TRANSFERENCIA">Transferencia</option>
                           <option value="DEPOSITO">Depósito</option>
@@ -1016,7 +1016,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                         <input
                           value={payBank}
                           onChange={(e) => setPayBank(e.target.value)}
-                          className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                          className="axy-input w-full px-2.5 py-2"
                         />
                       </div>
                       <div>
@@ -1026,13 +1026,13 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           value={payRef}
                           onChange={(e) => setPayRef(e.target.value)}
                           placeholder="Ej. REF-998811"
-                          className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono"
+                          className="axy-input w-full px-2.5 py-2 font-mono"
                         />
                       </div>
                       <div>
                         <label className="block mb-1 text-slate-500">Comprobante (Opcional · Imagen/PDF)</label>
-                        <label className="inline-flex items-center justify-center gap-1.5 w-full px-2.5 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-sky-500 cursor-pointer font-medium">
-                          <Upload className="w-3.5 h-3.5 text-sky-600" />
+                        <label className="inline-flex items-center justify-center gap-1.5 w-full px-2.5 py-2 rounded-xl border border-dashed border-[var(--axy-border-strong)] bg-[var(--axy-surface)] hover:border-[#0066FF] dark:hover:border-[#00D1FF] cursor-pointer font-medium transition-colors">
+                          <Upload className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00D1FF]" />
                           <span className="truncate">
                             {payEvidenceFile
                               ? `${payEvidenceFile.fileName} (${formatEvidenceFileSize(payEvidenceFile.sizeBytes)})`
@@ -1057,7 +1057,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                       <button
                         type="submit"
                         disabled={busy}
-                        className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold shrink-0 cursor-pointer disabled:opacity-50"
+                        className="axy-btn-primary px-4 py-2 shrink-0 cursor-pointer disabled:opacity-50"
                       >
                         Registrar Pago
                       </button>
@@ -1077,7 +1077,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                   return (
                     <div
                       key={pay.id}
-                      className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2"
+                      className="axy-surface p-3.5 rounded-xl space-y-2"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="font-mono font-bold">
@@ -1103,13 +1103,13 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           <button
                             type="button"
                             onClick={() => setPreviewPayment(pay)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 font-semibold cursor-pointer"
+                            className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-[#0052CC] dark:text-[#00D1FF] font-semibold cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>Ver Comprobante</span>
                           </button>
                         ) : isPending ? (
-                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium cursor-pointer">
+                          <label className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 font-medium cursor-pointer">
                             <Upload className="w-3.5 h-3.5" />
                             <span>{isUploading ? 'Subiendo…' : 'Subir Comprobante'}</span>
                             <input
@@ -1125,7 +1125,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           <button
                             type="button"
                             onClick={() => downloadReceiptPdf(receipt)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-semibold cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-semibold cursor-pointer"
                           >
                             <Download className="w-3.5 h-3.5" />
                             Recibo Oficial ({receipt.receiptNumber})
@@ -1138,7 +1138,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                               onClose();
                               setActiveSection('accounting_payment_validation');
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer"
                           >
                             Ir a Contabilidad (Validar)
                           </button>
@@ -1147,7 +1147,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           <button
                             type="button"
                             onClick={() => setReversingPayId(pay.id)}
-                            className="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 dark:text-amber-300 font-semibold cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl border border-amber-300 text-amber-800 dark:text-amber-300 font-semibold cursor-pointer"
                           >
                             Ejecutar Reverso Autorizado
                           </button>
@@ -1155,12 +1155,12 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                       </div>
 
                       {reversingPayId === pay.id && userProfile && (
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap gap-2">
+                        <div className="pt-2 border-t border-[var(--axy-border)] flex flex-wrap gap-2">
                           <input
                             value={reversalReason}
                             onChange={(e) => setReversalReason(e.target.value)}
                             placeholder="Justificación obligatoria del reverso..."
-                            className="flex-1 min-w-[200px] px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                            className="axy-input flex-1 min-w-[200px] px-2.5 py-1.5"
                           />
                           <button
                             type="button"
@@ -1206,10 +1206,10 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
 
           {tab === 'bot_alertas' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="axy-surface p-4 rounded-xl flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h4 className="font-display text-sm font-bold flex items-center gap-1.5">
-                    <MessageSquare className="w-4 h-4 text-sky-600" />
+                    <MessageSquare className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                     Consentimiento WhatsApp / Mensajería Automatizada
                   </h4>
                   <p className="text-slate-500">
@@ -1232,7 +1232,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                       });
                       setBusy(false);
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer"
+                    className="axy-btn-secondary px-3 py-1.5 font-semibold cursor-pointer"
                   >
                     {account.consentWhatsAppOptIn ? 'Registrar Opt-Out (Baja)' : 'Reactivar Opt-In'}
                   </button>
@@ -1242,7 +1242,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
               {/* Open Dispute Form */}
               <form
                 onSubmit={handleOpenDispute}
-                className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-3"
+                className="axy-surface-tonal p-4 rounded-xl space-y-3"
               >
                 <h4 className="font-display text-sm font-bold flex items-center gap-1.5">
                   <ShieldAlert className="w-4 h-4 text-amber-600" />
@@ -1252,7 +1252,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                   <select
                     value={disputeType}
                     onChange={(e) => setDisputeType(e.target.value as DisputeType)}
-                    className="px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    className="axy-input px-2.5 py-2"
                   >
                     <option value="PAGO_NO_REFLEJADO">Pago no reflejado</option>
                     <option value="COBRO_INDEBIDO">Cobro indebido / mora cuestionada</option>
@@ -1275,12 +1275,12 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                   value={disputeDesc}
                   onChange={(e) => setDisputeDesc(e.target.value)}
                   placeholder="Descripción de la reclamación..."
-                  className="w-full px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                  className="axy-input w-full px-2.5 py-2"
                 />
                 <button
                   type="submit"
                   disabled={busy}
-                  className="px-4 py-2 rounded-lg bg-amber-700 text-white font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-semibold cursor-pointer"
                 >
                   Abrir Reclamación
                 </button>
@@ -1290,7 +1290,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                 <div className="space-y-2">
                   <h4 className="font-display text-sm font-bold">Reclamaciones del Préstamo</h4>
                   {loanDisputes.map((d) => (
-                    <div key={d.id} className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div key={d.id} className="axy-surface p-3 rounded-xl space-y-2">
                       <div className="flex justify-between font-semibold">
                         <span>{d.disputeType}</span>
                         <span>{d.status}</span>
@@ -1310,7 +1310,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                                   user: userProfile,
                                 })
                               }
-                              className="px-3 py-1 rounded bg-emerald-700 text-white font-semibold cursor-pointer"
+                              className="px-3 py-1 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                             >
                               Resolver a Favor Cliente
                             </button>
@@ -1324,7 +1324,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                                   user: userProfile,
                                 })
                               }
-                              className="px-3 py-1 rounded border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold cursor-pointer"
+                              className="axy-btn-secondary px-3 py-1 font-semibold cursor-pointer"
                             >
                               Cerrar Improcedente
                             </button>
@@ -1342,7 +1342,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                     Alertas Centinela ({loanAlerts.length})
                   </h4>
                   {loanAlerts.map((a) => (
-                    <div key={a.id} className="p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div key={a.id} className="axy-surface p-3 rounded-xl">
                       <div className="flex justify-between font-semibold">
                         <span>{a.title}</span>
                         <span>{a.severity} · {a.status}</span>
@@ -1356,10 +1356,10 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
           )}
 
           {tab === 'cierre' && closureCheck && (
-            <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="axy-surface p-5 rounded-xl space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-display text-sm font-bold flex items-center gap-2">
-                  <Award className="w-4 h-4 text-sky-600" />
+                  <Award className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
                   Cierre y Cancelación Formal de Préstamo
                 </h3>
                 <span className="font-mono font-bold">{loan.status}</span>
@@ -1374,7 +1374,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                   <button
                     type="button"
                     onClick={downloadClosureCertificatePdf}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-700 text-white font-semibold cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
                   >
                     <Download className="w-4 h-4" />
                     Descargar Certificado de Cancelación (PDF)
@@ -1429,7 +1429,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           setBusy(false);
                         }
                       }}
-                      className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-semibold cursor-pointer disabled:opacity-50"
+                      className="axy-btn-primary px-4 py-2 cursor-pointer disabled:opacity-50"
                     >
                       Ejecutar Cierre Formal y Emitir Certificado
                     </button>

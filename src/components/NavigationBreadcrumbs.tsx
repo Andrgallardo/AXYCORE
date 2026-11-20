@@ -124,13 +124,13 @@ export function NavigationBreadcrumbs({
                     onClick={() => handleNavigate(sib.sectionId)}
                     className={`w-full px-3 py-1.5 text-left flex items-center justify-between gap-2 whitespace-nowrap cursor-pointer transition-colors ${
                       isActiveSibling
-                        ? 'bg-sky-50 dark:bg-[#0066FF]/20 text-sky-800 dark:text-[#00D1FF] font-semibold'
+                        ? 'bg-[#0066FF]/10 dark:bg-[#0066FF]/20 text-[#0052CC] dark:text-[#00D1FF] font-semibold'
                         : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06]'
                     }`}
                   >
                     <span className="truncate">{sib.label}</span>
                     {isActiveSibling && (
-                      <span className="text-[10px] font-mono text-sky-600 dark:text-[#00D1FF] shrink-0">
+                      <span className="text-[10px] font-mono text-[#0066FF] dark:text-[#00D1FF] shrink-0">
                         Actual
                       </span>
                     )}
@@ -149,7 +149,7 @@ export function NavigationBreadcrumbs({
           <button
             type="button"
             onClick={() => handleNavigate(segment.targetSection)}
-            className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-sky-700 dark:hover:text-[#00D1FF] hover:underline underline-offset-2 transition-colors whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-[#0066FF] dark:hover:text-[#00D1FF] hover:underline underline-offset-2 transition-colors whitespace-nowrap cursor-pointer"
           >
             {segment.isHome && <Home className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
             <span>{segment.label}</span>
@@ -193,13 +193,13 @@ export function NavigationBreadcrumbs({
                   onClick={() => handleNavigate(sib.sectionId)}
                   className={`w-full px-3 py-1.5 text-left flex items-center justify-between gap-2 whitespace-nowrap cursor-pointer transition-colors ${
                     isActiveSibling
-                      ? 'bg-sky-50 dark:bg-[#0066FF]/20 text-sky-800 dark:text-[#00D1FF] font-semibold'
+                      ? 'bg-[#0066FF]/10 dark:bg-[#0066FF]/20 text-[#0052CC] dark:text-[#00D1FF] font-semibold'
                       : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06]'
                   }`}
                 >
                   <span className="truncate">{sib.label}</span>
                   {isActiveSibling && (
-                    <span className="text-[10px] font-mono text-sky-600 dark:text-[#00D1FF] shrink-0">
+                    <span className="text-[10px] font-mono text-[#0066FF] dark:text-[#00D1FF] shrink-0">
                       Actual
                     </span>
                   )}

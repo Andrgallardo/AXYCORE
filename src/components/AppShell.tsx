@@ -52,6 +52,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  Network,
   Package,
   Radar,
   Receipt,
@@ -247,13 +248,15 @@ const SIDEBAR_GROUPS: NavGroupDefinition[] = [
   },
   {
     key: 'inteligencia',
-    title: 'INTELIGENCIA',
+    title: 'INTELIGENCIA Y CONTROL INSTITUCIONAL',
     items: [
       { id: 'director', label: 'AxyCore Director', icon: BrainCircuit },
       { id: 'intelligence_dashboard', label: 'Inteligencia de Motor', icon: Cpu },
+      { id: 'intelligence_altera', label: 'Altera', icon: Compass },
       { id: 'cobranza_sentinel', label: 'Centinela', icon: Radar },
       { id: 'cobranza_anticipate', label: 'Anticípate', icon: TrendingUp },
-      { id: 'intelligence_altera', label: 'Altera', icon: Compass },
+      { id: 'regula', label: 'REGULA', icon: ShieldCheck },
+      { id: 'system_sitemap', label: 'Mapa del Sistema', icon: Network },
       { id: 'intelligence_impulsa', label: 'Impulsa', icon: Activity, comingSoon: true },
     ],
   },
@@ -316,8 +319,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     logout,
     externalPortalMode,
     setExternalPortalMode,
-    activeOrTestPolicy,
-    activeCollectionPolicy,
     unreadAlertCount,
     customers,
     businesses,
@@ -356,25 +357,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     inicio: true,
-    prestamos: true,
-    clientes: true,
-    cartera: true,
-    contact_center: true,
-    operaciones: true,
-    reportes: true,
-    inteligencia: true,
-    administracion: true,
+    prestamos: false,
+    clientes: false,
+    cartera: false,
+    contact_center: false,
+    operaciones: false,
+    reportes: false,
+    inteligencia: false,
+    administracion: false,
   });
   const [showAllSecondary, setShowAllSecondary] = useState<Record<string, boolean>>({
     prestamos: false,
     cartera: false,
   });
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({
-    policies: true,
-    customers: true,
-    accounting: true,
-    ecf_dashboard: true,
-    cobranza_actions: true,
+    policies: false,
+    customers: false,
+    accounting: false,
+    ecf_dashboard: false,
+    cobranza_actions: false,
   });
 
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -390,7 +391,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isExternalClient = rbac.role === 'EXTERNAL_CLIENT';
   const canOriginate = rbac.hasPermission('ORIGINATE_APPLICATION');
-  const isCobranzaActive = activeSection.startsWith('cobranza_');
+
+  // Auto-expand the sidebar group (and any ancestor submenus) containing the active section
+  useEffect(() => {
+    const targetGroup = SIDEBAR_GROUPS.find((g) =>
+      g.items.some((item) => item.id === activeSection)
+    );
+    if (!targetGroup) return;
+    setOpenGroups((prev) => (prev[targetGroup.key] ? prev : { ...prev, [targetGroup.key]: true }));
+
+    const activeItem = targetGroup.items.find((i) => i.id === activeSection);
+    if (activeItem?.subItemOf) {
+      const ancestors: NavSectionId[] = [];
+      let cursor: NavSectionId | undefined = activeItem.subItemOf;
+      let guard = 0;
+      while (cursor && guard < 4) {
+        ancestors.push(cursor);
+        cursor = targetGroup.items.find((i) => i.id === cursor)?.subItemOf;
+        guard += 1;
+      }
+      if (ancestors.length > 0) {
+        setOpenSubMenus((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          for (const anc of ancestors) {
+            if (!next[anc]) {
+              next[anc] = true;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      }
+    }
+  }, [activeSection]);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -882,7 +916,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     .join('');
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC] dark:bg-[#030816] text-slate-950 dark:text-slate-100 flex">
+    <div className="min-h-screen bg-[#F5F7FB] dark:bg-[#030816] text-slate-950 dark:text-slate-100 flex">
       {/* Mobile Sidebar Overlay */}
       {mobileOpen && (
         <div
@@ -893,13 +927,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Dark Technological Left Sidebar (#040C1E) */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-[#040C1E] text-slate-200 border-r border-[#00B8FF]/14 flex flex-col transition-all duration-200 ${
-          collapsed ? 'w-[74px]' : 'w-68'
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-[#040C1E] text-slate-200 border-r border-[#00B8FF]/12 flex flex-col transition-[width,transform] duration-200 ${
+          collapsed ? 'w-[72px]' : 'w-68'
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         <div aria-hidden="true" className="h-[2px] w-full axy-infinity-line shrink-0" />
         {/* Top Logo Header */}
-        <div className="h-16 px-4 flex items-center justify-between border-b border-[#00B8FF]/12 shrink-0">
+        <div className={`h-16 ${collapsed ? 'px-2.5 justify-center' : 'px-4 justify-between'} flex items-center border-b border-white/[0.06] shrink-0`}>
           <button
             type="button"
             onClick={() => handleSelectNav('dashboard')}
@@ -976,60 +1010,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
 
             {isSuperAdmin && (
-              <div className="pt-1 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                    Acceso Global (3 Portales)
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => void switchPortalMode('axycore_admin')}
-                    title="Administración de AxyCore (Platform Control SaaS)"
-                    className={`px-1.5 py-1.5 rounded-lg text-[10px] font-semibold transition cursor-pointer text-center truncate ${
-                      portalMode === 'axycore_admin' && activeSection === 'platform_control'
-                        ? 'axy-brand-gradient text-white shadow-[0_4px_12px_-4px_rgba(0,102,255,0.55)]'
-                        : 'bg-[#040C1E] hover:bg-[#0066FF]/20 text-[#E2B35E] border border-[#E2B35E]/25'
-                    }`}
-                  >
-                    Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void switchPortalMode('corporate', organization.id || 'org_axycore_main')}
-                    title="Portal Corporativo — Su Gloria Mano Amiga"
-                    className={`px-1.5 py-1.5 rounded-lg text-[10px] font-semibold transition cursor-pointer text-center truncate ${
-                      portalMode === 'corporate' || (portalMode !== 'client' && activeSection !== 'platform_control')
-                        ? 'axy-brand-gradient text-white shadow-[0_4px_12px_-4px_rgba(0,102,255,0.55)]'
-                        : 'bg-[#040C1E] hover:bg-[#0066FF]/20 text-[#00D1FF] border border-[#00B8FF]/25'
-                    }`}
-                  >
-                    Corporativo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void switchPortalMode('client')}
-                    title="Portal de Clientes"
-                    className={`px-1.5 py-1.5 rounded-lg text-[10px] font-semibold transition cursor-pointer text-center truncate ${
-                      portalMode === 'client'
-                        ? 'axy-brand-gradient text-white'
-                        : 'bg-[#040C1E] hover:bg-emerald-500/20 text-emerald-300 border border-emerald-400/25'
-                    }`}
-                  >
-                    Clientes
-                  </button>
-                </div>
+              <div className="grid grid-cols-3 gap-1 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => void switchPortalMode('axycore_admin')}
+                  title="Administración de AxyCore (Platform Control SaaS)"
+                  className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold transition cursor-pointer text-center truncate ${
+                    portalMode === 'axycore_admin' && activeSection === 'platform_control'
+                      ? 'axy-brand-gradient text-white'
+                      : 'bg-[#040C1E] hover:bg-[#0066FF]/20 text-[#E2B35E] border border-[#E2B35E]/25'
+                  }`}
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void switchPortalMode('corporate', organization.id || 'org_axycore_main')}
+                  title="Portal Corporativo"
+                  className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold transition cursor-pointer text-center truncate ${
+                    portalMode === 'corporate' || (portalMode !== 'client' && activeSection !== 'platform_control')
+                      ? 'axy-brand-gradient text-white'
+                      : 'bg-[#040C1E] hover:bg-[#0066FF]/20 text-[#00D1FF] border border-[#00B8FF]/25'
+                  }`}
+                >
+                  Corporativo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void switchPortalMode('client')}
+                  title="Portal de Clientes"
+                  className={`px-1.5 py-1 rounded-lg text-[10px] font-semibold transition cursor-pointer text-center truncate ${
+                    portalMode === 'client'
+                      ? 'axy-brand-gradient text-white'
+                      : 'bg-[#040C1E] hover:bg-emerald-500/20 text-emerald-300 border border-emerald-400/25'
+                  }`}
+                >
+                  Clientes
+                </button>
               </div>
             )}
 
-            {isPlatformAdminPortal && (
+            {isPlatformAdminPortal && !isSuperAdmin && (
               <button
                 type="button"
                 onClick={() => void switchPortalMode('axycore_admin')}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
                   activeSection === 'platform_control'
-                    ? 'axy-brand-gradient text-white shadow-[0_4px_14px_-4px_rgba(0,102,255,0.55)]'
+                    ? 'axy-brand-gradient text-white'
                     : 'bg-[#0066FF]/15 hover:bg-[#0066FF]/25 text-[#00D1FF] border border-[#00B8FF]/25'
                 }`}
               >
@@ -1044,13 +1071,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Navigation Groups */}
-        <nav className="flex-1 overflow-y-auto py-3.5 px-2.5 space-y-4">
+        <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-2.5">
           {visibleGroups.map((group) => {
-            const isOpen = openGroups[group.key] ?? true;
+            const isOpen = openGroups[group.key] ?? false;
             const showSecondary = showAllSecondary[group.key] ?? false;
             const primaryItems = group.items.filter((i) => !i.secondary);
             const secondaryItems = group.items.filter((i) => i.secondary);
             const hasActiveInSecondary = secondaryItems.some((i) => i.id === activeSection);
+            const hasActiveInGroup = group.items.some((i) => i.id === activeSection);
+            const groupBadgeTotal = group.items.reduce(
+              (sum, it) => sum + getBadgeCount(it.id),
+              0
+            );
             const displayedItems =
               collapsed || showSecondary || hasActiveInSecondary
                 ? group.items
@@ -1064,14 +1096,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     onClick={() =>
                       setOpenGroups((prev) => ({ ...prev, [group.key]: !isOpen }))
                     }
-                    className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400 hover:text-white cursor-pointer"
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[0.08em] transition-colors cursor-pointer ${
+                      hasActiveInGroup
+                        ? 'text-[#00D1FF]'
+                        : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                    }`}
                   >
-                    <span>{group.title}</span>
-                    {isOpen ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                    )}
+                    <span className="truncate">{group.title}</span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      {!isOpen && groupBadgeTotal > 0 && (
+                        <span className="font-mono tabular-nums text-[10px] font-bold text-[#00D1FF]">
+                          {groupBadgeTotal}
+                        </span>
+                      )}
+                      {isOpen ? (
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                      )}
+                    </span>
                   </button>
                 )}
 
@@ -1145,14 +1188,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                   ? `${item.label}${item.comingSoon ? ' (Próximamente)' : ''}`
                                   : undefined
                               }
-                              className={`group flex-1 min-w-0 flex items-center gap-2.5 px-3 ${
-                                isSubItem ? 'py-1.5 text-[12px]' : 'py-2 text-[13px]'
-                              } rounded-xl font-medium transition-all cursor-pointer ${
+                              className={`group relative flex-1 min-w-0 flex items-center ${
+                                collapsed ? 'justify-center px-0 py-2.5' : `gap-2.5 px-3 ${isSubItem ? 'py-1.5 text-[12px]' : 'py-2 text-[13px]'}`
+                              } rounded-xl font-medium transition-colors duration-150 cursor-pointer ${
                                 active
-                                  ? 'axy-brand-gradient text-white font-semibold shadow-[0_6px_18px_-4px_rgba(0,102,255,0.55)]'
-                                  : 'text-slate-300 hover:bg-[#0066FF]/12 hover:text-white'
+                                  ? 'bg-[#0066FF] text-white font-semibold shadow-[0_4px_14px_-4px_rgba(0,102,255,0.6)]'
+                                  : 'text-slate-300/90 hover:bg-white/[0.06] hover:text-white'
                               }`}
                             >
+                              {active && !collapsed && (
+                                <span
+                                  aria-hidden="true"
+                                  className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#00D1FF]"
+                                />
+                              )}
                               <Icon
                                 className={`${
                                   isSubItem ? 'w-3.5 h-3.5' : 'w-4 h-4'
@@ -1318,98 +1367,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            <div className="hidden 2xl:flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mr-1">
-              {isCobranzaActive ? (
-                <>
-                  <span className="font-mono">{activeCollectionPolicy.version}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{activeCollectionPolicy.imputationOrder.join(' › ')}</span>
-                </>
-              ) : (
-                <>
-                  <span className="font-mono">{activeOrTestPolicy.version}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{activeOrTestPolicy.status}</span>
-                </>
-              )}
-            </div>
-
+          <div className="flex items-center gap-2 shrink-0">
             {/* Global Search Trigger */}
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-slate-200/90 dark:border-[#00B8FF]/20 bg-slate-50/90 dark:bg-[#08132B] text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-[#0066FF]/40 dark:hover:border-[#00B8FF]/45 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-[#00B8FF]/20 bg-slate-50/90 dark:bg-[#08132B] text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-[#0066FF]/40 dark:hover:border-[#00B8FF]/45 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
               title="Búsqueda global de clientes, documentos, préstamos, solicitudes, pagos y módulos (Ctrl+K)"
             >
               <Search className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00B8FF]" />
-              <span className="hidden sm:inline">Buscar cliente, préstamo, pago…</span>
-              <kbd className="hidden md:inline-flex font-mono text-[10px] text-slate-400 dark:text-slate-500 items-center gap-0.5 pl-1 border-l border-slate-200 dark:border-white/10">
+              <span className="hidden sm:inline">Buscar en AxyCore…</span>
+              <kbd className="hidden md:inline-flex font-mono text-[10px] text-slate-400 dark:text-slate-500 items-center gap-0.5 pl-1.5 border-l border-slate-200 dark:border-white/10">
                 <Command className="w-2.5 h-2.5" />K
               </kbd>
             </button>
 
-            {/* Comité Pendiente Quick Trigger */}
-            {pendingCommitteeCount > 0 && rbac.canAccessSection('committee') && (
-              <button
-                type="button"
-                onClick={() =>
-                  triggerOpenNotificationCenter({
-                    category: 'CREDITO',
-                    alertType: 'COMITE_PENDIENTE',
-                  })
-                }
-                className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[#0066FF]/45 bg-[#040C1E] hover:border-[#00B8FF] text-slate-100 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 transition-all shadow-[0_0_16px_-4px_rgba(0,102,255,0.45)]"
-                title="Comité pendiente · Abrir en NotificationCenter"
-              >
-                <Gavel className="w-3.5 h-3.5 text-[#00B8FF]" />
-                <span>Comité:</span>
-                <span className="font-mono tabular-nums font-bold text-[#00D1FF]">
-                  {pendingCommitteeCount}
-                </span>
-              </button>
-            )}
-
-            {/* Promesa Incumplida Quick Trigger */}
-            {brokenPromisesCount > 0 && rbac.canAccessSection('cobranza_promises') && (
-              <button
-                type="button"
-                onClick={() =>
-                  triggerOpenNotificationCenter({
-                    category: 'COBRANZA',
-                    alertType: 'PROMESA_INCUMPLIDA',
-                  })
-                }
-                className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[#E2B35E]/40 bg-[#040C1E] hover:border-[#E2B35E] text-slate-100 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 transition-all"
-                title="Promesa incumplida · Abrir en NotificationCenter"
-              >
-                <Handshake className="w-3.5 h-3.5 text-[#E2B35E]" />
-                <span>Promesas:</span>
-                <span className="font-mono tabular-nums font-bold text-[#E2B35E]">
-                  {brokenPromisesCount}
-                </span>
-              </button>
-            )}
-
-            {/* Sentinel Active Alerts Indicator */}
-            {activeAlertsCount > 0 && rbac.canAccessSection('cobranza_sentinel') && (
-              <button
-                type="button"
-                onClick={() =>
-                  triggerOpenNotificationCenter({
-                    category: 'RIESGO',
-                    alertType: 'ALERTA_CENTINELA',
-                  })
-                }
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[#00B8FF]/40 bg-[#040C1E] hover:border-[#00D1FF] text-slate-100 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 transition-all"
-                title="Alertas Centinela activas · Abrir en NotificationCenter"
-              >
-                <AlertTriangle className="w-3.5 h-3.5 text-[#00D1FF]" />
-                <span className="font-mono tabular-nums font-bold text-[#00D1FF]">
-                  {activeAlertsCount}
-                </span>
-              </button>
-            )}
+            {/* Unified Calm Attention Indicator (consolidates Comité, Promesas & Centinela) */}
+            {(() => {
+              const committeeCount = rbac.canAccessSection('committee') ? pendingCommitteeCount : 0;
+              const promisesCount = rbac.canAccessSection('cobranza_promises') ? brokenPromisesCount : 0;
+              const sentinelCount = rbac.canAccessSection('cobranza_sentinel') ? activeAlertsCount : 0;
+              const attentionTotal = committeeCount + promisesCount + sentinelCount;
+              if (attentionTotal === 0) return null;
+              const parts: string[] = [];
+              if (committeeCount > 0) parts.push(`Comité: ${committeeCount}`);
+              if (promisesCount > 0) parts.push(`Promesas: ${promisesCount}`);
+              if (sentinelCount > 0) parts.push(`Centinela: ${sentinelCount}`);
+              return (
+                <button
+                  type="button"
+                  onClick={() => triggerOpenNotificationCenter()}
+                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-amber-300/70 dark:border-[#E2B35E]/35 bg-amber-50/80 dark:bg-[#E2B35E]/10 hover:bg-amber-100/80 dark:hover:bg-[#E2B35E]/15 text-amber-800 dark:text-[#E2B35E] text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                  title={parts.join(' · ')}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Atención</span>
+                  <span className="font-mono tabular-nums font-bold">{attentionTotal}</span>
+                </button>
+              );
+            })()}
 
             {/* NotificationCenter in Dashboard Top Bar (Firestore notifications collection) */}
             <NotificationCenter />
@@ -1489,6 +1485,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       >
                         <BookOpen className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00B8FF]" />
                         <span>Guía de AxyCore</span>
+                      </button>
+                    )}
+
+                    {rbac.canAccessSection('system_sitemap') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          setActiveSection('system_sitemap');
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-left flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-white/[0.05] text-slate-700 dark:text-slate-200 cursor-pointer"
+                      >
+                        <Network className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00B8FF]" />
+                        <span>Mapa del Sistema</span>
                       </button>
                     )}
 
@@ -1636,22 +1646,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto">
+          <div key={activeSection} className="axy-view-enter">
+            {children}
+          </div>
+        </main>
       </div>
 
       {/* Global Search Command Palette (⌘K / Ctrl+K) */}
       {paletteOpen && (
         <div
-          className="fixed inset-0 z-50 bg-[#030816]/65 backdrop-blur-xs flex items-start justify-center pt-[10vh] p-4"
+          className="fixed inset-0 z-50 bg-[#030816]/70 backdrop-blur-xs flex items-start justify-center pt-[10vh] p-4"
           onClick={() => setPaletteOpen(false)}
         >
           <div
-            className="axy-panel-in w-full max-w-2xl bg-white dark:bg-[#08132B] border border-slate-200 dark:border-[#00B8FF]/25 rounded-2xl shadow-2xl overflow-hidden"
+            className="axy-panel-in w-full max-w-2xl bg-white/96 dark:bg-[#07122B]/96 backdrop-blur-xl border border-slate-200/90 dark:border-[#00B8FF]/22 rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-label="Búsqueda global de AxyCore"
           >
-            <div className="px-4 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex items-center gap-3">
+            <div aria-hidden="true" className="h-[2px] w-full axy-ai-line" />
+            <div className="px-4 py-3.5 border-b border-slate-200/80 dark:border-[#00B8FF]/14 flex items-center gap-3">
               <Search className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF] shrink-0" />
               <input
                 ref={paletteInputRef}
@@ -1697,8 +1712,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       onClick={res.onSelect}
                       className={`w-full px-4 py-2.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
                         selected
-                          ? 'bg-sky-50/90 dark:bg-sky-500/15'
-                          : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]'
+                          ? 'bg-[#0066FF]/10 dark:bg-[#0066FF]/20'
+                          : 'hover:bg-slate-50 dark:hover:bg-white/[0.04]'
                       }`}
                     >
                       <div className="min-w-0">

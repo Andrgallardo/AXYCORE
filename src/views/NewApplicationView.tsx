@@ -672,14 +672,14 @@ export function NewApplicationView() {
     const { app, scoring, mode, docWarnings } = resultModal;
     const isPortalClient = externalPortalMode || userProfile?.role === 'EXTERNAL_CLIENT';
     return (
-      <div className="max-w-3xl mx-auto p-6 sm:p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6">
+      <div className="axy-surface axy-panel-in max-w-3xl mx-auto p-6 sm:p-8 rounded-2xl space-y-6">
         <div className="flex items-center gap-3 text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="w-7 h-7" />
           <div>
             <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white">
               {mode === 'DRAFT' ? 'Borrador guardado correctamente' : 'Solicitud registrada y evaluada por Motor V2'}
             </h2>
-            <p className="text-xs text-slate-500 font-mono">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
               {app.applicationNumber} · {app.fileNumber} · Canal {app.channel}
             </p>
           </div>
@@ -692,27 +692,27 @@ export function NewApplicationView() {
         )}
 
         {scoring && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+          <div className="axy-surface-tonal grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl">
             <div>
-              <p className="text-xs text-slate-500">Score Interno V2</p>
-              <p className="text-2xl font-bold font-mono tabular-nums">{scoring.totalScore}/100</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Score Interno V2</p>
+              <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-white">{scoring.totalScore}/100</p>
               <p className="text-xs text-slate-600 dark:text-slate-300">{scoring.riskBand.label}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Precalificación</p>
-              <p className="text-sm font-semibold text-sky-700 dark:text-sky-400 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Precalificación</p>
+              <p className="text-sm font-semibold text-[#0066FF] dark:text-[#00D1FF] mt-1">
                 {SCORING_STATUS_LABELS[scoring.status]}
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Monto Recomendado</p>
-              <p className="text-lg font-bold font-mono tabular-nums">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Monto Recomendado</p>
+              <p className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">
                 {formatMoney(scoring.recommendedAmount, app.currency)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Tasa y Cuota Est.</p>
-              <p className="text-sm font-mono tabular-nums font-semibold">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tasa y Cuota Est.</p>
+              <p className="text-sm font-mono tabular-nums font-semibold text-slate-900 dark:text-white">
                 {formatRatePct(scoring.recommendedRateMonthly)} / mes
               </p>
               <p className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300">
@@ -735,7 +735,7 @@ export function NewApplicationView() {
               onClick={() => {
                 setActiveSection('loans');
               }}
-              className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-sm font-medium cursor-pointer"
+              className="axy-btn-primary px-4 py-2 text-sm cursor-pointer"
             >
               Volver al Portal de Clientes
             </button>
@@ -746,7 +746,7 @@ export function NewApplicationView() {
                 setSelectedApplicationId(app.id);
                 setActiveSection('applications');
               }}
-              className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-sm font-medium cursor-pointer"
+              className="axy-btn-primary px-4 py-2 text-sm cursor-pointer"
             >
               Ver en Solicitudes Recibidas
             </button>
@@ -757,7 +757,7 @@ export function NewApplicationView() {
               setResultModal(null);
               setStep(1);
             }}
-            className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium cursor-pointer"
+            className="axy-btn-secondary px-4 py-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"
           >
             Crear otra solicitud
           </button>
@@ -778,12 +778,12 @@ export function NewApplicationView() {
           </p>
         </div>
         {userProfile?.role !== 'EXTERNAL_CLIENT' && (
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-xs">
+          <div className="axy-surface-tonal flex items-center gap-1 p-1 rounded-xl text-xs">
             <button
               type="button"
               onClick={() => setChannel('INTERNAL')}
-              className={`px-3 py-1.5 rounded-md font-medium cursor-pointer ${
-                channel === 'INTERNAL' ? 'bg-white dark:bg-slate-900 shadow-sm' : 'text-slate-600 dark:text-slate-400'
+              className={`px-3 py-1.5 rounded-lg font-medium cursor-pointer transition-colors ${
+                channel === 'INTERNAL' ? 'bg-[#0066FF] text-white shadow-sm' : 'text-slate-600 dark:text-slate-300'
               }`}
             >
               Canal Interno
@@ -791,8 +791,8 @@ export function NewApplicationView() {
             <button
               type="button"
               onClick={() => setChannel('EXTERNAL')}
-              className={`px-3 py-1.5 rounded-md font-medium cursor-pointer ${
-                channel === 'EXTERNAL' ? 'bg-white dark:bg-slate-900 shadow-sm' : 'text-slate-600 dark:text-slate-400'
+              className={`px-3 py-1.5 rounded-lg font-medium cursor-pointer transition-colors ${
+                channel === 'EXTERNAL' ? 'bg-[#0066FF] text-white shadow-sm' : 'text-slate-600 dark:text-slate-300'
               }`}
             >
               Canal Externo
@@ -814,10 +814,10 @@ export function NewApplicationView() {
             key={num}
             type="button"
             onClick={() => setStep(num as typeof step)}
-            className={`py-2.5 px-3 rounded-lg border text-xs font-medium text-left truncate cursor-pointer transition-colors ${
+            className={`py-2.5 px-3 rounded-xl border text-xs font-medium text-left truncate cursor-pointer transition-colors ${
               step === num
-                ? 'border-sky-700 bg-sky-50 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300'
-                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                ? 'border-[#0066FF] bg-[#0066FF]/[0.08] dark:bg-[#0066FF]/20 text-[#0066FF] dark:text-[#00D1FF] font-semibold'
+                : 'axy-surface text-slate-600 dark:text-slate-400 hover:bg-slate-50/70 dark:hover:bg-white/[0.04]'
             }`}
           >
             {label}
@@ -831,7 +831,7 @@ export function NewApplicationView() {
         </div>
       )}
 
-      <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6">
+      <div className="axy-surface p-6 rounded-2xl space-y-6">
         {step === 1 && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -844,7 +844,7 @@ export function NewApplicationView() {
                     setApplicantType(t);
                     setProductCode(t === 'BUSINESS' ? 'EMPRESARIAL_DOP' : 'PERSONAL_DOP');
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   <option value="INDIVIDUAL">Persona Física (Individual)</option>
                   <option value="BUSINESS">Persona Jurídica / Empresa</option>
@@ -855,7 +855,7 @@ export function NewApplicationView() {
                 <select
                   value={selectedCustomerId}
                   onChange={(e) => handleSelectExistingCustomer(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   <option value="NEW">+ Registrar nuevo solicitante</option>
                   {customers.map((c) => (
@@ -874,7 +874,7 @@ export function NewApplicationView() {
                   value={documentType}
                   onChange={(e) => setDocumentType(e.target.value as 'CEDULA' | 'PASAPORTE')}
                   disabled={selectedCustomerId !== 'NEW'}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   <option value="CEDULA">Cédula</option>
                   <option value="PASAPORTE">Pasaporte</option>
@@ -887,7 +887,7 @@ export function NewApplicationView() {
                   onChange={(e) => setDocumentNumber(e.target.value)}
                   disabled={selectedCustomerId !== 'NEW'}
                   placeholder="001-0000000-0"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
               <div>
@@ -896,7 +896,7 @@ export function NewApplicationView() {
                   type="date"
                   value={birthDate}
                   onChange={(e) => setBirthDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -904,7 +904,7 @@ export function NewApplicationView() {
                 <input
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -912,7 +912,7 @@ export function NewApplicationView() {
                 <input
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -921,7 +921,7 @@ export function NewApplicationView() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="809-555-0000"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
               <div>
@@ -929,7 +929,7 @@ export function NewApplicationView() {
                 <input
                   value={nationality}
                   onChange={(e) => setNationality(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -937,7 +937,7 @@ export function NewApplicationView() {
                 <input
                   value={maritalStatus}
                   onChange={(e) => setMaritalStatus(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -947,7 +947,7 @@ export function NewApplicationView() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="correo@ejemplo.com"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
             </div>
@@ -958,7 +958,7 @@ export function NewApplicationView() {
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -971,7 +971,7 @@ export function NewApplicationView() {
                     setProvince((p ?? '').trim());
                   }}
                   placeholder="Santo Domingo, DN"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -981,7 +981,7 @@ export function NewApplicationView() {
                   min={0}
                   value={residenceMonths}
                   onChange={(e) => setResidenceMonths(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
               <div>
@@ -989,7 +989,7 @@ export function NewApplicationView() {
                 <select
                   value={housingType}
                   onChange={(e) => setHousingType(e.target.value as HousingType)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   <option value="PROPIA">Propia</option>
                   <option value="ALQUILADA">Alquilada</option>
@@ -1005,18 +1005,18 @@ export function NewApplicationView() {
                   min={0}
                   value={housingPayment}
                   onChange={(e) => setHousingPayment(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2 border-t border-[var(--axy-border)]">
               <div>
                 <label className="block text-xs font-medium mb-1">Redes Sociales (Equidad en revisión)</label>
                 <select
                   value={socialMediaDeclared}
                   onChange={(e) => setSocialMediaDeclared(e.target.value as SocialMediaStatus)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   <option value="YES">Sí tiene</option>
                   <option value="NO_MEDIA">Declara no tener</option>
@@ -1030,7 +1030,7 @@ export function NewApplicationView() {
                   onChange={(e) => setSocialMediaHandle(e.target.value)}
                   disabled={socialMediaDeclared !== 'YES'}
                   placeholder="@usuario"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1038,7 +1038,7 @@ export function NewApplicationView() {
                 <input
                   value={altContactName}
                   onChange={(e) => setAltContactName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1046,19 +1046,19 @@ export function NewApplicationView() {
                 <input
                   value={altContactPhone}
                   onChange={(e) => setAltContactPhone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
             </div>
 
             {applicantType === 'BUSINESS' && (
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="pt-4 border-t border-[var(--axy-border)] space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-sm">Datos Societarios de la Empresa</h3>
                   <select
                     value={selectedBusinessId}
                     onChange={(e) => setSelectedBusinessId(e.target.value)}
-                    className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="text-xs axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
                   >
                     <option value="NEW">+ Nueva Empresa</option>
                     {businesses.map((b) => (
@@ -1074,7 +1074,7 @@ export function NewApplicationView() {
                     <input
                       value={rnc}
                       onChange={(e) => setRnc(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1082,7 +1082,7 @@ export function NewApplicationView() {
                     <input
                       value={legalName}
                       onChange={(e) => setLegalName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1090,7 +1090,7 @@ export function NewApplicationView() {
                     <input
                       value={tradeName}
                       onChange={(e) => setTradeName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1098,7 +1098,7 @@ export function NewApplicationView() {
                     <input
                       value={companyType}
                       onChange={(e) => setCompanyType(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1106,7 +1106,7 @@ export function NewApplicationView() {
                     <input
                       value={economicActivity}
                       onChange={(e) => setEconomicActivity(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1115,7 +1115,7 @@ export function NewApplicationView() {
                       type="date"
                       value={operationsStartDate}
                       onChange={(e) => setOperationsStartDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1123,7 +1123,7 @@ export function NewApplicationView() {
                     <input
                       value={authorizedRepName}
                       onChange={(e) => setAuthorizedRepName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1131,7 +1131,7 @@ export function NewApplicationView() {
                     <input
                       value={authorizedRepDoc}
                       onChange={(e) => setAuthorizedRepDoc(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1140,7 +1140,7 @@ export function NewApplicationView() {
                       value={corporateDocsSummary}
                       onChange={(e) => setCorporateDocsSummary(e.target.value)}
                       placeholder="Registro mercantil, acta, RNC"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -1157,7 +1157,7 @@ export function NewApplicationView() {
                 <input
                   value={activityType}
                   onChange={(e) => setActivityType(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1165,7 +1165,7 @@ export function NewApplicationView() {
                 <input
                   value={employerOrBusinessName}
                   onChange={(e) => setEmployerOrBusinessName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1173,7 +1173,7 @@ export function NewApplicationView() {
                 <input
                   value={occupationOrRole}
                   onChange={(e) => setOccupationOrRole(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1183,7 +1183,7 @@ export function NewApplicationView() {
                   min={0}
                   value={employmentMonths}
                   onChange={(e) => setEmploymentMonths(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
               <div>
@@ -1191,7 +1191,7 @@ export function NewApplicationView() {
                 <select
                   value={incomeSourceType}
                   onChange={(e) => setIncomeSourceType(e.target.value as IncomeSourceType)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   <option value="FIJA_RECURRENTE">Fija o recurrente</option>
                   <option value="MIXTA_RECURRENTE">Mixta recurrente</option>
@@ -1204,7 +1204,7 @@ export function NewApplicationView() {
                 <select
                   value={incomeCurrency}
                   onChange={(e) => setIncomeCurrency(e.target.value as CurrencyCode)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   <option value="DOP">DOP (Pesos Dominicanos)</option>
                   <option value="USD">USD (Dólares Estadounidenses)</option>
@@ -1213,7 +1213,7 @@ export function NewApplicationView() {
             </div>
 
             {applicantType === 'BUSINESS' ? (
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-4">
+              <div className="axy-surface-tonal p-4 rounded-xl space-y-4">
                 <h4 className="text-xs font-semibold text-slate-900 dark:text-white">
                   Flujo Empresarial (No confundir ventas brutas con flujo neto disponible)
                 </h4>
@@ -1224,7 +1224,7 @@ export function NewApplicationView() {
                       type="number"
                       value={grossSales}
                       onChange={(e) => setGrossSales(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-mono"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1233,7 +1233,7 @@ export function NewApplicationView() {
                       type="number"
                       value={operatingCosts}
                       onChange={(e) => setOperatingCosts(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-mono"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1242,7 +1242,7 @@ export function NewApplicationView() {
                       type="number"
                       value={netMonthlyFlow}
                       onChange={(e) => setNetMonthlyFlow(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-mono"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1250,7 +1250,7 @@ export function NewApplicationView() {
                     <input
                       value={repaymentSource}
                       onChange={(e) => setRepaymentSource(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                      className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -1263,7 +1263,7 @@ export function NewApplicationView() {
                     type="number"
                     value={primaryNetIncome}
                     onChange={(e) => setPrimaryNetIncome(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                   />
                 </div>
                 <div>
@@ -1275,7 +1275,7 @@ export function NewApplicationView() {
                       setAdditionalIncomeStatus(s);
                       if (s === 'EXPLICIT_NONE') setAdditionalNetIncome('0');
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                   >
                     <option value="EXPLICIT_NONE">Declara expresamente no tener</option>
                     <option value="QUANTIFIED">Cuantificados (ponderan 70%)</option>
@@ -1290,7 +1290,7 @@ export function NewApplicationView() {
                     value={additionalNetIncome}
                     onChange={(e) => setAdditionalNetIncome(e.target.value)}
                     disabled={additionalIncomeStatus === 'EXPLICIT_NONE'}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                   />
                 </div>
                 <div>
@@ -1300,20 +1300,20 @@ export function NewApplicationView() {
                     value={declaredTotalMonthlyIncome}
                     onChange={(e) => setDeclaredTotalMonthlyIncome(e.target.value)}
                     placeholder="Opcional para conciliación"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                   />
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[var(--axy-border)]">
               <div>
                 <label className="block text-xs font-medium mb-1">Gastos Esenciales Mensuales (sin cuotas de deuda)</label>
                 <input
                   type="number"
                   value={essentialExpenses}
                   onChange={(e) => setEssentialExpenses(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
               <div className="flex items-end pb-2">
@@ -1329,7 +1329,7 @@ export function NewApplicationView() {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="pt-2 border-t border-[var(--axy-border)] space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-medium mb-1">Declaración de Deudas</label>
@@ -1344,7 +1344,7 @@ export function NewApplicationView() {
                         setCurrentDebtPayments('0');
                       }
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                   >
                     <option value="NO_DEBTS_EXPLICIT">Declara expresamente CERO deudas</option>
                     <option value="HAS_DEBTS">Posee deudas activas</option>
@@ -1358,7 +1358,7 @@ export function NewApplicationView() {
                     value={debtCount}
                     onChange={(e) => setDebtCount(e.target.value)}
                     disabled={debtDeclarationStatus !== 'HAS_DEBTS'}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                   />
                 </div>
                 <div>
@@ -1368,7 +1368,7 @@ export function NewApplicationView() {
                     value={totalDebtBalance}
                     onChange={(e) => setTotalDebtBalance(e.target.value)}
                     disabled={debtDeclarationStatus !== 'HAS_DEBTS'}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                   />
                 </div>
                 <div>
@@ -1378,7 +1378,7 @@ export function NewApplicationView() {
                     value={currentDebtPayments}
                     onChange={(e) => setCurrentDebtPayments(e.target.value)}
                     disabled={debtDeclarationStatus !== 'HAS_DEBTS'}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                    className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                   />
                 </div>
               </div>
@@ -1391,7 +1391,7 @@ export function NewApplicationView() {
                       type="number"
                       value={bankDebtPayment}
                       onChange={(e) => setBankDebtPayment(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full axy-input px-2.5 py-1.5 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1400,7 +1400,7 @@ export function NewApplicationView() {
                       type="number"
                       value={financeDebtPayment}
                       onChange={(e) => setFinanceDebtPayment(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full axy-input px-2.5 py-1.5 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1409,7 +1409,7 @@ export function NewApplicationView() {
                       type="number"
                       value={cardDebtPayment}
                       onChange={(e) => setCardDebtPayment(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full axy-input px-2.5 py-1.5 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1418,7 +1418,7 @@ export function NewApplicationView() {
                       type="number"
                       value={informalDebtPayment}
                       onChange={(e) => setInformalDebtPayment(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full axy-input px-2.5 py-1.5 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div>
@@ -1427,7 +1427,7 @@ export function NewApplicationView() {
                       type="number"
                       value={otherDebtPayment}
                       onChange={(e) => setOtherDebtPayment(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono"
+                      className="w-full axy-input px-2.5 py-1.5 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                 </div>
@@ -1444,7 +1444,7 @@ export function NewApplicationView() {
                 <select
                   value={productCode}
                   onChange={(e) => setProductCode(e.target.value as ProductCode)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   {Object.entries(PRODUCT_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>
@@ -1459,7 +1459,7 @@ export function NewApplicationView() {
                   type="number"
                   value={requestedAmount}
                   onChange={(e) => setRequestedAmount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono tabular-nums"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono tabular-nums"
                 />
                 {activeProductPolicy && (
                   <p className="text-[11px] text-slate-500 mt-1 font-mono tabular-nums">
@@ -1474,7 +1474,7 @@ export function NewApplicationView() {
                   type="number"
                   value={requestedTermMonths}
                   onChange={(e) => setRequestedTermMonths(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono tabular-nums"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono tabular-nums"
                 />
                 {activeProductPolicy && (
                   <p className="text-[11px] text-slate-500 mt-1 font-mono tabular-nums">
@@ -1487,7 +1487,7 @@ export function NewApplicationView() {
                 <select
                   value={paymentFrequency}
                   onChange={(e) => setPaymentFrequency(e.target.value as PaymentFrequency)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 >
                   {(activeProductPolicy?.allowedFrequencies ?? ['MENSUAL']).map((freq) => (
                     <option key={freq} value={freq}>
@@ -1505,7 +1505,7 @@ export function NewApplicationView() {
                 <input
                   value={loanPurpose}
                   onChange={(e) => setLoanPurpose(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
               <div>
@@ -1514,7 +1514,7 @@ export function NewApplicationView() {
                   value={proposedCollateral}
                   onChange={(e) => setProposedCollateral(e.target.value)}
                   placeholder="Vehículo, hipoteca, fianza solidaria..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
               </div>
             </div>
@@ -1525,7 +1525,7 @@ export function NewApplicationView() {
                 value={loanPurposeDescription}
                 onChange={(e) => setLoanPurposeDescription(e.target.value)}
                 placeholder="Detalle en qué se invertirán o utilizarán los fondos..."
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
               />
             </div>
 
@@ -1560,19 +1560,19 @@ export function NewApplicationView() {
                   placeholder="Referencia 1: Nombre completo"
                   value={ref1Name}
                   onChange={(e) => setRef1Name(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
                 <input
                   placeholder="Relación (Ej. Hermano, Proveedor)"
                   value={ref1Rel}
                   onChange={(e) => setRef1Rel(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
                 <input
                   placeholder="Teléfono"
                   value={ref1Phone}
                   onChange={(e) => setRef1Phone(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1580,25 +1580,25 @@ export function NewApplicationView() {
                   placeholder="Referencia 2: Nombre completo"
                   value={ref2Name}
                   onChange={(e) => setRef2Name(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
                 <input
                   placeholder="Relación"
                   value={ref2Rel}
                   onChange={(e) => setRef2Rel(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                  className="axy-input px-3 py-2 text-sm text-slate-900 dark:text-white"
                 />
                 <input
                   placeholder="Teléfono"
                   value={ref2Phone}
                   onChange={(e) => setRef2Phone(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono"
+                  className="axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono"
                 />
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
-              <h3 className="text-sm font-semibold">Documentos Suministrados en Expediente</h3>
+            <div className="pt-4 border-t border-slate-200/80 dark:border-[#00B8FF]/15 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Documentos Suministrados en Expediente</h3>
               <div className="flex flex-wrap gap-6 text-xs">
                 <label className="inline-flex items-center gap-2 cursor-pointer">
                   <input
@@ -1618,8 +1618,8 @@ export function NewApplicationView() {
                 </label>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center gap-3 text-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                  <Upload className="w-4 h-4 text-sky-600" />
+                <label className="axy-surface-tonal p-4 rounded-xl border-dashed border-[#0066FF]/35 dark:border-[#00B8FF]/35 flex items-center gap-3 text-xs cursor-pointer hover:border-[#0066FF] transition-colors">
+                  <Upload className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                   <span>Adjuntar Cédula / Identidad (máx. 450KB)</span>
                   <input
                     type="file"
@@ -1627,8 +1627,8 @@ export function NewApplicationView() {
                     onChange={(e) => handleFileAttach('Identidad', e.target.files?.[0] ?? null)}
                   />
                 </label>
-                <label className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center gap-3 text-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                  <Upload className="w-4 h-4 text-sky-600" />
+                <label className="axy-surface-tonal p-4 rounded-xl border-dashed border-[#0066FF]/35 dark:border-[#00B8FF]/35 flex items-center gap-3 text-xs cursor-pointer hover:border-[#0066FF] transition-colors">
+                  <Upload className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
                   <span>Adjuntar Evidencia de Ingresos (máx. 450KB)</span>
                   <input
                     type="file"
@@ -1674,7 +1674,7 @@ export function NewApplicationView() {
         {step === 5 && (
           <div className="space-y-5">
             {biometricResult && (
-              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div className="axy-surface-ai p-3.5 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     Verificación Biométrica (Cámara + Visión IA):{' '}
@@ -1683,13 +1683,13 @@ export function NewApplicationView() {
                     {BIOMETRIC_VERDICT_LABELS[biometricResult.verdict]}
                   </span>
                 </div>
-                <span className="font-mono tabular-nums font-bold text-sky-700 dark:text-sky-400">
+                <span className="font-mono tabular-nums font-bold text-[#0066FF] dark:text-[#00D1FF]">
                   Similitud {biometricResult.similarityScore}% · Liveness {biometricResult.livenessAssessment}
                 </span>
               </div>
             )}
 
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-2 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+            <div className="axy-surface-tonal p-4 rounded-xl space-y-2 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
               <p className="font-semibold text-slate-900 dark:text-white">
                 Términos y Autorización de Tratamiento de Datos — Ley 172-13 ({CONSENT_VERSION})
               </p>
@@ -1717,13 +1717,13 @@ export function NewApplicationView() {
         )}
 
         {/* Footer Controls */}
-        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="pt-4 border-t border-slate-200/80 dark:border-[#00B8FF]/15 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {step > 1 && (
               <button
                 type="button"
                 onClick={() => setStep((s) => (s - 1) as typeof step)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium cursor-pointer"
+                className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Anterior
@@ -1733,7 +1733,7 @@ export function NewApplicationView() {
               type="button"
               disabled={submitting}
               onClick={() => handlePersist('DRAFT')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium cursor-pointer"
+              className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
               Guardar Borrador
@@ -1745,7 +1745,7 @@ export function NewApplicationView() {
               <button
                 type="button"
                 onClick={() => setStep((s) => (s + 1) as typeof step)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-xs font-medium cursor-pointer"
+                className="axy-btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-xs cursor-pointer"
               >
                 Siguiente
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -1755,7 +1755,7 @@ export function NewApplicationView() {
                 type="button"
                 disabled={submitting}
                 onClick={() => handlePersist('SUBMIT')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold cursor-pointer disabled:opacity-60"
+                className="axy-btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-xs cursor-pointer disabled:opacity-60"
               >
                 <Send className="w-3.5 h-3.5" />
                 {submitting ? 'Enviando y Ejecutando Motor V2...' : 'Enviar Solicitud y Ejecutar Motor V2'}

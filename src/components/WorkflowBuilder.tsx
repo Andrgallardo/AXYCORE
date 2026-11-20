@@ -262,11 +262,11 @@ export function WorkflowBuilder({
   const approvePct = thresholds.autoApproveMinScore;
 
   return (
-    <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-5">
+    <div className="pt-4 border-t border-[var(--axy-border)] space-y-5">
       {/* Section Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 border border-[#0066FF]/20 dark:border-[#00B8FF]/25 text-[#0066FF] dark:text-[#00D1FF] flex items-center justify-center shrink-0">
             <GitBranch className="w-4 h-4" />
           </div>
           <div>
@@ -283,7 +283,7 @@ export function WorkflowBuilder({
           <button
             type="button"
             onClick={handleRestoreDefaults}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 axy-btn-secondary text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Restaurar Flujo Estándar V2
@@ -292,10 +292,10 @@ export function WorkflowBuilder({
       </div>
 
       {/* Part 1: Interactive Drag-and-Drop Auto Decision Score Threshold Spectrum */}
-      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/30 space-y-4">
+      <div className="p-4 rounded-2xl axy-surface-tonal space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-sky-600" />
+            <SlidersHorizontal className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
             <span className="text-xs font-semibold text-slate-900 dark:text-white">
               Umbrales de Decisión Automática (Espectro Score Motor V2: 0–100 pts)
             </span>
@@ -430,7 +430,7 @@ export function WorkflowBuilder({
               onChange={(e) =>
                 updateThresholds({ autoRejectMaxScore: Number(e.target.value) })
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs tabular-nums"
+              className="w-full px-2.5 py-1.5 axy-input font-mono text-xs tabular-nums text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -446,7 +446,7 @@ export function WorkflowBuilder({
               onChange={(e) =>
                 updateThresholds({ autoApproveMinScore: Number(e.target.value) })
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs tabular-nums"
+              className="w-full px-2.5 py-1.5 axy-input font-mono text-xs tabular-nums text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -461,7 +461,7 @@ export function WorkflowBuilder({
               onChange={(e) =>
                 updateThresholds({ maxAutoApproveAmountDop: Number(e.target.value) })
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs tabular-nums"
+              className="w-full px-2.5 py-1.5 axy-input font-mono text-xs tabular-nums text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -476,7 +476,7 @@ export function WorkflowBuilder({
               onChange={(e) =>
                 updateThresholds({ maxAutoApproveAmountUsd: Number(e.target.value) })
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs tabular-nums"
+              className="w-full px-2.5 py-1.5 axy-input font-mono text-xs tabular-nums text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -492,7 +492,7 @@ export function WorkflowBuilder({
               onChange={(e) =>
                 updateThresholds({ maxAutoDtiPct: Number(e.target.value) })
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs tabular-nums"
+              className="w-full px-2.5 py-1.5 axy-input font-mono text-xs tabular-nums text-slate-900 dark:text-white"
             />
           </div>
           <div>
@@ -509,7 +509,7 @@ export function WorkflowBuilder({
               onChange={(e) =>
                 updateThresholds({ minCoverageRatio: Number(e.target.value) })
               }
-              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs tabular-nums"
+              className="w-full px-2.5 py-1.5 axy-input font-mono text-xs tabular-nums text-slate-900 dark:text-white"
             />
           </div>
         </div>
@@ -547,7 +547,7 @@ export function WorkflowBuilder({
       {/* Part 2: Palette + Drag-and-Drop Stage Pipeline Canvas */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* Left Palette: Reusable Stage Blocks */}
-        <div className="xl:col-span-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 p-3.5 space-y-2.5">
+        <div className="xl:col-span-3 rounded-2xl axy-surface-tonal p-3.5 space-y-2.5">
           <div>
             <h5 className="text-xs font-bold text-slate-900 dark:text-white">
               Catálogo de Etapas ({WORKFLOW_STAGE_PALETTE.length})
@@ -563,9 +563,9 @@ export function WorkflowBuilder({
                 draggable={canEdit && stages.length < 12}
                 onDragStart={(e) => handlePaletteDragStart(e, tpl.code)}
                 onDragEnd={resetDragState}
-                className={`p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-start justify-between gap-2 ${
+                className={`p-2.5 rounded-xl axy-surface flex items-start justify-between gap-2 ${
                   canEdit && stages.length < 12
-                    ? 'cursor-grab active:cursor-grabbing hover:border-sky-400 dark:hover:border-sky-600'
+                    ? 'cursor-grab active:cursor-grabbing hover:border-[#0066FF] dark:hover:border-[#00B8FF]'
                     : 'opacity-65'
                 }`}
               >
@@ -592,7 +592,7 @@ export function WorkflowBuilder({
                       if (added) setSelectedStageId(added.id);
                     }}
                     title="Agregar al flujo"
-                    className="p-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-sky-900/30 text-sky-700 dark:text-sky-300 shrink-0 cursor-pointer disabled:opacity-40"
+                    className="p-1 rounded-lg border border-[var(--axy-border-strong)] hover:bg-[#0066FF]/10 text-[#0066FF] dark:text-[#00D1FF] shrink-0 cursor-pointer disabled:opacity-40"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -603,7 +603,7 @@ export function WorkflowBuilder({
         </div>
 
         {/* Right Canvas: Connected Drag-and-Drop Pipeline */}
-        <div className="xl:col-span-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/60 p-4 space-y-3">
+        <div className="xl:col-span-9 rounded-2xl axy-surface p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h5 className="text-xs font-bold text-slate-900 dark:text-white">
@@ -650,12 +650,12 @@ export function WorkflowBuilder({
                     }}
                     className={`group relative w-52 rounded-xl border p-3 text-left transition-all cursor-pointer flex flex-col justify-between ${
                       isDropTarget
-                        ? 'border-sky-500 ring-2 ring-sky-500/40 bg-sky-50/70 dark:bg-sky-950/40'
+                        ? 'border-[#0066FF] ring-2 ring-[#0066FF]/35 bg-[#0066FF]/10 dark:bg-[#00B8FF]/15'
                         : isSelected
-                        ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/25 shadow-sm'
+                        ? 'border-[#0066FF] dark:border-[#00B8FF] bg-[#0066FF]/5 dark:bg-[#00B8FF]/10 shadow-sm'
                         : stage.enabled
-                        ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
-                        : 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 opacity-60'
+                        ? 'axy-surface hover:border-[var(--axy-border-strong)]'
+                        : 'border-dashed axy-surface-tonal opacity-60'
                     } ${isDragging ? 'opacity-40 scale-[0.98]' : ''}`}
                   >
                     <div className="space-y-1.5">
@@ -664,7 +664,7 @@ export function WorkflowBuilder({
                           {canEdit && (
                             <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0 cursor-grab" />
                           )}
-                          <span className="font-mono text-[11px] font-bold text-sky-700 dark:text-sky-400 tabular-nums">
+                          <span className="font-mono text-[11px] font-bold text-[#0066FF] dark:text-[#00D1FF] tabular-nums">
                             {String(idx + 1).padStart(2, '0')}
                           </span>
                           <span className="text-[11px] text-slate-400 truncate">
@@ -717,7 +717,7 @@ export function WorkflowBuilder({
                             updateStages(reorderWorkflowStages(stages, idx, idx - 1));
                           }}
                           aria-label={`Mover ${stage.name} antes`}
-                          className="p-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 cursor-pointer"
+                          className="axy-btn-secondary p-0.5 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 cursor-pointer"
                         >
                           <ChevronLeft className="w-3 h-3" />
                         </button>
@@ -729,7 +729,7 @@ export function WorkflowBuilder({
                             updateStages(reorderWorkflowStages(stages, idx, idx + 1));
                           }}
                           aria-label={`Mover ${stage.name} después`}
-                          className="p-0.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 cursor-pointer"
+                          className="axy-btn-secondary p-0.5 rounded text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 cursor-pointer"
                         >
                           <ChevronRight className="w-3 h-3" />
                         </button>
@@ -759,8 +759,8 @@ export function WorkflowBuilder({
                 onDrop={(e) => handleDropOnSlot(e, stages.length)}
                 className={`w-36 min-h-[116px] rounded-xl border border-dashed flex flex-col items-center justify-center p-3 text-center text-[11px] transition-colors ${
                   dropTargetIdx === stages.length
-                    ? 'border-sky-500 bg-sky-50/70 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
-                    : 'border-slate-300 dark:border-slate-700 text-slate-400'
+                    ? 'border-[#0066FF] bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0052CC] dark:text-[#00D1FF]'
+                    : 'border-[var(--axy-border-strong)] text-slate-400'
                 }`}
               >
                 <Plus className="w-4 h-4 mb-1" />
@@ -774,10 +774,10 @@ export function WorkflowBuilder({
       {/* Part 3: Selected Stage Inspector & Live Route Simulator */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Stage Inspector */}
-        <div className="lg:col-span-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div className="lg:col-span-6 rounded-2xl axy-surface p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--axy-border)]">
             <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-sky-600" />
+              <ShieldCheck className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
               Inspector de Etapa Seleccionada
             </h5>
             {canEdit && selectedStage && !selectedStage.required && (
@@ -809,7 +809,7 @@ export function WorkflowBuilder({
                     onChange={(e) =>
                       updateSingleStage(selectedStage.id, { name: e.target.value })
                     }
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="w-full px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
@@ -824,7 +824,7 @@ export function WorkflowBuilder({
                         ownerRole: e.target.value as UserRole,
                       })
                     }
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="w-full px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                   >
                     {ASSIGNABLE_ROLES.map((r) => (
                       <option key={r} value={r}>
@@ -845,7 +845,7 @@ export function WorkflowBuilder({
                   onChange={(e) =>
                     updateSingleStage(selectedStage.id, { description: e.target.value })
                   }
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  className="w-full px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                 />
               </div>
 
@@ -862,7 +862,7 @@ export function WorkflowBuilder({
                         gateType: e.target.value as WorkflowStageGateType,
                       })
                     }
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    className="w-full px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                   >
                     {Object.entries(GATE_TYPE_LABELS).map(([k, lbl]) => (
                       <option key={k} value={k}>
@@ -887,7 +887,7 @@ export function WorkflowBuilder({
                           gateAmountDop: Number(e.target.value),
                         })
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                      className="w-full px-2.5 py-1.5 axy-input font-mono tabular-nums text-slate-900 dark:text-white"
                     />
                   </div>
                 )}
@@ -908,7 +908,7 @@ export function WorkflowBuilder({
                           gateMaxScore: Number(e.target.value),
                         })
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                      className="w-full px-2.5 py-1.5 axy-input font-mono tabular-nums text-slate-900 dark:text-white"
                     />
                   </div>
                 )}
@@ -926,7 +926,7 @@ export function WorkflowBuilder({
                           gateMinRiskBand: e.target.value as RiskBandCode,
                         })
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                      className="w-full px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
                     >
                       {RISK_BAND_OPTIONS.map((b) => (
                         <option key={b.code} value={b.code}>
@@ -952,7 +952,7 @@ export function WorkflowBuilder({
                         slaHours: Math.max(1, Number(e.target.value)),
                       })
                     }
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                    className="w-full px-2.5 py-1.5 axy-input font-mono tabular-nums text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
@@ -994,10 +994,10 @@ export function WorkflowBuilder({
         </div>
 
         {/* Live Decision & Route Simulator */}
-        <div className="lg:col-span-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div className="lg:col-span-6 rounded-2xl axy-surface p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-[var(--axy-border)]">
             <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <Play className="w-4 h-4 text-sky-600" />
+              <Play className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
               Simulador de Ruta y Umbrales en Tiempo Real
             </h5>
             <span className="text-[11px] font-mono tabular-nums text-slate-500">
@@ -1016,7 +1016,7 @@ export function WorkflowBuilder({
                 onChange={(e) =>
                   setSimScore(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
                 }
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                className="w-full px-2.5 py-1.5 axy-input font-mono tabular-nums text-slate-900 dark:text-white"
               />
             </div>
             <div>
@@ -1027,7 +1027,7 @@ export function WorkflowBuilder({
                 step={10000}
                 value={simAmount}
                 onChange={(e) => setSimAmount(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                className="w-full px-2.5 py-1.5 axy-input font-mono tabular-nums text-slate-900 dark:text-white"
               />
             </div>
             <div>
@@ -1035,7 +1035,7 @@ export function WorkflowBuilder({
               <select
                 value={simCurrency}
                 onChange={(e) => setSimCurrency(e.target.value as CurrencyCode)}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                className="w-full px-2.5 py-1.5 axy-input text-slate-900 dark:text-white"
               >
                 <option value="DOP">DOP</option>
                 <option value="USD">USD</option>
@@ -1051,7 +1051,7 @@ export function WorkflowBuilder({
                 onChange={(e) =>
                   setSimDtiPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
                 }
-                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono tabular-nums"
+                className="w-full px-2.5 py-1.5 axy-input font-mono tabular-nums text-slate-900 dark:text-white"
               />
             </div>
           </div>

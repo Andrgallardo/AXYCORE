@@ -212,7 +212,7 @@ export function CollectionsPortfolioAndQueuesView({
 
         <div className="flex flex-wrap items-center gap-2">
           {rbac.role !== 'COLLECTION_AGENT' && (
-            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs cursor-pointer">
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl axy-surface-tonal text-xs cursor-pointer text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={onlyMyPortfolio}
@@ -225,7 +225,7 @@ export function CollectionsPortfolioAndQueuesView({
             type="button"
             disabled={syncing}
             onClick={handleSync}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 axy-btn-primary text-xs cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
             {syncing
@@ -243,7 +243,7 @@ export function CollectionsPortfolioAndQueuesView({
           className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
             mode === 'daily'
               ? 'bg-[#040C1E] border-[#00B8FF]/50 text-white shadow-md'
-              : 'bg-white dark:bg-[#08132B] border-slate-200/85 dark:border-[#00B8FF]/15 hover:border-[#00B8FF]/40'
+              : 'axy-surface hover:border-[#00B8FF]/40'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -261,7 +261,7 @@ export function CollectionsPortfolioAndQueuesView({
           className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
             mode === 'urgent'
               ? 'bg-[#040C1E] border-amber-400/60 text-white shadow-md'
-              : 'bg-white dark:bg-[#08132B] border-slate-200/85 dark:border-[#00B8FF]/15 hover:border-amber-400/40'
+              : 'axy-surface hover:border-amber-400/40'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -279,7 +279,7 @@ export function CollectionsPortfolioAndQueuesView({
           className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
             mode === 'legal'
               ? 'bg-[#040C1E] border-rose-400/60 text-white shadow-md'
-              : 'bg-white dark:bg-[#08132B] border-slate-200/85 dark:border-[#00B8FF]/15 hover:border-rose-400/40'
+              : 'axy-surface hover:border-rose-400/40'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -300,7 +300,7 @@ export function CollectionsPortfolioAndQueuesView({
 
       {/* Search & Filter Toolbar */}
       <div
-        className={`p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] grid grid-cols-1 ${
+        className={`p-4 rounded-2xl axy-surface grid grid-cols-1 ${
           mode === 'portfolio' ? 'sm:grid-cols-4' : 'sm:grid-cols-2'
         } gap-3 text-xs`}
       >
@@ -310,13 +310,13 @@ export function CollectionsPortfolioAndQueuesView({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar préstamo, cliente, gestor..."
-            className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.04]"
+            className="w-full pl-8 pr-3 py-2 axy-input text-slate-900 dark:text-white"
           />
         </div>
         <select
           value={currencyFilter}
           onChange={(e) => setCurrencyFilter(e.target.value as 'ALL' | CurrencyCode)}
-          className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.04]"
+          className="px-3 py-2 axy-input text-slate-900 dark:text-white"
         >
           <option value="ALL">Todas las monedas (DOP y USD)</option>
           <option value="DOP">Solo DOP</option>
@@ -328,7 +328,7 @@ export function CollectionsPortfolioAndQueuesView({
             <select
               value={stageFilter}
               onChange={(e) => setStageFilter(e.target.value as 'ALL' | CollectionStage)}
-              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.04]"
+              className="px-3 py-2 axy-input text-slate-900 dark:text-white"
             >
               <option value="ALL">Todas las etapas</option>
               <option value="AL_DIA">Al Día</option>
@@ -342,7 +342,7 @@ export function CollectionsPortfolioAndQueuesView({
             <select
               value={bucketFilter}
               onChange={(e) => setBucketFilter(e.target.value as 'ALL' | CollectionBucket)}
-              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.04]"
+              className="px-3 py-2 axy-input text-slate-900 dark:text-white"
             >
               <option value="ALL">Todos los tramos DPD</option>
               <option value="AL_DIA">0 DPD</option>
@@ -358,10 +358,10 @@ export function CollectionsPortfolioAndQueuesView({
       </div>
 
       {mode === 'portfolio' && (
-        <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] overflow-x-auto text-xs">
+        <div className="rounded-2xl axy-surface overflow-x-auto text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200/80 dark:border-white/[0.08] bg-slate-50/90 dark:bg-white/[0.03] text-slate-500 dark:text-slate-400">
+              <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                 <th className="py-3 px-4 font-semibold">Préstamo / Cliente</th>
                 <th className="py-3 px-3 font-semibold">Moneda</th>
                 <th className="py-3 px-3 font-semibold">DPD / Tramo</th>
@@ -372,13 +372,13 @@ export function CollectionsPortfolioAndQueuesView({
                 <th className="py-3 px-4 font-semibold text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/70 dark:divide-white/[0.06]">
+            <tbody>
               {filteredPortfolio.map((acc) => {
                 const agrCount = activeAgreementsByLoan.get(acc.loanId) ?? 0;
                 return (
                   <tr
                     key={acc.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-white/[0.025] transition-colors"
+                    className="axy-table-row"
                   >
                     <td className="py-2.5 px-4">
                       <p className="font-mono font-bold text-slate-950 dark:text-white">{acc.loanNumber}</p>
@@ -428,7 +428,7 @@ export function CollectionsPortfolioAndQueuesView({
                         <button
                           type="button"
                           onClick={() => setSelectedCollectionLoanId(acc.loanId)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-sky-50 dark:hover:bg-sky-950/50 text-sky-700 dark:text-sky-400 font-semibold cursor-pointer whitespace-nowrap"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 axy-btn-secondary text-[#0052CC] dark:text-[#00D1FF] font-semibold cursor-pointer whitespace-nowrap"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           Abrir 360°
@@ -451,10 +451,10 @@ export function CollectionsPortfolioAndQueuesView({
       )}
 
       {(mode === 'daily' || mode === 'urgent' || mode === 'legal') && (
-        <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] overflow-x-auto text-xs">
+        <div className="rounded-2xl axy-surface overflow-x-auto text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200/80 dark:border-white/[0.08] bg-slate-50/90 dark:bg-white/[0.03] text-slate-500 dark:text-slate-400">
+              <tr className="axy-table-head text-slate-500 dark:text-slate-400">
                 <th className="py-3 px-4 font-semibold">Cliente / Préstamo</th>
                 <th className="py-3 px-3 font-semibold">Días de Atraso</th>
                 <th className="py-3 px-3 font-semibold">Prioridad / Motivos</th>
@@ -464,13 +464,13 @@ export function CollectionsPortfolioAndQueuesView({
                 <th className="py-3 px-4 font-semibold text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200/70 dark:divide-white/[0.06]">
+            <tbody>
               {activeQueue.map((item) => {
                 const agrCount = activeAgreementsByLoan.get(item.loanId) ?? 0;
                 return (
                   <tr
                     key={item.loanId}
-                    className="hover:bg-slate-50/80 dark:hover:bg-white/[0.025] transition-colors"
+                    className="axy-table-row"
                   >
                     <td className="py-3 px-4">
                       <p className="font-mono font-bold text-slate-950 dark:text-white">
@@ -530,7 +530,7 @@ export function CollectionsPortfolioAndQueuesView({
                         <button
                           type="button"
                           onClick={() => setSelectedCollectionLoanId(item.loanId)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg axy-brand-gradient hover:brightness-110 text-white font-semibold cursor-pointer whitespace-nowrap"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 axy-btn-primary cursor-pointer whitespace-nowrap"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           Gestionar 360°

@@ -310,13 +310,13 @@ export function DashboardView() {
       </div>
 
       {seedMessage && (
-        <div className="p-3.5 rounded-xl border border-sky-200 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/40 text-xs text-sky-800 dark:text-sky-200">
+        <div className="p-3.5 rounded-xl border border-[#0066FF]/25 dark:border-[#00B8FF]/25 bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/14 text-xs text-[#0052CC] dark:text-[#00D1FF]">
           {seedMessage}
         </div>
       )}
 
       {/* Filter Toolbar */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/15 shadow-[0_1px_2px_rgba(15,23,42,0.03)] space-y-3">
+      <div className="axy-surface p-4 sm:p-5 rounded-2xl space-y-3">
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:text-slate-400">
           <Filter className="w-3.5 h-3.5" />
           <span>Filtros del Portafolio de Originación</span>
@@ -327,19 +327,19 @@ export function DashboardView() {
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             aria-label="Fecha desde"
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.04]"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           />
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             aria-label="Fecha hasta"
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50/80 dark:bg-white/[0.04]"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           />
           <select
             value={filterProduct}
             onChange={(e) => setFilterProduct(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Todos los productos</option>
             {Object.entries(PRODUCT_LABELS).map(([k, v]) => (
@@ -351,7 +351,7 @@ export function DashboardView() {
           <select
             value={filterCurrency}
             onChange={(e) => setFilterCurrency(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Monedas (DOP/USD)</option>
             <option value="DOP">DOP</option>
@@ -360,7 +360,7 @@ export function DashboardView() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Todos los estados</option>
             {Object.entries(APPLICATION_STATUS_LABELS).map(([k, v]) => (
@@ -372,7 +372,7 @@ export function DashboardView() {
           <select
             value={filterChannel}
             onChange={(e) => setFilterChannel(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Todos los canales</option>
             <option value="INTERNAL">Interno</option>
@@ -381,7 +381,7 @@ export function DashboardView() {
           <select
             value={filterBand}
             onChange={(e) => setFilterBand(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Todas las bandas</option>
             {safePolicy.riskBands.map((b) => (
@@ -393,7 +393,7 @@ export function DashboardView() {
           <select
             value={filterUser}
             onChange={(e) => setFilterUser(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+            className="axy-input px-2.5 py-1.5 text-slate-900 dark:text-white"
           >
             <option value="ALL">Todos los usuarios</option>
             {uniqueUsers.map(([uid, name]) => (
@@ -406,7 +406,7 @@ export function DashboardView() {
       </div>
 
       {applications.length === 0 ? (
-        <div className="p-10 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-4">
+        <div className="axy-surface p-10 rounded-2xl text-center space-y-4">
           <h3 className="font-display text-lg font-semibold text-slate-900 dark:text-white">
             Sin operaciones registradas en la base de datos
           </h3>
@@ -417,7 +417,7 @@ export function DashboardView() {
             <button
               type="button"
               onClick={() => setActiveSection('new_application')}
-              className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-sky-600 text-white text-sm font-medium cursor-pointer"
+              className="axy-btn-primary px-4 py-2 text-sm cursor-pointer"
             >
               Registrar Primera Solicitud
             </button>
@@ -425,7 +425,7 @@ export function DashboardView() {
               type="button"
               onClick={handleSeedDemo}
               disabled={seeding}
-              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium cursor-pointer"
+              className="axy-btn-secondary px-4 py-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               {seeding ? 'Generando...' : 'Crear Operaciones de Prueba'}
             </button>
@@ -490,7 +490,7 @@ export function DashboardView() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500 dark:text-slate-400">
                 Monto Aprobado / Rec.
               </p>
-              <p className="text-xl font-bold font-mono tabular-nums text-sky-700 dark:text-sky-400 mt-1.5">
+              <p className="text-xl font-bold font-mono tabular-nums text-[#0066FF] dark:text-[#00D1FF] mt-1.5">
                 {formatMoney(kpis.approvedDop, 'DOP')}
               </p>
               <p className="text-xs font-mono tabular-nums text-slate-500 mt-1">

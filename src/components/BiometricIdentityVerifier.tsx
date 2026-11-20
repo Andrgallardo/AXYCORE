@@ -264,14 +264,14 @@ export function BiometricIdentityVerifier({
     : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200';
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 p-4 sm:p-5 space-y-4">
+    <div className="axy-surface-ai rounded-2xl p-4 sm:p-5 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-lg bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-[#0066FF]/10 dark:bg-[#00B8FF]/15 text-[#0066FF] dark:text-[#00D1FF] flex items-center justify-center shrink-0">
             <ScanFace className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+            <h4 className="font-display text-sm font-semibold text-slate-900 dark:text-white">
               Verificación Biométrica de Identidad (Cámara + Visión Artificial)
             </h4>
             <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -282,10 +282,10 @@ export function BiometricIdentityVerifier({
 
         {result && (
           <div className="text-right">
-            <span className="text-[11px] uppercase tracking-wider text-slate-500 block">
+            <span className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
               Similitud Biométrica
             </span>
-            <span className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">
+            <span className="text-lg font-bold font-mono tabular-nums text-[#0066FF] dark:text-[#00D1FF]">
               {result.similarityScore}%
             </span>
           </div>
@@ -295,7 +295,7 @@ export function BiometricIdentityVerifier({
       {/* Dual Inspection Panels */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Panel A: Documento de Identidad */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 space-y-3">
+        <div className="axy-surface rounded-xl p-3.5 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
               1. Documento de Identidad de Referencia
@@ -304,7 +304,7 @@ export function BiometricIdentityVerifier({
               <select
                 value={selectedIdIndex}
                 onChange={(e) => setSelectedIdIndex(Number(e.target.value))}
-                className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                className="axy-input text-xs px-2 py-1 text-slate-900 dark:text-white"
               >
                 {identityFiles.map((f, idx) => (
                   <option key={`${f.fileName}-${idx}`} value={idx}>
@@ -316,12 +316,12 @@ export function BiometricIdentityVerifier({
           </div>
 
           {!activeIdentityDoc ? (
-            <div className="h-52 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex flex-col items-center justify-center p-4 text-center space-y-2.5">
+            <div className="axy-surface-tonal h-52 rounded-lg border-dashed border-[#0066FF]/35 dark:border-[#00B8FF]/35 flex flex-col items-center justify-center p-4 text-center space-y-2.5">
               <FileText className="w-7 h-7 text-slate-400" />
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">
                 Aún no hay un documento de identidad cargado. Adjunta la cédula o pasaporte (PNG, JPG, WEBP o PDF, máx. 450 KB).
               </p>
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-sky-700 text-white text-xs font-medium cursor-pointer hover:opacity-90">
+              <label className="axy-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer">
                 <Upload className="w-3.5 h-3.5" />
                 <span>Cargar Documento de Identidad</span>
                 <input
@@ -337,7 +337,7 @@ export function BiometricIdentityVerifier({
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="h-52 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
+              <div className="axy-surface-tonal h-52 rounded-lg overflow-hidden flex items-center justify-center">
                 {activeIdentityDoc.mimeType.startsWith('image/') ? (
                   <img
                     src={activeIdentityDoc.fileDataUrl}
@@ -367,7 +367,7 @@ export function BiometricIdentityVerifier({
         </div>
 
         {/* Panel B: Cámara / Captura en Vivo */}
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 space-y-3">
+        <div className="axy-surface rounded-xl p-3.5 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
               2. Captura Biométrica en Vivo (Selfie)
@@ -384,7 +384,7 @@ export function BiometricIdentityVerifier({
             )}
           </div>
 
-          <div className="h-52 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-950 overflow-hidden relative flex items-center justify-center">
+          <div className="h-52 rounded-lg border border-slate-200/80 dark:border-[#00B8FF]/20 bg-[#040C1E] overflow-hidden relative flex items-center justify-center">
             {cameraActive ? (
               <>
                 <video
@@ -396,14 +396,14 @@ export function BiometricIdentityVerifier({
                 />
                 {/* Guía sutil de encuadre facial */}
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="w-32 h-40 rounded-full border-2 border-dashed border-sky-400/75" />
+                  <div className="w-32 h-40 rounded-full border-2 border-dashed border-[#00D1FF]/80" />
                 </div>
               </>
             ) : capturedSelfieUrl ? (
               <img
                 src={capturedSelfieUrl}
                 alt="Captura biométrica en vivo"
-                className="w-full h-full object-contain bg-slate-950"
+                className="w-full h-full object-contain bg-[#040C1E]"
               />
             ) : (
               <div className="text-center p-4 space-y-2">
@@ -424,7 +424,7 @@ export function BiometricIdentityVerifier({
                 type="button"
                 disabled={startingCamera}
                 onClick={handleStartCamera}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-sky-700 hover:opacity-90 text-white text-xs font-medium cursor-pointer disabled:opacity-60"
+                className="axy-btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer disabled:opacity-60"
               >
                 <Camera className="w-3.5 h-3.5" />
                 {startingCamera ? 'Iniciando cámara...' : 'Activar Cámara'}
@@ -435,7 +435,7 @@ export function BiometricIdentityVerifier({
               <button
                 type="button"
                 onClick={handleCapturePhoto}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold cursor-pointer"
+                className="axy-btn-primary inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs cursor-pointer"
               >
                 <Camera className="w-3.5 h-3.5" />
                 Capturar Foto Biométrica
@@ -448,7 +448,7 @@ export function BiometricIdentityVerifier({
                   type="button"
                   disabled={verifying}
                   onClick={handleRetake}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                  className="axy-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Retomar Foto
@@ -486,7 +486,7 @@ export function BiometricIdentityVerifier({
           type="button"
           disabled={!activeIdentityDoc || !capturedSelfieUrl || verifying}
           onClick={handleCompareWithVisionApi}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="axy-btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ScanFace className="w-4 h-4" />
           {verifying
@@ -531,7 +531,7 @@ export function BiometricIdentityVerifier({
           <p className="text-xs leading-relaxed">{result.comparisonRationale}</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs pt-1">
-            <div className="rounded-lg bg-white/70 dark:bg-slate-900/60 p-2.5 border border-black/5 dark:border-white/10">
+            <div className="rounded-lg bg-white/80 dark:bg-[#040C1E]/65 p-2.5 border border-black/5 dark:border-[#00B8FF]/15">
               <span className="block text-[10px] uppercase opacity-70">Rostro en Documento</span>
               <span className="font-semibold flex items-center gap-1 mt-0.5">
                 {result.idPhotoDetected ? (
@@ -545,7 +545,7 @@ export function BiometricIdentityVerifier({
                 )}
               </span>
             </div>
-            <div className="rounded-lg bg-white/70 dark:bg-slate-900/60 p-2.5 border border-black/5 dark:border-white/10">
+            <div className="rounded-lg bg-white/80 dark:bg-[#040C1E]/65 p-2.5 border border-black/5 dark:border-[#00B8FF]/15">
               <span className="block text-[10px] uppercase opacity-70">Rostro en Cámara</span>
               <span className="font-semibold flex items-center gap-1 mt-0.5">
                 {result.selfieFaceDetected ? (
@@ -559,13 +559,13 @@ export function BiometricIdentityVerifier({
                 )}
               </span>
             </div>
-            <div className="rounded-lg bg-white/70 dark:bg-slate-900/60 p-2.5 border border-black/5 dark:border-white/10">
+            <div className="rounded-lg bg-white/80 dark:bg-[#040C1E]/65 p-2.5 border border-black/5 dark:border-[#00B8FF]/15">
               <span className="block text-[10px] uppercase opacity-70">Titular OCR Cédula</span>
               <span className="font-semibold truncate block mt-0.5">
                 {result.extractedDocName || 'No detectado'}
               </span>
             </div>
-            <div className="rounded-lg bg-white/70 dark:bg-slate-900/60 p-2.5 border border-black/5 dark:border-white/10">
+            <div className="rounded-lg bg-white/80 dark:bg-[#040C1E]/65 p-2.5 border border-black/5 dark:border-[#00B8FF]/15">
               <span className="block text-[10px] uppercase opacity-70">Número OCR Cédula</span>
               <span className="font-semibold font-mono truncate block mt-0.5">
                 {result.extractedDocNumber || 'No detectado'}
