@@ -631,9 +631,6 @@ function AxyCoreRouter() {
       if (activeSection === 'new_application') {
         return <NewApplicationView />;
       }
-      if (activeSection === 'loan_calculator') {
-        return <LoanCalculatorView />;
-      }
       return <ClientPortalView />;
     }
     const tenantCheck = getSectionTenantAccess(activeSection);

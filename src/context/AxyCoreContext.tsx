@@ -158,6 +158,7 @@ import type {
   JournalEntryRecord,
 } from '../types/dgiiEcf';
 import type {
+  ApplicationDecisionHistoryRecord,
   ApplicationDocumentRecord,
   ApplicationRecord,
   AuditLogRecord,
@@ -173,6 +174,7 @@ import type {
   CollectionPolicyVersionRecord,
   CollectionReceiptRecord,
   CollectionTaskRecord,
+  FinancialAnalysisRecord,
   CollectorTargetRecord,
   CommitteeDecisionRecord,
   CreditEvaluationRecord,
@@ -369,6 +371,8 @@ interface AxyCoreContextValue {
   policies: CreditPolicyRecord[];
   activeOrTestPolicy: CreditPolicyRecord;
   scoringExecutions: ScoringExecutionRecord[];
+  financialAnalyses: FinancialAnalysisRecord[];
+  applicationDecisionHistory: ApplicationDecisionHistoryRecord[];
   evaluations: CreditEvaluationRecord[];
   committeeDecisions: CommitteeDecisionRecord[];
   formalizations: FormalizationRecord[];
@@ -691,6 +695,8 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   const [fsDocuments, setDocuments] = useState<ApplicationDocumentRecord[]>([]);
   const [policies, setPolicies] = useState<CreditPolicyRecord[]>([FALLBACK_POLICY]);
   const [scoringExecutions, setScoringExecutions] = useState<ScoringExecutionRecord[]>([]);
+  const [financialAnalyses, setFinancialAnalyses] = useState<FinancialAnalysisRecord[]>([]);
+  const [applicationDecisionHistory, setApplicationDecisionHistory] = useState<ApplicationDecisionHistoryRecord[]>([]);
   const [evaluations, setEvaluations] = useState<CreditEvaluationRecord[]>([]);
   const [fsCommitteeDecisions, setCommitteeDecisions] = useState<CommitteeDecisionRecord[]>([]);
   const [fsFormalizations, setFormalizations] = useState<FormalizationRecord[]>([]);
@@ -1585,8 +1591,25 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
-    // Internal-only operational collections
+    // Internal-only operational collections (NEVER subscribed for EXTERNAL_CLIENT)
     if (!isExternal) {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'financial_analyses'), where('organizationId', '==', orgId)),
+          (snap) => setFinancialAnalyses(snap.docs.map((d) => d.data() as FinancialAnalysisRecord)),
+          (err) => handleFirestoreError(err, OperationType.LIST, 'financial_analyses')
+        )
+      );
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'application_decision_history'), where('organizationId', '==', orgId)),
+          (snap) =>
+            setApplicationDecisionHistory(
+              snap.docs.map((d) => d.data() as ApplicationDecisionHistoryRecord)
+            ),
+          (err) => handleFirestoreError(err, OperationType.LIST, 'application_decision_history')
+        )
+      );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'credit_evaluations'), where('organizationId', '==', orgId)),
@@ -3521,6 +3544,8 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     policies,
     activeOrTestPolicy,
     scoringExecutions,
+    financialAnalyses,
+    applicationDecisionHistory,
     evaluations,
     committeeDecisions,
     formalizations,

@@ -819,7 +819,7 @@ export const SECTION_ACCESS_BY_ROLE: Record<UserRole, NavSectionId[]> = {
     'cobranza_reports',
     'cobranza_audit',
   ],
-  EXTERNAL_CLIENT: ['new_application', 'loan_calculator', 'applications', 'loans'],
+  EXTERNAL_CLIENT: ['new_application', 'applications', 'loans'],
 };
 
 export function hasRolePermission(role: UserRole | null | undefined, permission: CreditPermission): boolean {

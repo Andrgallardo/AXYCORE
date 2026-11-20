@@ -295,7 +295,7 @@ describe('AxyCore Integrated Loan Calculator Engine (Exact Reference Parity)', (
   it('integrates cleanly with AxyCore RBAC and navigation breadcrumbs', () => {
     expect(canRoleAccessSection('ADMIN', 'loan_calculator')).toBe(true);
     expect(canRoleAccessSection('BUSINESS_OFFICER', 'loan_calculator')).toBe(true);
-    expect(canRoleAccessSection('EXTERNAL_CLIENT', 'loan_calculator')).toBe(true);
+    expect(canRoleAccessSection('EXTERNAL_CLIENT', 'loan_calculator')).toBe(false);
 
     const trail = buildBreadcrumbsForSection({
       activeSection: 'loan_calculator',

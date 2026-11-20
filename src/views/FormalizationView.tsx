@@ -22,6 +22,7 @@ export function FormalizationView() {
     customers,
     committeeDecisions,
     formalizations,
+    financialAnalyses,
     emailNotifications,
     userProfile,
     selectedApplicationId,
@@ -72,6 +73,23 @@ export function FormalizationView() {
     () => (activeApp ? formalizations.find((f) => f.applicationId === activeApp.id) ?? null : null),
     [activeApp, formalizations]
   );
+
+  const linkedAnalysis = useMemo(() => {
+    if (!activeApp) return null;
+    const appAnalyses = financialAnalyses
+      .filter((a) => a.applicationId === activeApp.id)
+      .sort((a, b) => (b.version || 0) - (a.version || 0));
+    const targetId =
+      existingForm?.approvedFinancialAnalysisId ??
+      activeApp.approvedEvaluationAnalysisId ??
+      activeApp.activeFinancialAnalysisId ??
+      null;
+    if (targetId) {
+      const exact = appAnalyses.find((a) => a.id === targetId);
+      if (exact) return exact;
+    }
+    return appAnalyses.find((a) => a.status === 'VIGENTE') ?? appAnalyses[0] ?? null;
+  }, [activeApp, existingForm?.approvedFinancialAnalysisId, financialAnalyses]);
 
   const approvalEmail = useMemo(() => {
     if (!activeApp) return null;
@@ -157,9 +175,21 @@ export function FormalizationView() {
         termMonths,
         firstPaymentDate,
       });
-      setFinancedExpenses(0);
-      setAllowFinancedExpenses(false);
-      setDeductedExpenses(0);
+      if (linkedAnalysis?.financialSummary && linkedAnalysis.financialSummary.legalFeesAmount > 0) {
+        if (linkedAnalysis.financialSummary.legalFeeMode === 'FINANCIAR') {
+          setAllowFinancedExpenses(true);
+          setFinancedExpenses(linkedAnalysis.financialSummary.legalFeesAmount);
+          setDeductedExpenses(0);
+        } else {
+          setAllowFinancedExpenses(false);
+          setFinancedExpenses(0);
+          setDeductedExpenses(linkedAnalysis.financialSummary.legalFeesAmount);
+        }
+      } else {
+        setFinancedExpenses(0);
+        setAllowFinancedExpenses(false);
+        setDeductedExpenses(0);
+      }
       setPromissoryNoteConfirmed(false);
       setContractConfirmed(false);
       setConditionsFulfilled(decision?.decision !== 'APROBADO_CONDICIONADO');
@@ -170,7 +200,7 @@ export function FormalizationView() {
       setContractText(defaults.contractText);
       setPromissoryNoteText(defaults.promissoryNoteText);
     }
-  }, [activeApp?.id, existingForm?.id, customer?.id]);
+  }, [activeApp?.id, existingForm?.id, customer?.id, linkedAnalysis?.id]);
 
   useEffect(() => {
     if (!activeApp || totalFinanced <= 0) return;
@@ -356,6 +386,8 @@ export function FormalizationView() {
           promissoryNoteConfirmed,
           contractConfirmed,
           status: ready ? 'LISTA_PARA_DESEMBOLSO' : 'PENDIENTE',
+          approvedFinancialAnalysisId:
+            existingForm?.approvedFinancialAnalysisId ?? linkedAnalysis?.id ?? null,
           formalizedBy: userProfile.uid,
           formalizedByName: userProfile.displayName,
         },
@@ -413,6 +445,34 @@ export function FormalizationView() {
 
       {activeApp && (
         <div className="lg:col-span-8 space-y-5 text-xs">
+          {linkedAnalysis && linkedAnalysis.financialSummary && (
+            <div className="p-3.5 rounded-xl border border-[#0066FF]/25 dark:border-[#00D1FF]/25 bg-sky-50/50 dark:bg-[#091834] flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-0.5">
+                <p className="font-bold text-slate-900 dark:text-white">
+                  Análisis Financiero Vinculado: v{linkedAnalysis.version} ({linkedAnalysis.id})
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                  {linkedAnalysis.installmentsCount} cuotas · Gastos legales:{' '}
+                  {formatMoney(
+                    linkedAnalysis.financialSummary.legalFeesAmount,
+                    linkedAnalysis.financialSummary.currency
+                  )}{' '}
+                  (
+                  {linkedAnalysis.financialSummary.legalFeeMode === 'FINANCIAR'
+                    ? 'Financiados'
+                    : 'Descontados'}
+                  ) · Saldo final verificado:{' '}
+                  {formatMoney(
+                    linkedAnalysis.financialSummary.finalBalance,
+                    linkedAnalysis.financialSummary.currency
+                  )}
+                </p>
+              </div>
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px]">
+                Trazabilidad activa
+              </span>
+            </div>
+          )}
           {feedback && (
             <div
               className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${

@@ -47,9 +47,12 @@ export function NewApplicationView() {
     businesses,
     activeOrTestPolicy,
     externalPortalMode,
+    rbac,
     setActiveSection,
     setSelectedApplicationId,
   } = useAxyCore();
+  const isPortalClient =
+    externalPortalMode || !rbac.isInternalStaff || userProfile?.role === 'EXTERNAL_CLIENT';
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -670,14 +673,19 @@ export function NewApplicationView() {
 
   if (resultModal) {
     const { app, scoring, mode, docWarnings } = resultModal;
-    const isPortalClient = externalPortalMode || userProfile?.role === 'EXTERNAL_CLIENT';
     return (
       <div className="axy-surface axy-panel-in max-w-3xl mx-auto p-6 sm:p-8 rounded-2xl space-y-6">
         <div className="flex items-center gap-3 text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="w-7 h-7" />
           <div>
             <h2 className="font-display text-xl font-bold text-slate-900 dark:text-white">
-              {mode === 'DRAFT' ? 'Borrador guardado correctamente' : 'Solicitud registrada y evaluada por Motor V2'}
+              {mode === 'DRAFT'
+                ? 'Borrador guardado correctamente'
+                : isPortalClient
+                ? 'Solicitud recibida correctamente'
+                : app.status === 'EN_EVALUACION'
+                ? 'Solicitud calificada y enviada automáticamente a Evaluación'
+                : 'Solicitud registrada — requiere revisión humana'}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
               {app.applicationNumber} · {app.fileNumber} · Canal {app.channel}
@@ -691,41 +699,70 @@ export function NewApplicationView() {
           </div>
         )}
 
-        {scoring && (
-          <div className="axy-surface-tonal grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl">
+        {isPortalClient ? (
+          <div className="axy-surface-tonal grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl">
             <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Score Interno V2</p>
-              <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-white">{scoring.totalScore}/100</p>
-              <p className="text-xs text-slate-600 dark:text-slate-300">{scoring.riskBand.label}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Precalificación</p>
-              <p className="text-sm font-semibold text-[#0066FF] dark:text-[#00D1FF] mt-1">
-                {SCORING_STATUS_LABELS[scoring.status]}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Monto Recomendado</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Monto Solicitado</p>
               <p className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">
-                {formatMoney(scoring.recommendedAmount, app.currency)}
+                {formatMoney(app.requestedAmount, app.currency)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Tasa y Cuota Est.</p>
-              <p className="text-sm font-mono tabular-nums font-semibold text-slate-900 dark:text-white">
-                {formatRatePct(scoring.recommendedRateMonthly)} / mes
+              <p className="text-xs text-slate-500 dark:text-slate-400">Plazo Solicitado</p>
+              <p className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">
+                {app.requestedTermMonths} meses
               </p>
-              <p className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300">
-                {formatMoney(scoring.recommendedInstallment, app.currency)}
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Estado Inicial</p>
+              <p className="text-sm font-semibold text-[#0066FF] dark:text-[#00D1FF] mt-1">
+                En recepción y revisión
               </p>
             </div>
           </div>
+        ) : (
+          scoring && (
+            <div className="axy-surface-tonal grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Score Interno V2</p>
+                <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-white">{scoring.totalScore}/100</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">{scoring.riskBand.label}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Flujo Integrado</p>
+                <p className="text-sm font-semibold text-[#0066FF] dark:text-[#00D1FF] mt-1">
+                  {app.status === 'EN_EVALUACION'
+                    ? 'Auto-enviada a Evaluación'
+                    : app.requiresHumanIntervention
+                    ? 'Requiere Reevaluación Humana'
+                    : SCORING_STATUS_LABELS[scoring.status]}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Monto Recomendado</p>
+                <p className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">
+                  {formatMoney(scoring.recommendedAmount, app.currency)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tasa y Cuota Est.</p>
+                <p className="text-sm font-mono tabular-nums font-semibold text-slate-900 dark:text-white">
+                  {formatRatePct(scoring.recommendedRateMonthly)} / mes
+                </p>
+                <p className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                  {formatMoney(scoring.recommendedInstallment, app.currency)}
+                </p>
+              </div>
+            </div>
+          )
         )}
 
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {isPortalClient
-            ? 'Importante: La precalificación preliminar del Motor V2 no constituye aprobación contractual automática. Puedes consultar el avance de tu solicitud desde el Portal de Clientes.'
-            : 'Importante: La precalificación preliminar del Motor V2 no constituye aprobación contractual automática. El expediente queda disponible en Solicitudes Recibidas para evaluación y comité.'}
+            ? 'Tu solicitud ha sido registrada correctamente y está siendo procesada por nuestro equipo de crédito. Puedes consultar su estado desde el Portal de Clientes.'
+            : app.status === 'EN_EVALUACION'
+            ? 'El Motor de Decisiones y el Motor de Cálculo Financiero verificaron elegibilidad y guardaron la tabla de amortización. El expediente pasó automáticamente a Evaluación (no implica aprobación ni desembolso automático).'
+            : 'Las condiciones solicitadas no calificaron automáticamente bajo las reglas activas. El expediente permanece en Solicitudes Recibidas con el detalle de reglas incumplidas para reevaluación humana.'}
         </p>
 
         <div className="flex flex-wrap gap-3">
@@ -1461,7 +1498,7 @@ export function NewApplicationView() {
                   onChange={(e) => setRequestedAmount(e.target.value)}
                   className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono tabular-nums"
                 />
-                {activeProductPolicy && (
+                {!isPortalClient && activeProductPolicy && (
                   <p className="text-[11px] text-slate-500 mt-1 font-mono tabular-nums">
                     Política V2: {formatMoney(activeProductPolicy.minAmount, derivedCurrency)} –{' '}
                     {formatMoney(activeProductPolicy.maxAmount, derivedCurrency)}
@@ -1476,7 +1513,7 @@ export function NewApplicationView() {
                   onChange={(e) => setRequestedTermMonths(e.target.value)}
                   className="w-full axy-input px-3 py-2 text-sm text-slate-900 dark:text-white font-mono tabular-nums"
                 />
-                {activeProductPolicy && (
+                {!isPortalClient && activeProductPolicy && (
                   <p className="text-[11px] text-slate-500 mt-1 font-mono tabular-nums">
                     Política V2: {activeProductPolicy.minTermMonths}–{activeProductPolicy.maxTermMonths} meses
                   </p>
@@ -1492,10 +1529,14 @@ export function NewApplicationView() {
                   {(activeProductPolicy?.allowedFrequencies ?? ['MENSUAL']).map((freq) => (
                     <option key={freq} value={freq}>
                       {freq === 'MENSUAL'
-                        ? 'Mensual (Política activa Motor V2)'
+                        ? isPortalClient
+                          ? 'Mensual'
+                          : 'Mensual (Política activa Motor V2)'
                         : freq === 'QUINCENAL'
                         ? 'Quincenal'
-                        : 'Semanal'}
+                        : freq === 'SEMANAL'
+                        ? 'Semanal'
+                        : 'Diaria'}
                     </option>
                   ))}
                 </select>
@@ -1529,25 +1570,27 @@ export function NewApplicationView() {
               />
             </div>
 
-            <OriginationLoanSimulator
-              policy={activeOrTestPolicy}
-              draftApplication={simulatorDraftData.application}
-              draftCustomer={simulatorDraftData.customer}
-              onApplyConditions={(updates) => {
-                if (updates.requestedAmount !== undefined) {
-                  setRequestedAmount(String(updates.requestedAmount));
-                }
-                if (updates.requestedTermMonths !== undefined) {
-                  setRequestedTermMonths(String(updates.requestedTermMonths));
-                }
-                if (updates.paymentFrequency !== undefined) {
-                  setPaymentFrequency(updates.paymentFrequency);
-                }
-                if (updates.amortizationMethod !== undefined) {
-                  setAmortizationMethod(updates.amortizationMethod);
-                }
-              }}
-            />
+            {!isPortalClient && (
+              <OriginationLoanSimulator
+                policy={activeOrTestPolicy}
+                draftApplication={simulatorDraftData.application}
+                draftCustomer={simulatorDraftData.customer}
+                onApplyConditions={(updates) => {
+                  if (updates.requestedAmount !== undefined) {
+                    setRequestedAmount(String(updates.requestedAmount));
+                  }
+                  if (updates.requestedTermMonths !== undefined) {
+                    setRequestedTermMonths(String(updates.requestedTermMonths));
+                  }
+                  if (updates.paymentFrequency !== undefined) {
+                    setPaymentFrequency(updates.paymentFrequency);
+                  }
+                  if (updates.amortizationMethod !== undefined) {
+                    setAmortizationMethod(updates.amortizationMethod);
+                  }
+                }}
+              />
+            )}
           </div>
         )}
 

@@ -11,6 +11,12 @@ import {
   extractBcrdExchangeRate,
   type BcrdExchangeRateResult,
 } from './src/engine/loanCalculatorEngine';
+import {
+  canUserExecuteHumanReevaluation,
+  canUserOverrideRateOrFees,
+  runIntegratedDecisionAndCalculation,
+} from './src/engine/integratedCreditEngine';
+import type { ExchangeRateAuditMetadata, UserRole } from './src/types/axycore';
 import { canExecuteDisbursement, canUserApproveCommittee } from './src/engine/workflowGuards';
 import { runGeminiDocumentOcrVerification } from './server/geminiOcr';
 import { runGeminiBiometricVerification } from './server/geminiBiometric';
@@ -169,18 +175,21 @@ async function startServer() {
   let bcrdCache: { data: BcrdExchangeRateResult; expiresAtMs: number } | null = null;
   let lastValidBcrdRate: BcrdExchangeRateResult | null = null;
 
-  app.get('/api/exchange-rate/bcrd', async (req, res) => {
-    const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+  async function resolveServerBcrdExchangeRate(forceRefresh = false): Promise<{
+    ok: boolean;
+    rate: BcrdExchangeRateResult | null;
+    errorMessage?: string;
+  }> {
     const nowMs = Date.now();
-
     if (!forceRefresh && bcrdCache && nowMs < bcrdCache.expiresAtMs) {
-      res.json({
+      return {
         ok: true,
-        ...bcrdCache.data,
-        desdeCache: true,
-        automatica: true,
-      });
-      return;
+        rate: {
+          ...bcrdCache.data,
+          desdeCache: true,
+          automatica: true,
+        },
+      };
     }
 
     try {
@@ -200,9 +209,11 @@ async function startServer() {
 
       const html = await response.text();
       const parsed = extractBcrdExchangeRate(html);
-      const obtainedAt = new Date().toLocaleString('sv-SE', {
-        timeZone: 'America/Santo_Domingo',
-      }).replace(' ', 'T');
+      const obtainedAt = new Date()
+        .toLocaleString('sv-SE', {
+          timeZone: 'America/Santo_Domingo',
+        })
+        .replace(' ', 'T');
 
       const freshRate: BcrdExchangeRateResult = {
         ...parsed,
@@ -218,34 +229,298 @@ async function startServer() {
       };
       lastValidBcrdRate = freshRate;
 
-      res.json({
-        ok: true,
-        ...freshRate,
-      });
+      return { ok: true, rate: freshRate };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No fue posible consultar el BCRD.';
       if (lastValidBcrdRate) {
-        res.json({
+        return {
           ok: true,
-          ...lastValidBcrdRate,
-          desdeCache: false,
-          respaldo: true,
-          automatica: true,
-          motivoRespaldo: message,
+          rate: {
+            ...lastValidBcrdRate,
+            desdeCache: false,
+            respaldo: true,
+            automatica: true,
+            motivoRespaldo: message,
+          },
+          errorMessage: message,
+        };
+      }
+      return {
+        ok: false,
+        rate: null,
+        errorMessage: message,
+      };
+    }
+  }
+
+  async function buildServerExchangeRateMeta(
+    currency: string,
+    policy: typeof DEFAULT_POLICY_V2
+  ): Promise<ExchangeRateAuditMetadata | null> {
+    if (currency !== 'USD') return null;
+    const bcrdRes = await resolveServerBcrdExchangeRate(false);
+    const nowIso = new Date().toISOString();
+    if (bcrdRes.ok && bcrdRes.rate && bcrdRes.rate.venta > 0) {
+      return {
+        applied: true,
+        currencyPair: 'USD/DOP',
+        sellRate: bcrdRes.rate.venta,
+        source: bcrdRes.rate.fuente,
+        rateDate: bcrdRes.rate.fecha,
+        obtainedAtIso: bcrdRes.rate.obtenidaEn || nowIso,
+        isAutomaticBcrd: true,
+        isFallback: Boolean(bcrdRes.rate.respaldo),
+        fallbackReason: bcrdRes.rate.motivoRespaldo ?? null,
+        manualOverrideBy: null,
+        manualOverrideByName: null,
+      };
+    }
+    const fallbackRate =
+      policy.exchangeRateConfig?.dopPerUsd && policy.exchangeRateConfig.dopPerUsd > 0
+        ? policy.exchangeRateConfig.dopPerUsd
+        : 60.0;
+    return {
+      applied: true,
+      currencyPair: 'USD/DOP',
+      sellRate: fallbackRate,
+      source: policy.exchangeRateConfig?.source || 'Respaldo de política institucional',
+      rateDate: policy.exchangeRateConfig?.rateDate || nowIso.slice(0, 10),
+      obtainedAtIso: nowIso,
+      isAutomaticBcrd: false,
+      isFallback: true,
+      fallbackReason: bcrdRes.errorMessage || 'BCRD no disponible al momento del cálculo.',
+      manualOverrideBy: null,
+      manualOverrideByName: null,
+    };
+  }
+
+  app.get('/api/exchange-rate/bcrd', async (req, res) => {
+    const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+    const result = await resolveServerBcrdExchangeRate(forceRefresh);
+    if (result.ok && result.rate) {
+      res.json({
+        ok: true,
+        ...result.rate,
+      });
+      return;
+    }
+
+    res.json({
+      ok: false,
+      venta: null,
+      fecha: null,
+      fuente: 'Manual',
+      desdeCache: false,
+      respaldo: false,
+      automatica: false,
+      motivoRespaldo: result.errorMessage || 'No fue posible consultar el BCRD.',
+    });
+  });
+
+  // Authoritative Integrated Decision Engine + Financial Calculation Pipeline (Stage 1->3)
+  app.post('/api/applications/process-decision-and-calculation', async (req, res) => {
+    try {
+      const {
+        application,
+        customer,
+        policy,
+        organization,
+        analysisType = 'SOLICITUD_INICIAL',
+        version = 1,
+        useVerifiedData = false,
+        alternativeConditions = null,
+        justification = null,
+        actor,
+      } = req.body ?? {};
+
+      if (!application || !customer || !actor?.uid || !actor?.role) {
+        res.status(400).json({
+          error: 'Se requieren application, customer y actor para ejecutar el motor integrado.',
         });
         return;
       }
 
-      res.json({
-        ok: false,
-        venta: null,
-        fecha: null,
-        fuente: 'Manual',
-        desdeCache: false,
-        respaldo: false,
-        automatica: false,
-        motivoRespaldo: message,
+      if (
+        application.organizationId &&
+        customer.organizationId &&
+        application.organizationId !== customer.organizationId
+      ) {
+        res.status(403).json({
+          error:
+            'Violación de aislamiento Multi-Tenant: solicitud y cliente pertenecen a organizaciones distintas.',
+        });
+        return;
+      }
+
+      if (organization) {
+        const apiAccess = checkTenantApiAccess({
+          apiPath: '/api/applications/process-decision-and-calculation',
+          organization,
+        });
+        if (!apiAccess.allowed) {
+          res.status(403).json({ error: apiAccess.reason });
+          return;
+        }
+      }
+
+      const actorRole = actor.role as UserRole;
+      if (actorRole === 'EXTERNAL_CLIENT' && analysisType !== 'SOLICITUD_INICIAL') {
+        res.status(403).json({
+          error:
+            'Acceso denegado: los clientes externos no pueden ejecutar reevaluaciones ni acceder a parámetros técnicos internos.',
+        });
+        return;
+      }
+
+      const effectivePolicy = policy ?? DEFAULT_POLICY_V2;
+      const exchangeRateMeta = await buildServerExchangeRateMeta(
+        application.currency,
+        effectivePolicy
+      );
+
+      const integratedResult = runIntegratedDecisionAndCalculation({
+        application,
+        customer,
+        policy: effectivePolicy,
+        analysisType,
+        version: Number(version) || 1,
+        useVerifiedData: Boolean(useVerifiedData),
+        alternativeConditions: actorRole === 'EXTERNAL_CLIENT' ? null : alternativeConditions,
+        exchangeRateMeta,
+        justification,
+        actor: {
+          uid: String(actor.uid),
+          displayName: String(actor.displayName || 'Sistema AxyCore'),
+          role: actorRole,
+        },
+        intent: 'EVALUATE_ONLY',
       });
+
+      res.json(integratedResult);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Error interno al procesar el Motor de Decisiones y Cálculo Financiero.';
+      const status = msg.includes('Acceso denegado') || msg.includes('autorización') ? 403 : 400;
+      res.status(status).json({ error: msg });
+    }
+  });
+
+  // Human Re-evaluation & Strict «ENVIAR A EVALUACIÓN» Gate Endpoint (Internal Staff Only)
+  app.post('/api/applications/reevaluate', async (req, res) => {
+    try {
+      const {
+        application,
+        customer,
+        policy,
+        organization,
+        version = 2,
+        alternativeConditions,
+        justification,
+        actor,
+        actorOrganizationId,
+        intent = 'EVALUATE_ONLY',
+      } = req.body ?? {};
+
+      if (!application || !customer || !actor?.uid || !actor?.role) {
+        res.status(400).json({
+          error: 'Se requieren application, customer y actor autenticado para reevaluación humana.',
+        });
+        return;
+      }
+
+      const actorRole = actor.role as UserRole;
+      if (!canUserExecuteHumanReevaluation(actorRole)) {
+        res.status(403).json({
+          error: `Acceso denegado: el rol ${actorRole} no está autorizado para ejecutar reevaluación humana ni modificar condiciones financieras.`,
+        });
+        return;
+      }
+
+      if (
+        (application.organizationId &&
+          customer.organizationId &&
+          application.organizationId !== customer.organizationId) ||
+        (actorOrganizationId &&
+          application.organizationId &&
+          actorOrganizationId !== application.organizationId)
+      ) {
+        res.status(403).json({
+          error:
+            'Violación de aislamiento Multi-Tenant: el usuario o cliente no pertenece a la organización de la solicitud.',
+        });
+        return;
+      }
+
+      if (organization) {
+        const apiAccess = checkTenantApiAccess({
+          apiPath: '/api/applications/reevaluate',
+          organization,
+        });
+        if (!apiAccess.allowed) {
+          res.status(403).json({ error: apiAccess.reason });
+          return;
+        }
+      }
+
+      if (
+        alternativeConditions &&
+        (alternativeConditions.useSuggestedRate === false ||
+          (alternativeConditions.customLegalFeesAmount !== undefined &&
+            alternativeConditions.customLegalFeesAmount !== null) ||
+          (alternativeConditions.manualExchangeRate !== undefined &&
+            alternativeConditions.manualExchangeRate !== null)) &&
+        !canUserOverrideRateOrFees(actorRole)
+      ) {
+        res.status(403).json({
+          error: `Permiso insuficiente: el rol ${actorRole} no puede sobrescribir tasa, gastos legales ni tipo de cambio.`,
+        });
+        return;
+      }
+
+      const effectivePolicy = policy ?? DEFAULT_POLICY_V2;
+      const exchangeRateMeta = await buildServerExchangeRateMeta(
+        application.currency,
+        effectivePolicy
+      );
+
+      const integratedResult = runIntegratedDecisionAndCalculation({
+        application,
+        customer,
+        policy: effectivePolicy,
+        analysisType: 'REEVALUACION_HUMANA',
+        version: Math.max(2, Number(version) || 2),
+        useVerifiedData: false,
+        alternativeConditions: alternativeConditions ?? null,
+        exchangeRateMeta,
+        justification: justification ?? null,
+        actor: {
+          uid: String(actor.uid),
+          displayName: String(actor.displayName || 'Analista AxyCore'),
+          role: actorRole,
+        },
+        intent: intent === 'SEND_TO_EVALUATION' ? 'SEND_TO_EVALUATION' : 'EVALUATE_ONLY',
+      });
+
+      if (intent === 'SEND_TO_EVALUATION' && !integratedResult.canSendToEvaluation) {
+        res.status(422).json({
+          error:
+            'No es posible enviar la solicitud a Evaluación: no se cumplen todas las condiciones requeridas.',
+          blockedReasons: integratedResult.sendToEvaluationBlockedReasons,
+          result: integratedResult,
+        });
+        return;
+      }
+
+      res.json(integratedResult);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Error interno durante la reevaluación humana de la solicitud.';
+      const status = msg.includes('Acceso denegado') || msg.includes('autorización') ? 403 : 400;
+      res.status(status).json({ error: msg });
     }
   });
 

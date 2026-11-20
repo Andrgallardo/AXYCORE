@@ -3,6 +3,7 @@ import { Download, Eye, RefreshCw, Send, ShieldCheck } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { DocumentOcrVerifierPanel } from '../components/DocumentOcrVerifierPanel';
 import { ConfidentialDocPreviewModal } from '../components/ConfidentialDocPreviewModal';
+import { ApplicationFinancialAnalysisPanel } from '../components/ApplicationFinancialAnalysisPanel';
 import {
   generateId,
   recordConfidentialDocumentAccess,
@@ -503,6 +504,13 @@ export function EvaluationView() {
               </div>
             </div>
           </div>
+
+          {/* Persisted Financial Analysis & Amortization Schedule (Decision V2 + Financial Engine) */}
+          <ApplicationFinancialAnalysisPanel
+            application={activeApp}
+            customer={customer}
+            mode="EVALUATION"
+          />
 
           {/* Declared vs Verified Financials */}
           <div className="axy-surface p-5 rounded-2xl space-y-4">

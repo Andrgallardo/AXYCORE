@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   CheckCircle2,
   Cpu,
   DollarSign,
   FileCheck2,
+  History,
   Plus,
   Save,
   Trash2,
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import {
+  buildApplicationFieldDiff,
   updateReceivedApplicationAndReevaluate,
   type CustomerUpdateInput,
   type ReceivedBusinessEditInput,
@@ -21,6 +24,7 @@ import {
 import type {
   AdditionalIncomeStatus,
   AmortizationMethod,
+  ApplicationFieldChange,
   ApplicationRecord,
   CurrencyCode,
   DebtDeclarationStatus,
@@ -37,10 +41,25 @@ import {
   SCORING_STATUS_LABELS,
   formatMoney,
   formatRatePct,
+  formatTimestamp,
   formatUserFacingError,
 } from '../utils/formatters';
 
-type EditTab = 'credito' | 'finanzas' | 'solicitante' | 'referencias';
+type EditTab = 'credito' | 'finanzas' | 'solicitante' | 'referencias' | 'historial';
+
+const CHANGE_CATEGORY_LABELS: Record<ApplicationFieldChange['category'], string> = {
+  BASICO: 'Básico',
+  FINANCIERO: 'Financiero',
+  CLIENTE: 'Cliente',
+  REFERENCIAS: 'Referencias',
+};
+
+const QUICK_AUDIT_REASONS = [
+  'Corrección de ingresos declarados por el cliente',
+  'Ajuste de monto o plazo acordado con solicitante',
+  'Actualización de gastos y deudas actuales',
+  'Corrección de datos básicos / contacto del cliente',
+];
 
 interface ApplicationEditModalProps {
   application: ApplicationRecord;
@@ -50,6 +69,7 @@ interface ApplicationEditModalProps {
     newScoring?: ScoringExecutionRecord;
     previousScore: number | null;
     changedFields: string[];
+    fieldChanges: ApplicationFieldChange[];
   }) => void;
 }
 
@@ -76,6 +96,7 @@ export function ApplicationEditModal({
     previousScore: number | null;
     newScoring?: ScoringExecutionRecord;
     changedFields: string[];
+    fieldChanges: ApplicationFieldChange[];
   } | null>(null);
 
   // 1. Loan Conditions
@@ -84,7 +105,9 @@ export function ApplicationEditModal({
   const [requestedAmount, setRequestedAmount] = useState<string>(String(application.requestedAmount ?? 0));
   const [requestedTermMonths, setRequestedTermMonths] = useState<string>(String(application.requestedTermMonths ?? 12));
   const [paymentFrequency, setPaymentFrequency] = useState<PaymentFrequency>(application.paymentFrequency);
-  const [amortizationMethod, setAmortizationMethod] = useState<AmortizationMethod>(application.amortizationMethod);
+  const [amortizationMethod, setAmortizationMethod] = useState<AmortizationMethod>(
+    application.amortizationMethod === 'INTERES_FIJO' ? 'INTERES_FIJO' : 'SALDO_INSOLUTO'
+  );
   const [loanPurpose, setLoanPurpose] = useState<string>(application.loanPurpose ?? '');
   const [loanPurposeDescription, setLoanPurposeDescription] = useState<string>(application.loanPurposeDescription ?? '');
   const [proposedCollateral, setProposedCollateral] = useState<string>(application.proposedCollateral ?? '');
@@ -176,10 +199,232 @@ export function ApplicationEditModal({
     return Number.isFinite(n) && n >= 0 ? n : null;
   };
 
+  const auditHistoryEntries = useMemo(
+    () =>
+      [...(application.movementHistory ?? [])]
+        .filter((m) => (m.changes && m.changes.length > 0) || /actualizad|reevaluad|edici/i.test(m.action))
+        .reverse(),
+    [application.movementHistory]
+  );
+
+  const pendingFieldChanges = useMemo(() => {
+    const parsedAmount = Number(requestedAmount);
+    const parsedTerm = Number(requestedTermMonths);
+    const pIncome = toOptNum(primaryNetIncome);
+    const hasAddIncome = additionalIncomeStatus === 'QUANTIFIED' || additionalIncomeStatus === 'PARTIAL';
+    const addIncome = hasAddIncome ? toOptNum(additionalNetIncome) ?? 0 : 0;
+    const declaredTotalMonthlyIncome = pIncome !== null ? pIncome + addIncome : fd.declaredTotalMonthlyIncome ?? null;
+
+    const itemizedSum =
+      (toOptNum(bankDebtPayment) ?? 0) +
+      (toOptNum(financeDebtPayment) ?? 0) +
+      (toOptNum(cardDebtPayment) ?? 0) +
+      (toOptNum(informalDebtPayment) ?? 0) +
+      (toOptNum(otherDebtPayment) ?? 0);
+    const manualDebtPmt = toOptNum(currentDebtPayments);
+    const effectiveDebtPayments =
+      debtDeclarationStatus === 'NO_DEBTS_EXPLICIT'
+        ? 0
+        : manualDebtPmt !== null
+        ? manualDebtPmt
+        : itemizedSum > 0
+        ? itemizedSum
+        : null;
+
+    const previewCustomerUpdates: CustomerUpdateInput | null =
+      customer && syncCustomer
+        ? {
+            firstName: custFirstName,
+            lastName: custLastName,
+            phone: custPhone,
+            altPhone: custAltPhone,
+            email: custEmail,
+            birthDate: custBirthDate,
+            nationality: customer.nationality,
+            maritalStatus: custMaritalStatus,
+            address: custAddress,
+            municipality: custMunicipality,
+            province: custProvince,
+            residenceMonths: toOptNum(custResidenceMonths) ?? 0,
+            housingType: custHousingType,
+            housingPayment: toOptNum(custHousingPayment) ?? 0,
+            socialMediaDeclared: custSocialStatus,
+            socialMediaHandle: custSocialHandle,
+            altContactName: custAltContactName,
+            altContactPhone: custAltContactPhone,
+          }
+        : null;
+
+    const previewBusinessUpdates: ReceivedBusinessEditInput | null =
+      business && application.applicantType === 'BUSINESS'
+        ? {
+            legalName: bizLegalName,
+            tradeName: bizTradeName,
+            companyType: bizCompanyType,
+            economicActivity: bizEconomicActivity,
+            operationsStartDate: bizStartDate,
+            authorizedRepName: bizRepName,
+            authorizedRepDoc: bizRepDoc,
+            corporateDocsSummary: business.corporateDocsSummary,
+          }
+        : null;
+
+    return buildApplicationFieldDiff({
+      application,
+      customer,
+      customerUpdates: previewCustomerUpdates,
+      business,
+      businessUpdates: previewBusinessUpdates,
+      updates: {
+        productCode,
+        currency,
+        requestedAmount: Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : application.requestedAmount,
+        requestedTermMonths:
+          Number.isFinite(parsedTerm) && parsedTerm > 0 ? Math.round(parsedTerm) : application.requestedTermMonths,
+        paymentFrequency,
+        amortizationMethod,
+        loanPurpose,
+        loanPurposeDescription,
+        proposedCollateral,
+        financialData: {
+          activityType: activityType.trim() || undefined,
+          employerOrBusinessName: employerOrBusinessName.trim() || undefined,
+          occupationOrRole: occupationOrRole.trim() || undefined,
+          employmentMonths: toOptNum(employmentMonths),
+          incomeSourceType,
+          primaryNetIncome: pIncome,
+          additionalIncomeStatus,
+          additionalNetIncome: hasAddIncome ? toOptNum(additionalNetIncome) : 0,
+          declaredTotalMonthlyIncome,
+          incomeCurrency,
+          essentialExpenses: toOptNum(essentialExpenses),
+          housingPayment: toOptNum(housingPaymentFin),
+          housingIncludedInExpenses,
+          debtDeclarationStatus,
+          debtCount: debtDeclarationStatus === 'NO_DEBTS_EXPLICIT' ? 0 : toOptNum(debtCount),
+          totalDebtBalance: debtDeclarationStatus === 'NO_DEBTS_EXPLICIT' ? 0 : toOptNum(totalDebtBalance),
+          currentDebtPayments: effectiveDebtPayments,
+          bankDebtPayment: debtDeclarationStatus === 'NO_DEBTS_EXPLICIT' ? 0 : toOptNum(bankDebtPayment),
+          financeDebtPayment: debtDeclarationStatus === 'NO_DEBTS_EXPLICIT' ? 0 : toOptNum(financeDebtPayment),
+          cardDebtPayment: debtDeclarationStatus === 'NO_DEBTS_EXPLICIT' ? 0 : toOptNum(cardDebtPayment),
+          informalDebtPayment: debtDeclarationStatus === 'NO_DEBTS_EXPLICIT' ? 0 : toOptNum(informalDebtPayment),
+          otherDebtPayment: debtDeclarationStatus === 'NO_DEBTS_EXPLICIT' ? 0 : toOptNum(otherDebtPayment),
+        },
+        businessFinancialData:
+          application.applicantType === 'BUSINESS'
+            ? {
+                grossSales: toOptNum(grossSales),
+                operatingCosts: toOptNum(operatingCosts),
+                netMonthlyFlow:
+                  toOptNum(netMonthlyFlow) ??
+                  (toOptNum(grossSales) !== null && toOptNum(operatingCosts) !== null
+                    ? Math.max(0, (toOptNum(grossSales) ?? 0) - (toOptNum(operatingCosts) ?? 0))
+                    : null),
+                businessObligationsMonthly: toOptNum(businessObligationsMonthly),
+                totalBusinessDebtBalance: toOptNum(totalBusinessDebtBalance),
+                businessDebtCount: toOptNum(businessDebtCount),
+                operationsMonths: toOptNum(operationsMonths),
+                repaymentSource: repaymentSource.trim() || undefined,
+                incomeCurrency,
+                debtDeclarationStatus: businessDebtStatus,
+              }
+            : null,
+        references: references.slice(0, 4),
+        declaredDocumentsSummary: {
+          hasIdentityDoc,
+          hasIncomeEvidence,
+          hasAddressProof,
+          hasCorporateDocs,
+        },
+      },
+    });
+  }, [
+    activityType,
+    additionalIncomeStatus,
+    additionalNetIncome,
+    amortizationMethod,
+    application,
+    bankDebtPayment,
+    bizCompanyType,
+    bizEconomicActivity,
+    bizLegalName,
+    bizRepDoc,
+    bizRepName,
+    bizStartDate,
+    bizTradeName,
+    business,
+    businessDebtCount,
+    businessDebtStatus,
+    businessObligationsMonthly,
+    cardDebtPayment,
+    currency,
+    currentDebtPayments,
+    custAddress,
+    custAltContactName,
+    custAltContactPhone,
+    custAltPhone,
+    custBirthDate,
+    custEmail,
+    custFirstName,
+    custHousingPayment,
+    custHousingType,
+    custLastName,
+    custMaritalStatus,
+    custMunicipality,
+    custPhone,
+    custProvince,
+    custResidenceMonths,
+    custSocialHandle,
+    custSocialStatus,
+    customer,
+    debtCount,
+    debtDeclarationStatus,
+    employerOrBusinessName,
+    employmentMonths,
+    essentialExpenses,
+    fd.declaredTotalMonthlyIncome,
+    financeDebtPayment,
+    grossSales,
+    hasAddressProof,
+    hasCorporateDocs,
+    hasIdentityDoc,
+    hasIncomeEvidence,
+    housingIncludedInExpenses,
+    housingPaymentFin,
+    incomeCurrency,
+    incomeSourceType,
+    informalDebtPayment,
+    loanPurpose,
+    loanPurposeDescription,
+    netMonthlyFlow,
+    occupationOrRole,
+    operatingCosts,
+    operationsMonths,
+    otherDebtPayment,
+    paymentFrequency,
+    primaryNetIncome,
+    productCode,
+    proposedCollateral,
+    references,
+    repaymentSource,
+    requestedAmount,
+    requestedTermMonths,
+    syncCustomer,
+    totalBusinessDebtBalance,
+    totalDebtBalance,
+  ]);
+
   const handleSubmit = async (reevaluateWithEngine: boolean) => {
     if (!userProfile) return;
     setErrorMsg(null);
     setReevalResult(null);
+
+    if (pendingFieldChanges.length > 0 && correctionNote.trim().length < 5) {
+      setErrorMsg(
+        'Para fines de auditoría, indica el motivo de la modificación (mínimo 5 caracteres) antes de guardar los cambios.'
+      );
+      return;
+    }
 
     const parsedAmount = Number(requestedAmount);
     const parsedTerm = Number(requestedTermMonths);
@@ -332,7 +577,9 @@ export function ApplicationEditModal({
         previousScore: result.previousScore,
         newScoring: result.newScoring,
         changedFields: result.changedFields,
+        fieldChanges: result.fieldChanges,
       });
+      setCorrectionNote('');
       if (onSaved) onSaved(result);
     } catch (err) {
       setErrorMsg(formatUserFacingError(err, 'No se pudo actualizar la solicitud.'));
@@ -386,6 +633,7 @@ export function ApplicationEditModal({
             { id: 'finanzas' as const, label: '2. Ingresos, Gastos y Deudas', icon: Building2 },
             { id: 'solicitante' as const, label: '3. Datos del Cliente', icon: User },
             { id: 'referencias' as const, label: '4. Referencias y Documentos', icon: FileCheck2 },
+            { id: 'historial' as const, label: `5. Historial Auditoría (${auditHistoryEntries.length})`, icon: History },
           ].map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
@@ -465,9 +713,39 @@ export function ApplicationEditModal({
                   </div>
                 </div>
               )}
-              <p className="text-[11px] opacity-85">
-                Campos actualizados: {reevalResult.changedFields.length > 0 ? reevalResult.changedFields.join(', ') : 'Confirmación de datos'}.
-              </p>
+              {reevalResult.fieldChanges.length > 0 ? (
+                <div className="pt-1 space-y-1">
+                  <p className="text-[11px] font-semibold">
+                    Registro de auditoría guardado ({reevalResult.fieldChanges.length} campo(s) modificado(s)):
+                  </p>
+                  <div className="rounded-lg overflow-hidden border border-emerald-200/80 dark:border-emerald-800/60 bg-white/75 dark:bg-slate-900/50">
+                    <table className="w-full text-[11px] text-left border-collapse">
+                      <thead>
+                        <tr className="bg-emerald-100/70 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200">
+                          <th className="py-1 px-2 font-semibold">Campo</th>
+                          <th className="py-1 px-2 font-semibold">Valor Anterior</th>
+                          <th className="py-1 px-2 font-semibold">Valor Nuevo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-emerald-200/60 dark:divide-emerald-900/50">
+                        {reevalResult.fieldChanges.slice(0, 8).map((c, idx) => (
+                          <tr key={`${c.field}-${idx}`}>
+                            <td className="py-1 px-2 font-medium">{c.label}</td>
+                            <td className="py-1 px-2 font-mono text-slate-500 line-through">{c.previousValue}</td>
+                            <td className="py-1 px-2 font-mono font-semibold text-emerald-800 dark:text-emerald-300">
+                              {c.newValue}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] opacity-85">
+                  Campos actualizados: {reevalResult.changedFields.length > 0 ? reevalResult.changedFields.join(', ') : 'Confirmación de datos'}.
+                </p>
+              )}
             </div>
           )}
 
@@ -538,9 +816,8 @@ export function ApplicationEditModal({
                   onChange={(e) => setAmortizationMethod(e.target.value as AmortizationMethod)}
                   className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                 >
-                  <option value="FRANCES">Francés (Cuota Fija)</option>
-                  <option value="ALEMAN">Alemán (Capital Fijo)</option>
-                  <option value="FLAT">Flat / Tasa Fija</option>
+                  <option value="SALDO_INSOLUTO">Saldo Insoluto (Cuota Nivelada)</option>
+                  <option value="INTERES_FIJO">Interés Fijo (Flat)</option>
                 </select>
               </div>
               <div className="sm:col-span-2 lg:col-span-3">
@@ -1011,11 +1288,18 @@ export function ApplicationEditModal({
             <div className="space-y-5">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-900 dark:text-white">Referencias Personales / Comerciales</h4>
+                  <h4 className="font-bold text-slate-900 dark:text-white">
+                    Referencias Personales / Comerciales ({references.length}/4)
+                  </h4>
                   <button
                     type="button"
-                    onClick={() => setReferences((prev) => [...prev, { name: '', relationship: '', phone: '' }])}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg axy-btn-secondary font-semibold cursor-pointer"
+                    disabled={references.length >= 4}
+                    onClick={() =>
+                      setReferences((prev) =>
+                        prev.length < 4 ? [...prev, { name: '', relationship: '', phone: '' }] : prev
+                      )
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg axy-btn-secondary font-semibold cursor-pointer disabled:opacity-50"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Agregar Referencia</span>
@@ -1089,18 +1373,152 @@ export function ApplicationEditModal({
             </div>
           )}
 
-          {/* Audit Correction Note */}
-          <div className="pt-3 border-t border-[var(--axy-border)]">
-            <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Motivo / Observación de la Corrección (se registra en bitácora del expediente)
-            </label>
-            <input
-              value={correctionNote}
-              onChange={(e) => setCorrectionNote(e.target.value)}
-              placeholder="Ej. Cliente ingresó salario anual en lugar de mensual; se corrigió ingreso neto y deudas actuales."
-              className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
-            />
-          </div>
+          {/* TAB 5: HISTORIAL DE CAMBIOS PARA AUDITORÍA */}
+          {tab === 'historial' && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white">
+                    Bitácora de Modificaciones de la Solicitud (Auditoría Inmutable)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Cada edición sobre datos básicos o financieros queda trazada con usuario, rol, fecha, motivo y valores antes/después.
+                  </p>
+                </div>
+              </div>
+
+              {auditHistoryEntries.length === 0 ? (
+                <div className="p-6 rounded-xl axy-surface-tonal text-center text-slate-500">
+                  Esta solicitud aún no registra modificaciones posteriores a su recepción inicial.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {auditHistoryEntries.map((entry, idx) => (
+                    <div
+                      key={`${entry.timestamp}-${idx}`}
+                      className="rounded-xl border border-[var(--axy-border)] bg-[var(--axy-surface-tonal)] p-3.5 space-y-2.5"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <p className="font-semibold text-slate-900 dark:text-white">{entry.action}</p>
+                          {entry.note && (
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                              <span className="font-semibold">Motivo:</span> {entry.note}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
+                          <p className="font-semibold text-slate-700 dark:text-slate-200">
+                            {entry.userName}
+                            {entry.userRole ? ` · ${entry.userRole}` : ''}
+                          </p>
+                          <p className="font-mono">{formatTimestamp(entry.timestamp)}</p>
+                        </div>
+                      </div>
+
+                      {entry.changes && entry.changes.length > 0 && (
+                        <div className="rounded-lg overflow-hidden border border-[var(--axy-border)] bg-white dark:bg-[#040C1E]">
+                          <table className="w-full text-[11px] text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 dark:bg-[#08132B] text-slate-600 dark:text-slate-300">
+                                <th className="py-1.5 px-2.5 font-semibold">Sección</th>
+                                <th className="py-1.5 px-2.5 font-semibold">Campo Modificado</th>
+                                <th className="py-1.5 px-2.5 font-semibold">Valor Anterior</th>
+                                <th className="py-1.5 px-2.5 font-semibold">Valor Nuevo</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200/70 dark:divide-[#00B8FF]/12">
+                              {entry.changes.map((ch, cIdx) => (
+                                <tr key={`${ch.field}-${cIdx}`}>
+                                  <td className="py-1.5 px-2.5 font-medium text-slate-500">
+                                    {CHANGE_CATEGORY_LABELS[ch.category] ?? ch.category}
+                                  </td>
+                                  <td className="py-1.5 px-2.5 font-semibold text-slate-800 dark:text-slate-200">
+                                    {ch.label}
+                                  </td>
+                                  <td className="py-1.5 px-2.5 font-mono text-rose-700 dark:text-rose-400">
+                                    {ch.previousValue}
+                                  </td>
+                                  <td className="py-1.5 px-2.5 font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                                    {ch.newValue}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Live Pending Changes Preview + Audit Correction Note */}
+          {tab !== 'historial' && (
+            <div className="pt-3 border-t border-[var(--axy-border)] space-y-3">
+              {pendingFieldChanges.length > 0 && (
+                <div className="p-3 rounded-xl border border-[#0066FF]/25 bg-[#0066FF]/[0.04] dark:bg-[#0066FF]/10 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-[#0052CC] dark:text-[#00D1FF]">
+                      Resumen de cambios pendientes de auditoría ({pendingFieldChanges.length} campo(s))
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Se guardará antes/después en historial y bitácora
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {pendingFieldChanges.slice(0, 6).map((c, idx) => (
+                      <div
+                        key={`${c.field}-${idx}`}
+                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white dark:bg-[#040C1E] border border-[var(--axy-border)] text-[11px]"
+                      >
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">{c.label}:</span>
+                        <span className="font-mono text-slate-500 line-through">{c.previousValue}</span>
+                        <ArrowRight className="w-3 h-3 text-[#0066FF] dark:text-[#00D1FF]" />
+                        <span className="font-mono font-semibold text-slate-900 dark:text-white">{c.newValue}</span>
+                      </div>
+                    ))}
+                    {pendingFieldChanges.length > 6 && (
+                      <span className="text-[11px] text-slate-500 self-center">
+                        +{pendingFieldChanges.length - 6} campo(s) adicional(es)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">
+                    Motivo / Justificación de Auditoría {pendingFieldChanges.length > 0 ? '*' : '(Opcional)'}
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    Queda registrado de forma inmutable en bitácora y expediente
+                  </span>
+                </div>
+                <input
+                  value={correctionNote}
+                  onChange={(e) => setCorrectionNote(e.target.value)}
+                  placeholder="Ej. Cliente ingresó salario anual en lugar de mensual; se corrigió ingreso neto y deudas actuales."
+                  className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
+                />
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {QUICK_AUDIT_REASONS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setCorrectionNote(preset)}
+                      className="px-2 py-1 rounded-md text-[11px] border border-[var(--axy-border)] bg-[var(--axy-surface-tonal)] hover:border-[#0066FF]/50 text-slate-600 dark:text-slate-300 cursor-pointer transition-colors"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}

@@ -65,6 +65,7 @@ export interface CalculatorInput {
   modalidadPago?: CalculatorPaymentMode | string;
   cuotasSoloInteres?: number | string;
   gastos: CalculatorExpensesMode | string;
+  gastoLegalPersonalizado?: number | string | null;
   tasaCambio?: number | string | null;
 }
 
@@ -342,7 +343,12 @@ export function calculateLoanSimulation(
   const r = regla(datos.moneda, p, config);
   const tasa = enteroDecimal(datos.usarSugerida ? r.tasa : datos.tasaPersonalizada, 6, 'Tasa');
   const divisor = BigInt(100000000) * BigInt(f.divisor);
-  const gasto = gastoLegal(p, r);
+  const gasto =
+    datos.gastoLegalPersonalizado !== undefined &&
+    datos.gastoLegalPersonalizado !== null &&
+    String(datos.gastoLegalPersonalizado).trim() !== ''
+      ? enteroDecimal(datos.gastoLegalPersonalizado, 2, 'Gasto legal personalizado')
+      : gastoLegal(p, r);
   const financiado = p + (datos.gastos === 'Financiar' ? gasto : BigInt(0));
   const neto = p - (datos.gastos === 'Descontar' ? gasto : BigInt(0));
 
@@ -595,6 +601,7 @@ export function createAxyCalculatorEngine() {
 // ============================================================================
 
 export function mapPaymentFrequencyToCalculator(freq: PaymentFrequency): CalculatorFrequencyKey {
+  if (freq === 'DIARIA') return 'Diaria';
   if (freq === 'QUINCENAL') return 'Quincenal';
   if (freq === 'SEMANAL') return 'Semanal';
   return 'Mensual';
@@ -603,6 +610,7 @@ export function mapPaymentFrequencyToCalculator(freq: PaymentFrequency): Calcula
 export function mapCalculatorToPaymentFrequency(
   freq: CalculatorFrequencyKey
 ): PaymentFrequency | null {
+  if (freq === 'Diaria') return 'DIARIA';
   if (freq === 'Mensual') return 'MENSUAL';
   if (freq === 'Quincenal') return 'QUINCENAL';
   if (freq === 'Semanal') return 'SEMANAL';

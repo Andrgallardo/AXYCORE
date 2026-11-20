@@ -87,6 +87,7 @@ service cloud.firestore {
     }
 
     function canOriginate(orgId) { return hasOrgRole(orgId, ['ADMIN', 'BUSINESS_OFFICER', 'EXTERNAL_CLIENT']); }
+    function canReevaluateCredit(orgId) { return hasOrgRole(orgId, ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT']); }
     function canAnalyze(orgId) { return hasOrgRole(orgId, ['ADMIN', 'CREDIT_ANALYST']); }
     function canReviewRisk(orgId) { return hasOrgRole(orgId, ['ADMIN', 'RISK_OFFICER']); }
     function canVerifyDocuments(orgId) { return hasOrgRole(orgId, ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FORMALIZATION']); }
@@ -112,6 +113,39 @@ service cloud.firestore {
 
     function optStr(d, k, m) {
       return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= m);
+    }
+
+    function optId(d, k) {
+      return !(k in d) || d[k] == null || isValidId(d[k]);
+    }
+
+    function optNum(d, k) {
+      return !(k in d) || d[k] == null || d[k] is number;
+    }
+
+    function optNonNeg(d, k) {
+      return !(k in d) || d[k] == null || (d[k] is number && d[k] >= 0);
+    }
+
+    function optBool(d, k) {
+      return !(k in d) || d[k] == null || d[k] is bool;
+    }
+
+    function optMap(d, k) {
+      return !(k in d) || d[k] == null || d[k] is map;
+    }
+
+    function optList(d, k, m) {
+      return !(k in d) || d[k] == null || (d[k] is list && d[k].size() <= m);
+    }
+
+    function isAllRole(r) {
+      return r in [
+        'ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'RISK_OFFICER',
+        'COMMITTEE_MEMBER', 'FORMALIZATION', 'OPERATIONS', 'FINANCE',
+        'AUDITOR', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR',
+        'CASHIER', 'MANAGEMENT', 'EXTERNAL_CLIENT'
+      ];
     }
 
     // --- Validation Blueprints ---
@@ -155,25 +189,17 @@ service cloud.firestore {
     function isValidUser(data, userId) {
       return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'organizationId', 'status', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'organizationId', 'isSuperAdmin', 'status', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'createdAt', 'updatedAt'])
-        && data.uid == userId
-        && isValidId(data.uid)
+        && data.uid == userId && isValidId(data.uid)
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 160
-        && data.role in [
-          'ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'RISK_OFFICER',
-          'COMMITTEE_MEMBER', 'FORMALIZATION', 'OPERATIONS', 'FINANCE',
-          'AUDITOR', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR',
-          'CASHIER', 'MANAGEMENT', 'EXTERNAL_CLIENT'
-        ]
+        && isAllRole(data.role)
         && isValidId(data.organizationId)
         && (!('isSuperAdmin' in data) || (data.isSuperAdmin is bool && (!data.isSuperAdmin || isBootstrappedAdmin())))
         && data.status in ['ACTIVE', 'INACTIVE', 'INVITED']
-        && (!('invitationId' in data) || (data.invitationId is string && isValidId(data.invitationId)))
-        && (!('invitationStatus' in data) || (data.invitationStatus is string && data.invitationStatus in ['INVITACION_ENVIADA', 'ENVIADA', 'CONFIRMADA', 'PENDIENTE']))
-        && (!('invitedBy' in data) || (data.invitedBy is string && isValidId(data.invitedBy)))
-        && (!('invitedAt' in data) || (data.invitedAt is string && data.invitedAt.size() <= 60))
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && optId(data, 'invitationId')
+        && (!('invitationStatus' in data) || data.invitationStatus in ['INVITACION_ENVIADA', 'ENVIADA', 'CONFIRMADA', 'PENDIENTE'])
+        && optId(data, 'invitedBy') && optStr(data, 'invitedAt', 60)
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidUserInvitation(data, invitationId) {
@@ -190,26 +216,14 @@ service cloud.firestore {
         && data.id == invitationId && isValidId(data.id)
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 160
-        && data.role in [
-          'ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'RISK_OFFICER',
-          'COMMITTEE_MEMBER', 'FORMALIZATION', 'OPERATIONS', 'FINANCE',
-          'AUDITOR', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR',
-          'CASHIER', 'MANAGEMENT', 'EXTERNAL_CLIENT'
-        ]
-        && isValidId(data.organizationId)
-        && (!('organizationName' in data) || (data.organizationName is string && data.organizationName.size() <= 160))
-        && (!('accessCode' in data) || (data.accessCode is string && data.accessCode.size() <= 40))
+        && isAllRole(data.role) && isValidId(data.organizationId)
+        && optStr(data, 'organizationName', 160) && optStr(data, 'accessCode', 40)
         && data.status in ['INVITACION_ENVIADA', 'ACCEPTED', 'REVOKED']
-        && isValidId(data.invitedBy)
-        && (!('invitedByEmail' in data) || (data.invitedByEmail is string && data.invitedByEmail.size() <= 254))
+        && isValidId(data.invitedBy) && optStr(data, 'invitedByEmail', 254)
         && data.invitedAt is string && data.invitedAt.size() <= 60
-        && (!('invitationLink' in data) || (data.invitationLink is string && data.invitationLink.size() <= 600))
-        && (!('authStatus' in data) || (data.authStatus is string && data.authStatus.size() <= 64))
-        && (!('emailDeliveryChannel' in data) || (data.emailDeliveryChannel is string && data.emailDeliveryChannel.size() <= 80))
-        && (!('acceptedUid' in data) || (data.acceptedUid is string && isValidId(data.acceptedUid)))
-        && (!('acceptedAt' in data) || (data.acceptedAt is string && data.acceptedAt.size() <= 60))
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && optStr(data, 'invitationLink', 600) && optStr(data, 'authStatus', 64)
+        && optStr(data, 'emailDeliveryChannel', 80) && optId(data, 'acceptedUid') && optStr(data, 'acceptedAt', 60)
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidCustomer(data, customerId) {
@@ -222,29 +236,21 @@ service cloud.firestore {
           'socialMediaDeclared', 'socialMediaHandle', 'altContactName', 'altContactPhone',
           'createdBy', 'createdAt', 'updatedAt'
         ])
-        && data.id == customerId && isValidId(data.id)
-        && isValidId(data.organizationId)
+        && data.id == customerId && isValidId(data.id) && isValidId(data.organizationId)
         && data.documentType in ['CEDULA', 'PASAPORTE']
         && data.documentNumber is string && data.documentNumber.size() >= 5 && data.documentNumber.size() <= 40
         && data.documentKey is string && data.documentKey.size() >= 6 && data.documentKey.size() <= 180
         && data.firstName is string && data.firstName.size() >= 1 && data.firstName.size() <= 120
         && data.lastName is string && data.lastName.size() >= 1 && data.lastName.size() <= 120
         && data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 40
-        && (!('birthDate' in data) || (data.birthDate is string && data.birthDate.size() <= 20))
-        && (!('nationality' in data) || (data.nationality is string && data.nationality.size() <= 80))
-        && (!('maritalStatus' in data) || (data.maritalStatus is string && data.maritalStatus.size() <= 40))
-        && (!('altPhone' in data) || (data.altPhone is string && data.altPhone.size() <= 40))
-        && (!('email' in data) || (data.email is string && data.email.size() <= 254))
-        && (!('address' in data) || (data.address is string && data.address.size() <= 300))
-        && (!('municipality' in data) || (data.municipality is string && data.municipality.size() <= 100))
-        && (!('province' in data) || (data.province is string && data.province.size() <= 100))
+        && optStr(data, 'birthDate', 20) && optStr(data, 'nationality', 80) && optStr(data, 'maritalStatus', 40)
+        && optStr(data, 'altPhone', 40) && optStr(data, 'email', 254) && optStr(data, 'address', 300)
+        && optStr(data, 'municipality', 100) && optStr(data, 'province', 100)
         && (!('residenceMonths' in data) || (data.residenceMonths is number && data.residenceMonths >= 0 && data.residenceMonths <= 1200))
         && (!('housingType' in data) || data.housingType in ['PROPIA', 'ALQUILADA', 'FAMILIAR', 'OTRA', 'NO_DECLARADA'])
-        && (!('housingPayment' in data) || (data.housingPayment is number && data.housingPayment >= 0))
+        && optNonNeg(data, 'housingPayment')
         && (!('socialMediaDeclared' in data) || data.socialMediaDeclared in ['YES', 'NO_MEDIA', 'UNANSWERED'])
-        && (!('socialMediaHandle' in data) || (data.socialMediaHandle is string && data.socialMediaHandle.size() <= 120))
-        && (!('altContactName' in data) || (data.altContactName is string && data.altContactName.size() <= 160))
-        && (!('altContactPhone' in data) || (data.altContactPhone is string && data.altContactPhone.size() <= 40))
+        && optStr(data, 'socialMediaHandle', 120) && optStr(data, 'altContactName', 160) && optStr(data, 'altContactPhone', 40)
         && isValidId(data.createdBy)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && data.updatedAt is timestamp;
@@ -258,21 +264,15 @@ service cloud.firestore {
           'authorizedRepName', 'authorizedRepDoc', 'corporateDocsSummary',
           'createdBy', 'createdAt', 'updatedAt'
         ])
-        && data.id == businessId && isValidId(data.id)
-        && isValidId(data.organizationId)
+        && data.id == businessId && isValidId(data.id) && isValidId(data.organizationId)
         && data.rnc is string && data.rnc.size() >= 6 && data.rnc.size() <= 40
         && data.rncKey is string && data.rncKey.size() >= 7 && data.rncKey.size() <= 180
         && data.legalName is string && data.legalName.size() >= 2 && data.legalName.size() <= 200
-        && (!('tradeName' in data) || (data.tradeName is string && data.tradeName.size() <= 200))
-        && (!('companyType' in data) || (data.companyType is string && data.companyType.size() <= 80))
-        && (!('economicActivity' in data) || (data.economicActivity is string && data.economicActivity.size() <= 160))
-        && (!('operationsStartDate' in data) || (data.operationsStartDate is string && data.operationsStartDate.size() <= 20))
+        && optStr(data, 'tradeName', 200) && optStr(data, 'companyType', 80)
+        && optStr(data, 'economicActivity', 160) && optStr(data, 'operationsStartDate', 20)
         && data.authorizedRepName is string && data.authorizedRepName.size() >= 2 && data.authorizedRepName.size() <= 160
-        && (!('authorizedRepDoc' in data) || (data.authorizedRepDoc is string && data.authorizedRepDoc.size() <= 40))
-        && (!('corporateDocsSummary' in data) || (data.corporateDocsSummary is string && data.corporateDocsSummary.size() <= 500))
-        && isValidId(data.createdBy)
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && optStr(data, 'authorizedRepDoc', 40) && optStr(data, 'corporateDocsSummary', 500)
+        && isValidId(data.createdBy) && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidApplication(data, applicationId) {
@@ -293,51 +293,45 @@ service cloud.firestore {
           'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
           'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
           'authorizedAlternateAmount', 'alternateAmountAuthorizedBy',
+          'originalRequestedConditions', 'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId',
+          'requiresHumanIntervention', 'decisionQualificationStatus', 'financialAnalysisVersion',
+          'legalFeeMode', 'interestOnlyPeriods', 'installmentCount',
           'consentVersion', 'consentAcceptedAt', 'assignedTo', 'assignedToName',
           'movementHistory', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'
         ])
-        && data.id == applicationId && isValidId(data.id)
-        && isValidId(data.organizationId)
+        && data.id == applicationId && isValidId(data.id) && isValidId(data.organizationId)
         && data.applicationNumber is string && data.applicationNumber.size() >= 3 && data.applicationNumber.size() <= 64
         && data.fileNumber is string && data.fileNumber.size() >= 3 && data.fileNumber.size() <= 64
         && data.channel in ['INTERNAL', 'EXTERNAL']
         && data.applicantType in ['INDIVIDUAL', 'BUSINESS']
-        && isValidId(data.customerId)
-        && (!('businessId' in data) || data.businessId == null || isValidId(data.businessId))
+        && isValidId(data.customerId) && optId(data, 'businessId')
         && data.applicantDisplayName is string && data.applicantDisplayName.size() >= 1 && data.applicantDisplayName.size() <= 200
         && data.productCode in ['PERSONAL_DOP', 'EMPRESARIAL_DOP', 'PERSONAL_USD', 'EMPRESARIAL_USD']
         && data.currency in ['DOP', 'USD']
         && data.requestedAmount is number && data.requestedAmount >= 0 && data.requestedAmount <= 100000000
         && data.requestedTermMonths is number && data.requestedTermMonths >= 0 && data.requestedTermMonths <= 360
-        && data.paymentFrequency in ['MENSUAL', 'QUINCENAL', 'SEMANAL']
+        && data.paymentFrequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL']
         && data.amortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO']
-        && (!('loanPurpose' in data) || data.loanPurpose == null || (data.loanPurpose is string && data.loanPurpose.size() <= 120))
-        && (!('loanPurposeDescription' in data) || data.loanPurposeDescription == null || (data.loanPurposeDescription is string && data.loanPurposeDescription.size() <= 1000))
-        && (!('proposedCollateral' in data) || data.proposedCollateral == null || (data.proposedCollateral is string && data.proposedCollateral.size() <= 500))
-        && (!('financialData' in data) || data.financialData is map)
-        && (!('businessFinancialData' in data) || data.businessFinancialData == null || data.businessFinancialData is map)
-        && (!('verifiedFinancialData' in data) || data.verifiedFinancialData == null || data.verifiedFinancialData is map)
-        && (!('verifiedBusinessFinancialData' in data) || data.verifiedBusinessFinancialData == null || data.verifiedBusinessFinancialData is map)
-        && (!('references' in data) || (data.references is list && data.references.size() <= 4))
-        && (!('declaredDocumentsSummary' in data) || data.declaredDocumentsSummary is map)
+        && optStr(data, 'loanPurpose', 120) && optStr(data, 'loanPurposeDescription', 1000) && optStr(data, 'proposedCollateral', 500)
+        && optMap(data, 'financialData') && optMap(data, 'businessFinancialData')
+        && optMap(data, 'verifiedFinancialData') && optMap(data, 'verifiedBusinessFinancialData')
+        && optList(data, 'references', 4) && optMap(data, 'declaredDocumentsSummary')
         && data.status in ['BORRADOR', 'RECIBIDA', 'EN_EVALUACION', 'EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'DEVUELTA', 'RECHAZADA', 'FORMALIZADA', 'DESEMBOLSADA']
-        && (!('prequalificationStatus' in data) || data.prequalificationStatus == null || (data.prequalificationStatus is string && data.prequalificationStatus.size() <= 64))
-        && (!('latestScoringExecutionId' in data) || data.latestScoringExecutionId == null || isValidId(data.latestScoringExecutionId))
+        && optStr(data, 'prequalificationStatus', 64) && optId(data, 'latestScoringExecutionId')
         && (!('latestScore' in data) || data.latestScore == null || (data.latestScore is number && data.latestScore >= 0 && data.latestScore <= 100))
-        && (!('latestRiskBand' in data) || data.latestRiskBand == null || (data.latestRiskBand is string && data.latestRiskBand.size() <= 64))
-        && (!('recommendedAmount' in data) || data.recommendedAmount == null || data.recommendedAmount is number)
-        && (!('recommendedRateMonthly' in data) || data.recommendedRateMonthly == null || data.recommendedRateMonthly is number)
-        && (!('recommendedTermMonths' in data) || data.recommendedTermMonths == null || data.recommendedTermMonths is number)
-        && (!('recommendedInstallment' in data) || data.recommendedInstallment == null || data.recommendedInstallment is number)
-        && (!('authorizedAlternateAmount' in data) || data.authorizedAlternateAmount == null || data.authorizedAlternateAmount is number)
-        && (!('alternateAmountAuthorizedBy' in data) || data.alternateAmountAuthorizedBy == null || (data.alternateAmountAuthorizedBy is string && data.alternateAmountAuthorizedBy.size() <= 128))
-        && (!('consentVersion' in data) || data.consentVersion == null || (data.consentVersion is string && data.consentVersion.size() <= 40))
-        && (!('consentAcceptedAt' in data) || data.consentAcceptedAt == null || data.consentAcceptedAt == '' || isValidTimestampStr(data.consentAcceptedAt))
-        && (!('assignedTo' in data) || data.assignedTo == null || (data.assignedTo is string && data.assignedTo.size() <= 128))
-        && (!('assignedToName' in data) || data.assignedToName == null || (data.assignedToName is string && data.assignedToName.size() <= 160))
-        && (!('movementHistory' in data) || (data.movementHistory is list && data.movementHistory.size() <= 50))
-        && isValidId(data.createdBy)
-        && (!('createdByName' in data) || data.createdByName == null || (data.createdByName is string && data.createdByName.size() <= 160))
+        && optStr(data, 'latestRiskBand', 64) && optNum(data, 'recommendedAmount')
+        && optNum(data, 'recommendedRateMonthly') && optNum(data, 'recommendedTermMonths') && optNum(data, 'recommendedInstallment')
+        && optNum(data, 'authorizedAlternateAmount') && optStr(data, 'alternateAmountAuthorizedBy', 128)
+        && optMap(data, 'originalRequestedConditions') && optId(data, 'activeFinancialAnalysisId') && optId(data, 'approvedEvaluationAnalysisId')
+        && optBool(data, 'requiresHumanIntervention')
+        && (!('decisionQualificationStatus' in data) || data.decisionQualificationStatus == null || data.decisionQualificationStatus in ['CALIFICA_AUTO_EVALUACION', 'REQUIERE_INTERVENCION_HUMANA', 'REEVALUADA_APROBADA_EVALUACION', 'DATOS_INSUFICIENTES'])
+        && optNonNeg(data, 'financialAnalysisVersion')
+        && (!('legalFeeMode' in data) || data.legalFeeMode == null || data.legalFeeMode in ['DESCONTAR_DESEMBOLSO', 'FINANCIAR'])
+        && optNonNeg(data, 'interestOnlyPeriods') && optNonNeg(data, 'installmentCount')
+        && optStr(data, 'consentVersion', 40) && optStr(data, 'consentAcceptedAt', 40)
+        && optStr(data, 'assignedTo', 128) && optStr(data, 'assignedToName', 160)
+        && optList(data, 'movementHistory', 50)
+        && isValidId(data.createdBy) && optStr(data, 'createdByName', 160)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && data.updatedAt is timestamp;
     }
@@ -349,20 +343,15 @@ service cloud.firestore {
           'sizeBytes', 'fileDataUrl', 'reviewStatus', 'notes', 'uploadedBy', 'uploadedByName',
           'uploadedAt', 'reviewedBy', 'reviewedAt'
         ])
-        && data.id == docId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.applicationId)
+        && data.id == docId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.applicationId)
         && data.category is string && data.category.size() >= 2 && data.category.size() <= 80
         && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 240
-        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 120))
+        && optStr(data, 'mimeType', 120)
         && (!('sizeBytes' in data) || (data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 10485760))
-        && (!('fileDataUrl' in data) || (data.fileDataUrl is string && data.fileDataUrl.size() <= 700000))
+        && optStr(data, 'fileDataUrl', 700000)
         && data.reviewStatus in ['PENDIENTE', 'RECIBIDO', 'VERIFICADO', 'OBSERVADO']
-        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
-        && isValidId(data.uploadedBy)
-        && (!('uploadedByName' in data) || (data.uploadedByName is string && data.uploadedByName.size() <= 160))
-        && data.uploadedAt is timestamp
-        && (!('reviewedBy' in data) || data.reviewedBy == null || isValidId(data.reviewedBy))
+        && optStr(data, 'notes', 500) && isValidId(data.uploadedBy) && optStr(data, 'uploadedByName', 160)
+        && data.uploadedAt is timestamp && optId(data, 'reviewedBy')
         && (!('reviewedAt' in data) || data.reviewedAt == null || data.reviewedAt is timestamp);
     }
 
@@ -419,30 +408,21 @@ service cloud.firestore {
           'recommendedInstallment', 'favorableFactors', 'alerts', 'missingData',
           'currencyStressResults', 'indicatorDetails', 'executedBy', 'executedByName', 'executedAt'
         ])
-        && data.id == execId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.applicationId)
-        && (!('policyId' in data) || data.policyId == null || (data.policyId is string && data.policyId.size() <= 128))
+        && data.id == execId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.applicationId)
+        && optStr(data, 'policyId', 128)
         && data.policyVersion is string && data.policyVersion.size() >= 1 && data.policyVersion.size() <= 40
         && data.policyStatus is string && data.policyStatus.size() <= 40
         && data.executionTrigger in ['INITIAL_SUBMIT', 'ANALYST_RECALC', 'MANUAL_RERUN']
-        && (!('inputSnapshot' in data) || data.inputSnapshot is map)
-        && data.capacityResult is map
+        && optMap(data, 'inputSnapshot') && data.capacityResult is map
         && data.totalScore is number && data.totalScore >= 0 && data.totalScore <= 100
-        && (!('riskBand' in data) || data.riskBand is map)
+        && optMap(data, 'riskBand')
         && data.status in ['PREOFERTA', 'SIN_OFERTA', 'SIN_OFERTA_CAPACIDAD', 'DATOS_INSUFICIENTES', 'DATOS_INSUFICIENTES_DEUDA', 'DATOS_INSUFICIENTES_CAMBIO', 'SOLICITUD_FUERA_POLITICA', 'ERROR_CALCULO']
-        && (!('recommendedAmount' in data) || data.recommendedAmount == null || data.recommendedAmount is number)
-        && (!('recommendedRateMonthly' in data) || data.recommendedRateMonthly == null || data.recommendedRateMonthly is number)
-        && (!('recommendedTermMonths' in data) || data.recommendedTermMonths == null || data.recommendedTermMonths is number)
-        && (!('recommendedInstallment' in data) || data.recommendedInstallment == null || data.recommendedInstallment is number)
-        && (!('favorableFactors' in data) || (data.favorableFactors is list && data.favorableFactors.size() <= 30))
-        && (!('alerts' in data) || (data.alerts is list && data.alerts.size() <= 30))
-        && (!('missingData' in data) || (data.missingData is list && data.missingData.size() <= 30))
-        && (!('currencyStressResults' in data) || data.currencyStressResults == null || data.currencyStressResults is map)
+        && optNum(data, 'recommendedAmount') && optNum(data, 'recommendedRateMonthly')
+        && optNum(data, 'recommendedTermMonths') && optNum(data, 'recommendedInstallment')
+        && optList(data, 'favorableFactors', 30) && optList(data, 'alerts', 30) && optList(data, 'missingData', 30)
+        && optMap(data, 'currencyStressResults')
         && data.indicatorDetails is list && (data.indicatorDetails.size() == 22 || (data.status == 'ERROR_CALCULO' && data.indicatorDetails.size() <= 22))
-        && isValidId(data.executedBy)
-        && (!('executedByName' in data) || data.executedByName == null || (data.executedByName is string && data.executedByName.size() <= 160))
-        && data.executedAt is timestamp;
+        && isValidId(data.executedBy) && optStr(data, 'executedByName', 160) && data.executedAt is timestamp;
     }
 
     function isValidCreditEvaluation(data, evalId) {
@@ -458,39 +438,20 @@ service cloud.firestore {
           'riskOpinionStatus', 'riskOpinionNotes', 'riskOfficerId', 'riskOfficerName', 'riskReviewedAt',
           'status', 'createdAt', 'updatedAt'
         ])
-        && data.id == evalId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.applicationId)
-        && isValidId(data.analystId)
-        && data.analystName is string && data.analystName.size() <= 160
-        && (!('declaredSnapshot' in data) || data.declaredSnapshot is map)
-        && (!('verifiedSnapshot' in data) || data.verifiedSnapshot is map)
-        && (!('preliminaryScoringId' in data) || data.preliminaryScoringId == null || isValidId(data.preliminaryScoringId))
-        && (!('updatedScoringId' in data) || data.updatedScoringId == null || isValidId(data.updatedScoringId))
-        && (!('identityVerified' in data) || data.identityVerified is bool)
-        && (!('incomeVerified' in data) || data.incomeVerified is bool)
-        && (!('obligationsVerified' in data) || data.obligationsVerified is bool)
-        && (!('referencesVerified' in data) || data.referencesVerified is bool)
-        && (!('addressVerified' in data) || data.addressVerified is bool)
-        && (!('phoneVerified' in data) || data.phoneVerified is bool)
-        && (!('socialMediaVerified' in data) || data.socialMediaVerified is bool)
-        && (!('findings' in data) || (data.findings is string && data.findings.size() <= 3000))
-        && (!('observations' in data) || (data.observations is string && data.observations.size() <= 3000))
-        && (!('technicalReport' in data) || (data.technicalReport is string && data.technicalReport.size() <= 5000))
+        && data.id == evalId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.applicationId)
+        && isValidId(data.analystId) && data.analystName is string && data.analystName.size() <= 160
+        && optMap(data, 'declaredSnapshot') && optMap(data, 'verifiedSnapshot')
+        && optId(data, 'preliminaryScoringId') && optId(data, 'updatedScoringId')
+        && optBool(data, 'identityVerified') && optBool(data, 'incomeVerified') && optBool(data, 'obligationsVerified')
+        && optBool(data, 'referencesVerified') && optBool(data, 'addressVerified') && optBool(data, 'phoneVerified') && optBool(data, 'socialMediaVerified')
+        && optStr(data, 'findings', 3000) && optStr(data, 'observations', 3000) && optStr(data, 'technicalReport', 5000)
         && data.recommendedDecision in ['APROBAR', 'MODIFICAR', 'DEVOLVER', 'RECHAZAR']
-        && (!('recommendedAmount' in data) || data.recommendedAmount == null || data.recommendedAmount is number)
-        && (!('recommendedRateMonthly' in data) || data.recommendedRateMonthly == null || data.recommendedRateMonthly is number)
-        && (!('recommendedTermMonths' in data) || data.recommendedTermMonths == null || data.recommendedTermMonths is number)
-        && (!('recommendedConditions' in data) || (data.recommendedConditions is string && data.recommendedConditions.size() <= 2000))
-        && (!('justification' in data) || (data.justification is string && data.justification.size() <= 2000))
+        && optNum(data, 'recommendedAmount') && optNum(data, 'recommendedRateMonthly') && optNum(data, 'recommendedTermMonths')
+        && optStr(data, 'recommendedConditions', 2000) && optStr(data, 'justification', 2000)
         && (!('riskOpinionStatus' in data) || data.riskOpinionStatus in ['PENDIENTE', 'CONFORME', 'CON_OBSERVACIONES', 'RECHAZO_RIESGO'])
-        && (!('riskOpinionNotes' in data) || (data.riskOpinionNotes is string && data.riskOpinionNotes.size() <= 3000))
-        && (!('riskOfficerId' in data) || data.riskOfficerId == null || isValidId(data.riskOfficerId))
-        && (!('riskOfficerName' in data) || data.riskOfficerName == null || (data.riskOfficerName is string && data.riskOfficerName.size() <= 160))
-        && (!('riskReviewedAt' in data) || data.riskReviewedAt == null || isValidTimestampStr(data.riskReviewedAt))
+        && optStr(data, 'riskOpinionNotes', 3000) && optId(data, 'riskOfficerId') && optStr(data, 'riskOfficerName', 160) && optStr(data, 'riskReviewedAt', 40)
         && (!('status' in data) || data.status in ['BORRADOR', 'COMPLETADA'])
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidCommitteeDecision(data, decId) {
@@ -502,35 +463,25 @@ service cloud.firestore {
           'authorityUsed', 'collegialVotes', 'voteStatus', 'requiredVotes', 'totalPanelMembers',
           'decidedBy', 'decidedByName', 'decidedByRole', 'decidedAt', 'isImmutable'
         ])
-        && data.id == decId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.applicationId)
+        && data.id == decId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.applicationId)
         && data.decision in ['APROBADO', 'APROBADO_CONDICIONADO', 'DEVUELTO', 'RECHAZADO']
-        && (!('approvedAmount' in data) || data.approvedAmount == null || (data.approvedAmount is number && data.approvedAmount >= 0))
-        && (!('approvedRateMonthly' in data) || data.approvedRateMonthly == null || (data.approvedRateMonthly is number && data.approvedRateMonthly >= 0))
-        && (!('approvedTermMonths' in data) || data.approvedTermMonths == null || (data.approvedTermMonths is number && data.approvedTermMonths >= 0))
-        && (!('approvedFrequency' in data) || data.approvedFrequency == null || data.approvedFrequency in ['MENSUAL', 'QUINCENAL', 'SEMANAL'])
+        && optNonNeg(data, 'approvedAmount') && optNonNeg(data, 'approvedRateMonthly') && optNonNeg(data, 'approvedTermMonths')
+        && (!('approvedFrequency' in data) || data.approvedFrequency == null || data.approvedFrequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL'])
         && (!('approvedAmortizationMethod' in data) || data.approvedAmortizationMethod == null || data.approvedAmortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO'])
-        && (!('conditions' in data) || (data.conditions is list && data.conditions.size() <= 20))
-        && (!('conditionsFulfilled' in data) || data.conditionsFulfilled is bool)
-        && (!('rejectionReason' in data) || data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() <= 2000))
-        && (!('observations' in data) || (data.observations is string && data.observations.size() <= 3000))
-        && (!('authorityUsed' in data) || (data.authorityUsed is string && data.authorityUsed.size() <= 200))
-        && (!('collegialVotes' in data) || (data.collegialVotes is list && data.collegialVotes.size() <= 15))
+        && optList(data, 'conditions', 20) && optBool(data, 'conditionsFulfilled')
+        && optStr(data, 'rejectionReason', 2000) && optStr(data, 'observations', 3000) && optStr(data, 'authorityUsed', 200)
+        && optList(data, 'collegialVotes', 15)
         && (!('voteStatus' in data) || data.voteStatus in ['VOTO_PARCIAL', 'RESOLUCION_FINAL'])
-        && (!('requiredVotes' in data) || (data.requiredVotes is number && data.requiredVotes >= 1 && data.requiredVotes <= 15))
-        && (!('totalPanelMembers' in data) || (data.totalPanelMembers is number && data.totalPanelMembers >= 1 && data.totalPanelMembers <= 15))
-        && isValidId(data.decidedBy)
-        && data.decidedByName is string && data.decidedByName.size() <= 160
+        && optNonNeg(data, 'requiredVotes') && optNonNeg(data, 'totalPanelMembers')
+        && isValidId(data.decidedBy) && data.decidedByName is string && data.decidedByName.size() <= 160
         && data.decidedByRole is string && data.decidedByRole.size() <= 64
-        && data.decidedAt is timestamp
-        && data.isImmutable == true;
+        && data.decidedAt is timestamp && data.isImmutable == true;
     }
 
     function isValidFormalization(data, formId) {
       return data.keys().hasAll(['id', 'organizationId', 'applicationId', 'decisionId', 'approvedCapital', 'totalFinanced', 'netDisbursementAmount', 'status', 'formalizedBy', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
-          'id', 'organizationId', 'applicationId', 'decisionId', 'approvedCapital',
+          'id', 'organizationId', 'applicationId', 'decisionId', 'approvedFinancialAnalysisId', 'approvedCapital',
           'financedExpenses', 'totalFinanced', 'deductedExpenses', 'netDisbursementAmount',
           'contractualRateMonthly', 'termMonths', 'frequency', 'amortizationMethod',
           'disbursementTargetDate', 'firstPaymentDate', 'maturityDate', 'totalContractualPayable',
@@ -540,38 +491,23 @@ service cloud.firestore {
           'status', 'formalizedBy', 'formalizedByName',
           'createdAt', 'updatedAt'
         ])
-        && data.id == formId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.applicationId)
-        && isValidId(data.decisionId)
+        && data.id == formId && isValidId(data.id) && isValidId(data.organizationId)
+        && isValidId(data.applicationId) && isValidId(data.decisionId) && optId(data, 'approvedFinancialAnalysisId')
         && data.approvedCapital is number && data.approvedCapital > 0
-        && (!('financedExpenses' in data) || (data.financedExpenses is number && data.financedExpenses >= 0))
-        && data.totalFinanced is number && data.totalFinanced >= data.approvedCapital
-        && (!('deductedExpenses' in data) || (data.deductedExpenses is number && data.deductedExpenses >= 0))
-        && data.netDisbursementAmount is number && data.netDisbursementAmount > 0
-        && (!('contractualRateMonthly' in data) || data.contractualRateMonthly is number)
-        && (!('termMonths' in data) || data.termMonths is number)
-        && (!('frequency' in data) || data.frequency in ['MENSUAL', 'QUINCENAL', 'SEMANAL'])
+        && optNonNeg(data, 'financedExpenses') && data.totalFinanced is number && data.totalFinanced >= data.approvedCapital
+        && optNonNeg(data, 'deductedExpenses') && data.netDisbursementAmount is number && data.netDisbursementAmount > 0
+        && optNum(data, 'contractualRateMonthly') && optNum(data, 'termMonths')
+        && (!('frequency' in data) || data.frequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL'])
         && (!('amortizationMethod' in data) || data.amortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO'])
-        && (!('disbursementTargetDate' in data) || (data.disbursementTargetDate is string && data.disbursementTargetDate.size() <= 20))
-        && (!('firstPaymentDate' in data) || (data.firstPaymentDate is string && data.firstPaymentDate.size() <= 20))
-        && (!('maturityDate' in data) || (data.maturityDate is string && data.maturityDate.size() <= 20))
-        && (!('totalContractualPayable' in data) || data.totalContractualPayable is number)
-        && (!('contractTemplateVersion' in data) || (data.contractTemplateVersion is string && data.contractTemplateVersion.size() <= 40))
-        && (!('contractText' in data) || (data.contractText is string && data.contractText.size() <= 20000))
-        && (!('promissoryNoteText' in data) || (data.promissoryNoteText is string && data.promissoryNoteText.size() <= 15000))
-        && (!('requiredDocsChecklist' in data) || (data.requiredDocsChecklist is list && data.requiredDocsChecklist.size() <= 25))
-        && (!('conditionsFulfilled' in data) || data.conditionsFulfilled is bool)
-        && (!('signatures' in data) || (data.signatures is list && data.signatures.size() <= 10))
-        && (!('collateralDetails' in data) || (data.collateralDetails is string && data.collateralDetails.size() <= 2000))
-        && (!('legalReviewConfirmed' in data) || data.legalReviewConfirmed is bool)
-        && (!('promissoryNoteConfirmed' in data) || data.promissoryNoteConfirmed is bool)
-        && (!('contractConfirmed' in data) || data.contractConfirmed is bool)
+        && optStr(data, 'disbursementTargetDate', 20) && optStr(data, 'firstPaymentDate', 20) && optStr(data, 'maturityDate', 20)
+        && optNum(data, 'totalContractualPayable') && optStr(data, 'contractTemplateVersion', 40)
+        && optStr(data, 'contractText', 20000) && optStr(data, 'promissoryNoteText', 15000)
+        && optList(data, 'requiredDocsChecklist', 25) && optBool(data, 'conditionsFulfilled')
+        && optList(data, 'signatures', 10) && optStr(data, 'collateralDetails', 2000)
+        && optBool(data, 'legalReviewConfirmed') && optBool(data, 'promissoryNoteConfirmed') && optBool(data, 'contractConfirmed')
         && data.status in ['PENDIENTE', 'LISTA_PARA_DESEMBOLSO', 'DESEMBOLSADA']
-        && isValidId(data.formalizedBy)
-        && (!('formalizedByName' in data) || (data.formalizedByName is string && data.formalizedByName.size() <= 160))
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && isValidId(data.formalizedBy) && optStr(data, 'formalizedByName', 160)
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidDisbursement(data, disbId) {
@@ -589,13 +525,9 @@ service cloud.firestore {
           'idempotencyKey', 'responsibleUserId', 'responsibleUserName',
           'authorizerUserId', 'authorizerUserName', 'status', 'createdAt'
         ])
-        && data.id == disbId && isValidId(data.id)
-        && data.id == data.applicationId
-        && isValidId(data.organizationId)
+        && data.id == disbId && isValidId(data.id) && data.id == data.applicationId
+        && isValidId(data.organizationId) && isValidId(data.applicationId) && isValidId(data.loanId) && isValidId(data.customerId)
         && data.disbursementNumber is string && data.disbursementNumber.size() >= 3 && data.disbursementNumber.size() <= 64
-        && isValidId(data.applicationId)
-        && isValidId(data.loanId)
-        && isValidId(data.customerId)
         && data.approvedAmount is number && data.approvedAmount > 0
         && data.totalFinanced is number && data.totalFinanced >= data.approvedAmount
         && data.expenses is number && data.expenses >= 0
@@ -605,17 +537,12 @@ service cloud.firestore {
         && data.financialEntity is string && data.financialEntity.size() >= 1 && data.financialEntity.size() <= 160
         && data.destinationAccountMasked is string && data.destinationAccountMasked.size() >= 2 && data.destinationAccountMasked.size() <= 64
         && data.referenceNumber is string && data.referenceNumber.size() >= 2 && data.referenceNumber.size() <= 100
-        && (!('receiptNotes' in data) || (data.receiptNotes is string && data.receiptNotes.size() <= 1000))
-        && (!('voucherFileName' in data) || data.voucherFileName == null || (data.voucherFileName is string && data.voucherFileName.size() <= 240))
-        && (!('voucherMimeType' in data) || data.voucherMimeType == null || (data.voucherMimeType is string && data.voucherMimeType.size() <= 120))
-        && (!('voucherDocumentId' in data) || data.voucherDocumentId == null || isValidId(data.voucherDocumentId))
+        && optStr(data, 'receiptNotes', 1000) && optStr(data, 'voucherFileName', 240)
+        && optStr(data, 'voucherMimeType', 120) && optId(data, 'voucherDocumentId')
         && data.idempotencyKey is string && data.idempotencyKey.size() >= 6 && data.idempotencyKey.size() <= 128
-        && isValidId(data.responsibleUserId)
-        && (!('responsibleUserName' in data) || (data.responsibleUserName is string && data.responsibleUserName.size() <= 160))
-        && isValidId(data.authorizerUserId)
-        && (!('authorizerUserName' in data) || (data.authorizerUserName is string && data.authorizerUserName.size() <= 160))
-        && data.status == 'CONFIRMADO'
-        && data.createdAt is timestamp;
+        && isValidId(data.responsibleUserId) && optStr(data, 'responsibleUserName', 160)
+        && isValidId(data.authorizerUserId) && optStr(data, 'authorizerUserName', 160)
+        && data.status == 'CONFIRMADO' && data.createdAt is timestamp;
     }
 
     function isValidLoan(data, loanId) {
@@ -627,7 +554,7 @@ service cloud.firestore {
           'status', 'createdBy', 'createdAt'
         ])
         && data.keys().hasOnly([
-          'id', 'organizationId', 'loanNumber', 'applicationId', 'disbursementId', 'customerId',
+          'id', 'organizationId', 'loanNumber', 'applicationId', 'disbursementId', 'approvedFinancialAnalysisId', 'customerId',
           'businessId', 'applicantDisplayName', 'productCode', 'currency', 'approvedPrincipal',
           'financedExpenses', 'totalFinancedPrincipal', 'currentPrincipalBalance',
           'contractualRateMonthly', 'termMonths', 'frequency', 'amortizationMethod',
@@ -636,35 +563,27 @@ service cloud.firestore {
           'paidPrincipalTotal', 'paidInterestTotal', 'paidLateFeeTotal',
           'closedAt', 'closureCertificateNumber', 'createdBy', 'createdAt', 'updatedAt'
         ])
-        && data.id == loanId && isValidId(data.id)
-        && isValidId(data.organizationId)
+        && data.id == loanId && isValidId(data.id) && isValidId(data.organizationId)
         && data.loanNumber is string && data.loanNumber.size() >= 1 && data.loanNumber.size() <= 64
-        && isValidId(data.applicationId)
-        && isValidId(data.disbursementId)
-        && isValidId(data.customerId)
-        && (!('businessId' in data) || data.businessId == null || isValidId(data.businessId))
-        && (!('applicantDisplayName' in data) || (data.applicantDisplayName is string && data.applicantDisplayName.size() <= 200))
+        && isValidId(data.applicationId) && isValidId(data.disbursementId) && optId(data, 'approvedFinancialAnalysisId')
+        && isValidId(data.customerId) && optId(data, 'businessId') && optStr(data, 'applicantDisplayName', 200)
         && data.productCode in ['PERSONAL_DOP', 'EMPRESARIAL_DOP', 'PERSONAL_USD', 'EMPRESARIAL_USD']
         && data.currency in ['DOP', 'USD']
         && data.approvedPrincipal is number && data.approvedPrincipal > 0
-        && (!('financedExpenses' in data) || (data.financedExpenses is number && data.financedExpenses >= 0))
+        && optNonNeg(data, 'financedExpenses')
         && data.totalFinancedPrincipal is number && data.totalFinancedPrincipal >= 0
         && data.currentPrincipalBalance is number && data.currentPrincipalBalance >= 0
         && data.contractualRateMonthly is number && data.contractualRateMonthly >= 0
         && data.termMonths is number && data.termMonths >= 1 && data.termMonths <= 360
-        && data.frequency in ['MENSUAL', 'QUINCENAL', 'SEMANAL']
+        && data.frequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL']
         && data.amortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO']
         && data.disbursementDate is string && data.disbursementDate.size() <= 20
         && data.firstPaymentDate is string && data.firstPaymentDate.size() <= 20
         && data.maturityDate is string && data.maturityDate.size() <= 20
-        && (!('totalContractualInterest' in data) || data.totalContractualInterest is number)
-        && (!('totalContractualPayable' in data) || data.totalContractualPayable is number)
+        && optNum(data, 'totalContractualInterest') && optNum(data, 'totalContractualPayable')
         && data.status in ['ACTIVO', 'PAGADO', 'VENCIDO', 'CANCELADO']
-        && (!('paidPrincipalTotal' in data) || (data.paidPrincipalTotal is number && data.paidPrincipalTotal >= 0))
-        && (!('paidInterestTotal' in data) || (data.paidInterestTotal is number && data.paidInterestTotal >= 0))
-        && (!('paidLateFeeTotal' in data) || (data.paidLateFeeTotal is number && data.paidLateFeeTotal >= 0))
-        && (!('closedAt' in data) || data.closedAt == null || (data.closedAt is string && data.closedAt.size() <= 40))
-        && (!('closureCertificateNumber' in data) || data.closureCertificateNumber == null || (data.closureCertificateNumber is string && data.closureCertificateNumber.size() <= 64))
+        && optNonNeg(data, 'paidPrincipalTotal') && optNonNeg(data, 'paidInterestTotal') && optNonNeg(data, 'paidLateFeeTotal')
+        && optStr(data, 'closedAt', 40) && optStr(data, 'closureCertificateNumber', 64)
         && isValidId(data.createdBy)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && (!('updatedAt' in data) || data.updatedAt is timestamp || isValidTimestampStr(data.updatedAt));
@@ -683,9 +602,7 @@ service cloud.firestore {
           'paidOtherCharges', 'paidLateFee', 'accruedLateFee', 'paidAt',
           'createdAt', 'updatedAt'
         ])
-        && data.id == instId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.loanId)
+        && data.id == instId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.loanId)
         && data.installmentNumber is number && data.installmentNumber >= 1 && data.installmentNumber <= 360
         && data.dueDate is string && data.dueDate.size() >= 8 && data.dueDate.size() <= 20
         && data.principalAmount is number && data.principalAmount >= 0
@@ -694,12 +611,9 @@ service cloud.firestore {
         && data.totalAmount is number && data.totalAmount >= 0
         && data.remainingPrincipalBalance is number && data.remainingPrincipalBalance >= 0
         && data.status in ['PENDIENTE', 'PARCIAL', 'PAGADA', 'VENCIDA']
-        && (!('paidPrincipal' in data) || (data.paidPrincipal is number && data.paidPrincipal >= 0))
-        && (!('paidInterest' in data) || (data.paidInterest is number && data.paidInterest >= 0))
-        && (!('paidOtherCharges' in data) || (data.paidOtherCharges is number && data.paidOtherCharges >= 0))
-        && (!('paidLateFee' in data) || (data.paidLateFee is number && data.paidLateFee >= 0))
-        && (!('accruedLateFee' in data) || (data.accruedLateFee is number && data.accruedLateFee >= 0))
-        && (!('paidAt' in data) || data.paidAt == null || (data.paidAt is string && data.paidAt.size() <= 40))
+        && optNonNeg(data, 'paidPrincipal') && optNonNeg(data, 'paidInterest')
+        && optNonNeg(data, 'paidOtherCharges') && optNonNeg(data, 'paidLateFee')
+        && optNonNeg(data, 'accruedLateFee') && optStr(data, 'paidAt', 40)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && (!('updatedAt' in data) || data.updatedAt is timestamp || isValidTimestampStr(data.updatedAt));
     }
@@ -714,20 +628,15 @@ service cloud.firestore {
           'action', 'previousState', 'newState', 'justification',
           'transactionId', 'engineVersion', 'userId', 'userEmail', 'userRole', 'timestamp'
         ])
-        && data.id == logId && isValidId(data.id)
-        && isValidId(data.organizationId)
+        && data.id == logId && isValidId(data.id) && isValidId(data.organizationId)
         && data.eventType is string && data.eventType.size() >= 2 && data.eventType.size() <= 80
         && data.entityType is string && data.entityType.size() >= 2 && data.entityType.size() <= 80
         && data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128
         && data.action is string && data.action.size() >= 2 && data.action.size() <= 200
-        && (!('previousState' in data) || data.previousState == null || (data.previousState is string && data.previousState.size() <= 4000))
-        && (!('newState' in data) || data.newState == null || (data.newState is string && data.newState.size() <= 4000))
-        && (!('justification' in data) || data.justification == null || (data.justification is string && data.justification.size() <= 1000))
+        && optStr(data, 'previousState', 4000) && optStr(data, 'newState', 4000) && optStr(data, 'justification', 1000)
         && data.transactionId is string && data.transactionId.size() >= 4 && data.transactionId.size() <= 128
-        && (!('engineVersion' in data) || data.engineVersion == null || (data.engineVersion is string && data.engineVersion.size() <= 40))
-        && isValidId(data.userId)
-        && (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 254))
-        && (!('userRole' in data) || (data.userRole is string && data.userRole.size() <= 64))
+        && optStr(data, 'engineVersion', 40) && isValidId(data.userId)
+        && optStr(data, 'userEmail', 254) && optStr(data, 'userRole', 64)
         && data.timestamp is timestamp;
     }
 
@@ -869,26 +778,16 @@ service cloud.firestore {
           'eventTimestampIso', 'read', 'readAt', 'createdBy',
           'createdAt', 'updatedAt'
         ])
-        && data.id == notificationId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.userId)
+        && data.id == notificationId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.userId)
         && data.type is string && data.type.size() >= 2 && data.type.size() <= 64
         && data.category in ['CREDITO', 'COBRANZA', 'RIESGO', 'BITACORA', 'SISTEMA']
         && data.priority in ['INMEDIATA', 'ALTA', 'MEDIA']
         && data.title is string && data.title.size() >= 2 && data.title.size() <= 200
         && data.message is string && data.message.size() >= 2 && data.message.size() <= 600
-        && (!('amountLabel' in data) || data.amountLabel == null || (data.amountLabel is string && data.amountLabel.size() <= 80))
-        && (!('targetSection' in data) || data.targetSection == null || (data.targetSection is string && data.targetSection.size() <= 64))
-        && (!('entityType' in data) || data.entityType == null || (data.entityType is string && data.entityType.size() <= 64))
-        && (!('entityId' in data) || data.entityId == null || (data.entityId is string && data.entityId.size() <= 128))
-        && (!('sourceEventKey' in data) || data.sourceEventKey == null || (data.sourceEventKey is string && data.sourceEventKey.size() <= 160))
-        && (!('actorName' in data) || data.actorName == null || (data.actorName is string && data.actorName.size() <= 160))
-        && (!('eventTimestampIso' in data) || data.eventTimestampIso == null || (data.eventTimestampIso is string && data.eventTimestampIso.size() <= 40))
-        && data.read is bool
-        && (!('readAt' in data) || data.readAt == null || (data.readAt is string && data.readAt.size() <= 40))
-        && isValidId(data.createdBy)
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && optStr(data, 'amountLabel', 80) && optStr(data, 'targetSection', 64) && optStr(data, 'entityType', 64)
+        && optStr(data, 'entityId', 128) && optStr(data, 'sourceEventKey', 160) && optStr(data, 'actorName', 160)
+        && optStr(data, 'eventTimestampIso', 40) && data.read is bool && optStr(data, 'readAt', 40)
+        && isValidId(data.createdBy) && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidOrganizationMembership(data, membershipId) {
@@ -901,29 +800,17 @@ service cloud.firestore {
           'role', 'status', 'granularPermissions', 'allowedModuleCodes', 'isPrimaryAdmin', 'invitationId', 'invitedBy',
           'createdBy', 'createdAt', 'updatedAt'
         ])
-        && data.id == membershipId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && (!('tenantId' in data) || (data.tenantId is string && data.tenantId.size() <= 128))
-        && (!('tenant_id' in data) || (data.tenant_id is string && data.tenant_id.size() <= 128))
-        && (!('organizationName' in data) || (data.organizationName is string && data.organizationName.size() <= 160))
+        && data.id == membershipId && isValidId(data.id) && isValidId(data.organizationId)
+        && optStr(data, 'tenantId', 128) && optStr(data, 'tenant_id', 128) && optStr(data, 'organizationName', 160)
         && isValidId(data.userId)
         && data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 254
         && data.userDisplayName is string && data.userDisplayName.size() >= 1 && data.userDisplayName.size() <= 160
-        && data.role in [
-          'ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'RISK_OFFICER',
-          'COMMITTEE_MEMBER', 'FORMALIZATION', 'OPERATIONS', 'FINANCE',
-          'AUDITOR', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR',
-          'CASHIER', 'MANAGEMENT', 'EXTERNAL_CLIENT'
-        ]
+        && isAllRole(data.role)
         && data.status in ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'INVITED', 'REVOKED']
         && data.granularPermissions is list && data.granularPermissions.size() <= 30
-        && (!('allowedModuleCodes' in data) || (data.allowedModuleCodes is list && data.allowedModuleCodes.size() <= 60))
-        && (!('isPrimaryAdmin' in data) || data.isPrimaryAdmin is bool)
-        && (!('invitationId' in data) || (data.invitationId is string && isValidId(data.invitationId)))
-        && (!('invitedBy' in data) || (data.invitedBy is string && data.invitedBy.size() <= 128))
-        && isValidId(data.createdBy)
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && optList(data, 'allowedModuleCodes', 60) && optBool(data, 'isPrimaryAdmin')
+        && optId(data, 'invitationId') && optStr(data, 'invitedBy', 128)
+        && isValidId(data.createdBy) && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidTenantLicense(data, licenseId) {
@@ -1116,19 +1003,162 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function canCreateApplicationByRole(role, inc) {
+      return (role != 'AUDITOR' && role != 'NONE')
+        && (
+          inc.status in ['BORRADOR', 'RECIBIDA'] ||
+          (
+            inc.status == 'EN_EVALUACION'
+            && ('decisionQualificationStatus' in inc)
+            && inc.decisionQualificationStatus == 'CALIFICA_AUTO_EVALUACION'
+            && ('activeFinancialAnalysisId' in inc) && isValidId(inc.activeFinancialAnalysisId)
+            && ('latestScoringExecutionId' in inc) && isValidId(inc.latestScoringExecutionId)
+            && (
+              exists(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId)) ||
+              existsAfter(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId))
+            )
+          ) ||
+          (role != 'EXTERNAL_CLIENT' && inc.status in ['EN_EVALUACION', 'EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'FORMALIZADA']) ||
+          role in ['ADMIN', 'OPERATIONS', 'FINANCE']
+        );
+    }
+
+    function appEditAllowedKeys() {
+      return [
+        'applicantDisplayName', 'productCode', 'currency', 'requestedAmount', 'requestedTermMonths',
+        'paymentFrequency', 'amortizationMethod', 'loanPurpose', 'loanPurposeDescription',
+        'proposedCollateral', 'financialData', 'businessFinancialData', 'references',
+        'declaredDocumentsSummary', 'status', 'prequalificationStatus',
+        'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
+        'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
+        'originalRequestedConditions', 'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId',
+        'requiresHumanIntervention', 'decisionQualificationStatus', 'financialAnalysisVersion',
+        'legalFeeMode', 'interestOnlyPeriods', 'installmentCount',
+        'consentVersion', 'consentAcceptedAt', 'movementHistory', 'updatedAt'
+      ];
+    }
+
+    function canUpdateApplicationByRole(role, applicationId, inc, ext) {
+      return (
+        // Action 1a: Originator submits/edits own draft or returned application (cannot jump directly to EN_EVALUACION unless auto-qualified with linked analysis)
+        (ext.createdBy == request.auth.uid
+          && ext.status in ['BORRADOR', 'DEVUELTA']
+          && (
+            inc.status in ['BORRADOR', 'RECIBIDA'] ||
+            (
+              inc.status == 'EN_EVALUACION'
+              && ('decisionQualificationStatus' in inc)
+              && inc.decisionQualificationStatus == 'CALIFICA_AUTO_EVALUACION'
+              && ('activeFinancialAnalysisId' in inc) && isValidId(inc.activeFinancialAnalysisId)
+              && (
+                exists(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId)) ||
+                existsAfter(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId))
+              )
+            )
+          )
+          && inc.diff(ext).affectedKeys().hasOnly(appEditAllowedKeys())
+        ) ||
+        // Action 1b: Internal staff updates received/returned/evaluation application & re-evaluates (no unauthorized status jump to EN_EVALUACION without analysis)
+        (!(role in ['EXTERNAL_CLIENT', 'NONE', 'AUDITOR'])
+          && ext.status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA', 'EN_EVALUACION']
+          && (
+            inc.status == ext.status ||
+            inc.status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA'] ||
+            (
+              inc.status == 'EN_EVALUACION'
+              && role in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT']
+              && ('activeFinancialAnalysisId' in inc) && isValidId(inc.activeFinancialAnalysisId)
+              && ('latestScoringExecutionId' in inc) && isValidId(inc.latestScoringExecutionId)
+            )
+          )
+          && inc.diff(ext).affectedKeys().hasOnly(appEditAllowedKeys())
+        ) ||
+        // Action 1c: Authorized credit staff routes BORRADOR/RECIBIDA/DEVUELTA -> EN_EVALUACION ONLY with persisted financial analysis & scoring (anti-bypass)
+        (role in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT']
+          && ext.status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA']
+          && inc.status == 'EN_EVALUACION'
+          && ('latestScoringExecutionId' in inc) && isValidId(inc.latestScoringExecutionId)
+          && ('activeFinancialAnalysisId' in inc) && isValidId(inc.activeFinancialAnalysisId)
+          && (
+            exists(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId)) ||
+            existsAfter(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId))
+          )
+          && inc.diff(ext).affectedKeys().hasOnly([
+            'status', 'requestedAmount', 'requestedTermMonths', 'paymentFrequency', 'amortizationMethod',
+            'authorizedAlternateAmount', 'alternateAmountAuthorizedBy',
+            'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
+            'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
+            'originalRequestedConditions', 'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId',
+            'requiresHumanIntervention', 'decisionQualificationStatus', 'financialAnalysisVersion',
+            'legalFeeMode', 'interestOnlyPeriods', 'installmentCount',
+            'assignedTo', 'assignedToName', 'movementHistory', 'updatedAt'
+          ])
+        ) ||
+        // Action 2: Automatic scoring & financial analysis attachment (without advancing status)
+        (!(role in ['EXTERNAL_CLIENT', 'NONE', 'AUDITOR'])
+          && inc.status == ext.status
+          && inc.diff(ext).affectedKeys().hasOnly([
+            'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
+            'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
+            'originalRequestedConditions', 'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId',
+            'requiresHumanIntervention', 'decisionQualificationStatus', 'financialAnalysisVersion',
+            'legalFeeMode', 'interestOnlyPeriods', 'installmentCount',
+            'movementHistory', 'updatedAt'
+          ])
+        ) ||
+        // Action 3a: Analyst evaluation, verified financials & evaluation-stage versioned analysis link
+        (role in ['ADMIN', 'CREDIT_ANALYST']
+          && inc.status in ['EN_EVALUACION', 'EN_COMITE', 'DEVUELTA']
+          && inc.diff(ext).affectedKeys().hasOnly([
+            'verifiedFinancialData', 'verifiedBusinessFinancialData', 'declaredDocumentsSummary',
+            'status', 'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
+            'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
+            'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId', 'financialAnalysisVersion',
+            'requiresHumanIntervention', 'decisionQualificationStatus',
+            'assignedTo', 'assignedToName', 'movementHistory', 'updatedAt'
+          ])
+        ) ||
+        // Action 3b: Risk Officer independent review, V2 stress/recalc & escalation/return
+        (role in ['ADMIN', 'RISK_OFFICER']
+          && inc.status in ['EN_EVALUACION', 'EN_COMITE', 'DEVUELTA']
+          && inc.diff(ext).affectedKeys().hasOnly([
+            'status', 'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
+            'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
+            'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId', 'financialAnalysisVersion',
+            'movementHistory', 'updatedAt'
+          ])
+        ) ||
+        // Action 4: Committee decision transition
+        (role in ['ADMIN', 'COMMITTEE_MEMBER']
+          && (role == 'ADMIN' || ext.createdBy != request.auth.uid)
+          && ext.status in ['EN_COMITE', 'EN_EVALUACION']
+          && inc.status in ['EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'DEVUELTA', 'RECHAZADA']
+          && inc.diff(ext).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
+        ) ||
+        // Action 5: Formalization transition
+        (role in ['ADMIN', 'FORMALIZATION']
+          && ext.status in ['APROBADA', 'APROBADA_CONDICIONADA']
+          && inc.status == 'FORMALIZADA'
+          && inc.diff(ext).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
+        ) ||
+        // Action 6: Disbursement terminal transition
+        (role in ['ADMIN', 'OPERATIONS', 'FINANCE']
+          && ext.status == 'FORMALIZADA'
+          && inc.status == 'DESEMBOLSADA'
+          && existsAfter(/databases/$(database)/documents/disbursements/$(applicationId))
+          && inc.diff(ext).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
+        )
+      );
+    }
+
     match /applications/{applicationId} {
       allow get: if isValidId(applicationId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().createdBy == request.auth.uid));
       allow list: if isVerified() && (resource.data.createdBy == request.auth.uid || isInternalStaff(resource.data.organizationId));
       allow create: if isValidId(applicationId)
-        && (canOriginate(incoming().organizationId) || (isInternalStaff(incoming().organizationId) && currentRole() != 'AUDITOR'))
+        && inSameOrg(incoming().organizationId)
         && isValidApplication(incoming(), applicationId)
         && incoming().createdBy == request.auth.uid
-        && (
-          incoming().status in ['BORRADOR', 'RECIBIDA'] ||
-          (isInternalStaff(incoming().organizationId) && currentRole() != 'AUDITOR' && incoming().status in ['EN_EVALUACION', 'EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'FORMALIZADA']) ||
-          canDisburse(incoming().organizationId) ||
-          isAdmin()
-        )
+        && canCreateApplicationByRole(currentRole(), incoming())
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
         && (
@@ -1143,85 +1173,14 @@ service cloud.firestore {
           isBootstrappedAdmin() ||
           (isAdmin() && (!('organizationId' in existing()) || inSameOrg(existing().organizationId))) ||
           (
-            incoming().id == existing().id
+            inSameOrg(existing().organizationId)
+            && incoming().id == existing().id
             && incoming().organizationId == existing().organizationId
             && incoming().createdBy == existing().createdBy
             && incoming().createdAt == existing().createdAt
+            && (!('originalRequestedConditions' in existing()) || existing().originalRequestedConditions == null || incoming().originalRequestedConditions == existing().originalRequestedConditions)
             && existing().status != 'DESEMBOLSADA'
-            && (
-              // Action 1: Originator edits draft/returned OR internal staff updates received/returned/evaluation application & re-evaluates
-              (((existing().createdBy == request.auth.uid && existing().status in ['BORRADOR', 'DEVUELTA'] && incoming().status in ['BORRADOR', 'RECIBIDA'])
-                  || (isInternalStaff(existing().organizationId) && currentRole() != 'AUDITOR' && existing().status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA', 'EN_EVALUACION'] && incoming().status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA', 'EN_EVALUACION']))
-                && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'applicantDisplayName', 'productCode', 'currency', 'requestedAmount', 'requestedTermMonths',
-                  'paymentFrequency', 'amortizationMethod', 'loanPurpose', 'loanPurposeDescription',
-                  'proposedCollateral', 'financialData', 'businessFinancialData', 'references',
-                  'declaredDocumentsSummary', 'status', 'prequalificationStatus',
-                  'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
-                  'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
-                  'consentVersion', 'consentAcceptedAt', 'movementHistory', 'updatedAt'
-                ])
-              ) ||
-              // Action 1b: Route BORRADOR/RECIBIDA/DEVUELTA -> EN_EVALUACION directly or with authorized alternate amount
-              (isInternalStaff(existing().organizationId)
-                && currentRole() != 'AUDITOR'
-                && existing().status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA']
-                && incoming().status == 'EN_EVALUACION'
-                && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'status', 'requestedAmount', 'authorizedAlternateAmount', 'alternateAmountAuthorizedBy',
-                  'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
-                  'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
-                  'assignedTo', 'assignedToName', 'movementHistory', 'updatedAt'
-                ])
-              ) ||
-              // Action 2: Automatic scoring attachment on submit/recalc
-              (isInternalStaff(existing().organizationId)
-                && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
-                  'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
-                  'movementHistory', 'updatedAt'
-                ])
-              ) ||
-              // Action 3a: Analyst evaluation & verified financials
-              (canAnalyze(existing().organizationId)
-                && incoming().status in ['EN_EVALUACION', 'EN_COMITE', 'DEVUELTA']
-                && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'verifiedFinancialData', 'verifiedBusinessFinancialData', 'declaredDocumentsSummary',
-                  'status', 'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
-                  'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
-                  'assignedTo', 'assignedToName', 'movementHistory', 'updatedAt'
-                ])
-              ) ||
-              // Action 3b: Risk Officer independent review, V2 stress/recalc & escalation/return
-              (canReviewRisk(existing().organizationId)
-                && incoming().status in ['EN_EVALUACION', 'EN_COMITE', 'DEVUELTA']
-                && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'status', 'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
-                  'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
-                  'movementHistory', 'updatedAt'
-                ])
-              ) ||
-              // Action 4: Committee decision transition (supports 2-of-3 partial votes staying in EN_COMITE + final resolution)
-              (canDecideCommittee(existing().organizationId)
-                && (isAdmin() || existing().createdBy != request.auth.uid)
-                && existing().status in ['EN_COMITE', 'EN_EVALUACION']
-                && incoming().status in ['EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'DEVUELTA', 'RECHAZADA']
-                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
-              ) ||
-              // Action 5: Formalization transition
-              (canFormalize(existing().organizationId)
-                && existing().status in ['APROBADA', 'APROBADA_CONDICIONADA']
-                && incoming().status == 'FORMALIZADA'
-                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
-              ) ||
-              // Action 6: Disbursement terminal transition
-              (canDisburse(existing().organizationId)
-                && existing().status == 'FORMALIZADA'
-                && incoming().status == 'DESEMBOLSADA'
-                && existsAfter(/databases/$(database)/documents/disbursements/$(applicationId))
-                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
-              )
-            )
+            && canUpdateApplicationByRole(currentRole(), applicationId, incoming(), existing())
           )
         );
       allow delete: if false;
@@ -1308,6 +1267,181 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // --- Integrated Financial Analyses, Persisted Amortization Installments & Decision History ---
+    // STRICT SECURITY: EXTERNAL_CLIENT has ZERO read/list/update/delete access to internal analyses or schedules.
+
+    function isValidFinancialAnalysis(data, analysisId) {
+      return data.keys().hasAll([
+          'id', 'organizationId', 'applicationId', 'idempotencyKey', 'version',
+          'analysisType', 'status', 'originalRequestedConditions', 'calculatedConditions',
+          'decisionSummary', 'installmentsCount', 'canSendToEvaluation',
+          'calculatedBy', 'calculatedByName', 'calculatedByRole', 'calculatedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'organizationId', 'applicationId', 'scoringExecutionId', 'idempotencyKey',
+          'version', 'analysisType', 'status', 'originalRequestedConditions', 'calculatedConditions',
+          'decisionSummary', 'financialSummary', 'exchangeRateMeta', 'installmentsCount',
+          'installmentsPreview', 'canSendToEvaluation', 'sendToEvaluationBlockedReasons',
+          'justification', 'calculatedBy', 'calculatedByName', 'calculatedByRole',
+          'calculatedAt', 'updatedAt'
+        ])
+        && data.id == analysisId && isValidId(data.id)
+        && isValidId(data.organizationId)
+        && isValidId(data.applicationId)
+        && (!('scoringExecutionId' in data) || data.scoringExecutionId == null || isValidId(data.scoringExecutionId))
+        && data.idempotencyKey is string && data.idempotencyKey.size() >= 6 && data.idempotencyKey.size() <= 128
+        && data.version is number && data.version >= 1 && data.version <= 1000
+        && data.analysisType in ['SOLICITUD_INICIAL', 'REEVALUACION_HUMANA', 'AJUSTE_EVALUACION', 'ACTUALIZACION_DATOS']
+        && data.status in ['VIGENTE', 'HISTORICO', 'APROBADO_EVALUACION', 'RECHAZADO']
+        && data.originalRequestedConditions is map
+        && data.calculatedConditions is map
+        && data.decisionSummary is map
+        && (!('financialSummary' in data) || data.financialSummary == null || data.financialSummary is map)
+        && (!('exchangeRateMeta' in data) || data.exchangeRateMeta == null || data.exchangeRateMeta is map)
+        && data.installmentsCount is number && data.installmentsCount >= 0 && data.installmentsCount <= 10000
+        && (!('installmentsPreview' in data) || (data.installmentsPreview is list && data.installmentsPreview.size() <= 120))
+        && data.canSendToEvaluation is bool
+        && (!('sendToEvaluationBlockedReasons' in data) || (data.sendToEvaluationBlockedReasons is list && data.sendToEvaluationBlockedReasons.size() <= 20))
+        && (!('justification' in data) || data.justification == null || (data.justification is string && data.justification.size() <= 1000))
+        && isValidId(data.calculatedBy)
+        && data.calculatedByName is string && data.calculatedByName.size() >= 1 && data.calculatedByName.size() <= 160
+        && data.calculatedByRole is string && data.calculatedByRole.size() >= 2 && data.calculatedByRole.size() <= 64
+        && (data.calculatedAt is timestamp || isValidTimestampStr(data.calculatedAt))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFinancialAnalysisInstallment(data, instId) {
+      return data.keys().hasAll([
+          'id', 'analysisId', 'applicationId', 'organizationId', 'installmentNumber',
+          'dueDate', 'stage', 'principalAmount', 'interestAmount', 'totalAmount',
+          'remainingBalance', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'analysisId', 'applicationId', 'organizationId', 'installmentNumber',
+          'dueDate', 'stage', 'principalAmount', 'interestAmount', 'totalAmount',
+          'remainingBalance', 'dopEquivalent', 'createdAt'
+        ])
+        && data.id == instId && isValidId(data.id)
+        && isValidId(data.analysisId)
+        && isValidId(data.applicationId)
+        && isValidId(data.organizationId)
+        && data.installmentNumber is number && data.installmentNumber >= 1 && data.installmentNumber <= 10000
+        && data.dueDate is string && data.dueDate.size() >= 8 && data.dueDate.size() <= 20
+        && data.stage in ['SOLO_INTERESES', 'NORMAL']
+        && data.principalAmount is number && data.principalAmount >= 0
+        && data.interestAmount is number && data.interestAmount >= 0
+        && data.totalAmount is number && data.totalAmount >= 0
+        && data.remainingBalance is number && data.remainingBalance >= 0
+        && (!('dopEquivalent' in data) || data.dopEquivalent == null || data.dopEquivalent is map)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidApplicationDecisionHistory(data, historyId) {
+      return data.keys().hasAll([
+          'id', 'organizationId', 'applicationId', 'eventType', 'originalConditions',
+          'evaluatedConditions', 'previousStatus', 'newStatus', 'qualifies',
+          'requiresHumanIntervention', 'rulesPassedCount', 'rulesFailedCount',
+          'actorId', 'actorName', 'actorRole', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'organizationId', 'applicationId', 'analysisId', 'scoringExecutionId',
+          'eventType', 'originalConditions', 'evaluatedConditions', 'previousStatus',
+          'newStatus', 'qualifies', 'requiresHumanIntervention', 'rulesPassedCount',
+          'rulesFailedCount', 'unmetReasons', 'changesSummary', 'justification',
+          'actorId', 'actorName', 'actorRole', 'createdAt'
+        ])
+        && data.id == historyId && isValidId(data.id)
+        && isValidId(data.organizationId)
+        && isValidId(data.applicationId)
+        && (!('analysisId' in data) || data.analysisId == null || isValidId(data.analysisId))
+        && (!('scoringExecutionId' in data) || data.scoringExecutionId == null || isValidId(data.scoringExecutionId))
+        && data.eventType in [
+          'INITIAL_AUTO_EVALUATION', 'HUMAN_REEVALUATION_SIMULATION',
+          'SENT_TO_EVALUATION_AFTER_REEVALUATION', 'EVALUATION_CONDITIONS_ADJUSTED',
+          'RETRY_FINANCIAL_PROCESSING'
+        ]
+        && data.originalConditions is map
+        && data.evaluatedConditions is map
+        && data.previousStatus is string && data.previousStatus.size() >= 2 && data.previousStatus.size() <= 40
+        && data.newStatus is string && data.newStatus.size() >= 2 && data.newStatus.size() <= 40
+        && data.qualifies is bool
+        && data.requiresHumanIntervention is bool
+        && data.rulesPassedCount is number && data.rulesPassedCount >= 0 && data.rulesPassedCount <= 100
+        && data.rulesFailedCount is number && data.rulesFailedCount >= 0 && data.rulesFailedCount <= 100
+        && (!('unmetReasons' in data) || (data.unmetReasons is list && data.unmetReasons.size() <= 30))
+        && (!('changesSummary' in data) || (data.changesSummary is list && data.changesSummary.size() <= 30))
+        && (!('justification' in data) || data.justification == null || (data.justification is string && data.justification.size() <= 1000))
+        && isValidId(data.actorId)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 160
+        && data.actorRole is string && data.actorRole.size() >= 2 && data.actorRole.size() <= 64
+        && data.createdAt is timestamp;
+    }
+
+    match /financial_analyses/{analysisId} {
+      // Strictly internal staff only — EXTERNAL_CLIENT is denied all reads and queries
+      allow read: if (resource == null && isVerified() && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']))
+        || (resource != null && isInternalStaff(resource.data.organizationId));
+      allow create: if isValidId(analysisId)
+        && inSameOrg(incoming().organizationId)
+        && isValidFinancialAnalysis(incoming(), analysisId)
+        && incoming().calculatedBy == request.auth.uid
+        && incoming().calculatedAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT'] ||
+          (currentRole() == 'EXTERNAL_CLIENT' && incoming().analysisType == 'SOLICITUD_INICIAL' && incoming().version == 1)
+        )
+        && (
+          isAdmin() ||
+          exists(/databases/$(database)/documents/applications/$(incoming().applicationId)) ||
+          existsAfter(/databases/$(database)/documents/applications/$(incoming().applicationId))
+        );
+      allow update: if isValidId(analysisId)
+        && canReevaluateCredit(existing().organizationId)
+        && incoming().status in ['VIGENTE', 'HISTORICO', 'APROBADO_EVALUACION', 'RECHAZADO']
+        && optStr(incoming(), 'justification', 1000)
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'justification', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /financial_analysis_installments/{instId} {
+      // Strictly internal staff only — EXTERNAL_CLIENT is denied all reads and queries
+      allow read: if (resource == null && isVerified() && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']))
+        || (resource != null && isInternalStaff(resource.data.organizationId));
+      allow create: if isValidId(instId)
+        && hasOrgRole(incoming().organizationId, ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT', 'EXTERNAL_CLIENT'])
+        && isValidFinancialAnalysisInstallment(incoming(), instId)
+        && incoming().createdAt == request.time
+        && (
+          isAdmin() ||
+          exists(/databases/$(database)/documents/financial_analyses/$(incoming().analysisId)) ||
+          existsAfter(/databases/$(database)/documents/financial_analyses/$(incoming().analysisId))
+        );
+      allow update, delete: if false;
+    }
+
+    match /application_decision_history/{historyId} {
+      // Strictly internal staff only — EXTERNAL_CLIENT is denied all reads and queries
+      allow read: if (resource == null && isVerified() && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']))
+        || (resource != null && isInternalStaff(resource.data.organizationId));
+      allow create: if isValidId(historyId)
+        && inSameOrg(incoming().organizationId)
+        && isValidApplicationDecisionHistory(incoming(), historyId)
+        && incoming().actorId == request.auth.uid
+        && incoming().createdAt == request.time
+        && (
+          currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT'] ||
+          (currentRole() == 'EXTERNAL_CLIENT' && incoming().eventType == 'INITIAL_AUTO_EVALUATION')
+        )
+        && (
+          isAdmin() ||
+          exists(/databases/$(database)/documents/applications/$(incoming().applicationId)) ||
+          existsAfter(/databases/$(database)/documents/applications/$(incoming().applicationId))
+        );
+      allow update, delete: if false;
+    }
+
     match /credit_evaluations/{evalId} {
       allow get: if isValidId(evalId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId));
       allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
@@ -1376,7 +1510,7 @@ service cloud.firestore {
       allow get: if isValidId(formId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId));
       allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
       allow create: if isValidId(formId)
-        && (canFormalize(incoming().organizationId) || canDecideCommittee(incoming().organizationId) || canDisburse(incoming().organizationId))
+        && hasOrgRole(incoming().organizationId, ['ADMIN', 'FORMALIZATION', 'COMMITTEE_MEMBER', 'OPERATIONS', 'FINANCE'])
         && isValidFormalization(incoming(), formId)
         && incoming().formalizedBy == request.auth.uid
         && incoming().createdAt == request.time
@@ -1387,12 +1521,13 @@ service cloud.firestore {
           existsAfter(/databases/$(database)/documents/applications/$(incoming().applicationId))
         );
       allow update: if isValidId(formId)
+        && inSameOrg(existing().organizationId)
         && isValidFormalization(incoming(), formId)
         && incoming().id == existing().id
         && incoming().organizationId == existing().organizationId
         && incoming().updatedAt == request.time
         && (
-          (isAdmin() && inSameOrg(existing().organizationId)) ||
+          isAdmin() ||
           (
             incoming().applicationId == existing().applicationId
             && incoming().decisionId == existing().decisionId
@@ -1400,14 +1535,14 @@ service cloud.firestore {
             && incoming().createdAt == existing().createdAt
             && existing().status != 'DESEMBOLSADA'
             && (
-              (canFormalize(existing().organizationId) && incoming().diff(existing()).affectedKeys().hasOnly([
-                'financedExpenses', 'totalFinanced', 'deductedExpenses', 'netDisbursementAmount',
+              (currentRole() in ['ADMIN', 'FORMALIZATION'] && incoming().diff(existing()).affectedKeys().hasOnly([
+                'approvedFinancialAnalysisId', 'financedExpenses', 'totalFinanced', 'deductedExpenses', 'netDisbursementAmount',
                 'disbursementTargetDate', 'firstPaymentDate', 'maturityDate', 'totalContractualPayable',
                 'contractText', 'promissoryNoteText', 'requiredDocsChecklist', 'conditionsFulfilled',
                 'signatures', 'collateralDetails', 'legalReviewConfirmed',
                 'promissoryNoteConfirmed', 'contractConfirmed', 'status', 'updatedAt'
               ])) ||
-              (canDisburse(existing().organizationId) && incoming().status == 'DESEMBOLSADA' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+              (currentRole() in ['ADMIN', 'OPERATIONS', 'FINANCE'] && incoming().status == 'DESEMBOLSADA' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
             )
           )
         );
@@ -1441,22 +1576,24 @@ service cloud.firestore {
     match /loans/{loanId} {
       allow get: if isValidId(loanId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().createdBy == request.auth.uid));
       allow list: if isVerified() && (resource.data.createdBy == request.auth.uid || isInternalStaff(resource.data.organizationId));
-      allow create: if isValidId(loanId) && (canDisburse(incoming().organizationId) || canApplyOrReversePayments(incoming().organizationId))
+      allow create: if isValidId(loanId)
+        && hasOrgRole(incoming().organizationId, ['ADMIN', 'OPERATIONS', 'FINANCE', 'COLLECTION_COORDINATOR', 'MANAGEMENT'])
         && isValidLoan(incoming(), loanId)
         && incoming().createdBy == request.auth.uid
         && incoming().createdAt == request.time
         && (
-          isAdmin() ||
-          canApplyOrReversePayments(incoming().organizationId) ||
+          currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'MANAGEMENT'] ||
           exists(/databases/$(database)/documents/disbursements/$(incoming().applicationId)) ||
           existsAfter(/databases/$(database)/documents/disbursements/$(incoming().applicationId))
         );
-      allow update: if isValidId(loanId) && isValidLoan(incoming(), loanId)
+      allow update: if isValidId(loanId)
+        && inSameOrg(existing().organizationId)
+        && isValidLoan(incoming(), loanId)
         && incoming().id == existing().id
         && incoming().organizationId == existing().organizationId
         && incoming().updatedAt == request.time
         && (
-          (isAdmin() && inSameOrg(existing().organizationId)) ||
+          isAdmin() ||
           (
             incoming().loanNumber == existing().loanNumber
             && incoming().applicationId == existing().applicationId
@@ -1472,19 +1609,19 @@ service cloud.firestore {
             && incoming().createdBy == existing().createdBy
             && incoming().createdAt == existing().createdAt
             && (
-              (canApplyOrReversePayments(existing().organizationId)
+              (currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'currentPrincipalBalance', 'status', 'paidPrincipalTotal',
                   'paidInterestTotal', 'paidLateFeeTotal', 'closedAt',
                   'closureCertificateNumber', 'updatedAt'
                 ])) ||
-              (canCloseLoan(existing().organizationId)
+              (currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS']
                 && incoming().status == 'CANCELADO'
                 && incoming().currentPrincipalBalance == 0
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'status', 'closedAt', 'closureCertificateNumber', 'updatedAt'
                 ])) ||
-              (isInternalStaff(existing().organizationId)
+              (!(currentRole() in ['EXTERNAL_CLIENT', 'NONE'])
                 && existing().status != 'CANCELADO'
                 && incoming().status in ['ACTIVO', 'VENCIDO']
                 && incoming().currentPrincipalBalance == existing().currentPrincipalBalance

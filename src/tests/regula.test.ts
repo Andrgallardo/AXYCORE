@@ -14,6 +14,8 @@ import {
 import { buildRegulaReportDataset } from '../engine/regulaReports';
 import { createEmptyRegulaWorkspaceData } from '../services/regulaStore';
 import {
+  appendMovementHistory,
+  buildApplicationFieldDiff,
   canEditApplicationRecord,
   EDITABLE_APPLICATION_STATUSES,
 } from '../services/axycoreStore';
@@ -171,6 +173,127 @@ describe('Solicitudes Recibidas: Edición y Reevaluación Motor V2', () => {
     expect(reeval.totalScore).toBeGreaterThan(initialEval.totalScore);
     expect(reeval.status).toBe('PREOFERTA');
     expect(reeval.recommendedAmount).toBeGreaterThan(initialEval.recommendedAmount);
+  });
+
+  it('genera historial de cambios campo por campo (básicos, financieros y cliente) y lo conserva en movementHistory para auditoría', () => {
+    const customer: CustomerRecord = {
+      id: 'cust_aud_1',
+      organizationId: 'org_axycore_main',
+      documentType: 'CEDULA',
+      documentNumber: '00199998888',
+      documentKey: 'CEDULA:00199998888',
+      firstName: 'María',
+      lastName: 'Pérez',
+      phone: '8095550001',
+      email: 'maria.viejo@example.com',
+      address: 'Calle Vieja 10',
+      municipality: 'Santo Domingo',
+      province: 'Distrito Nacional',
+      residenceMonths: 12,
+      housingType: 'ALQUILADA',
+      housingPayment: 15000,
+      socialMediaDeclared: 'NO_MEDIA',
+      createdBy: 'usr_1',
+    };
+
+    const app: ApplicationRecord = {
+      id: 'app_aud_1',
+      organizationId: 'org_axycore_main',
+      applicationNumber: 'SOL-2026-099',
+      fileNumber: 'EXP-2026-099',
+      channel: 'EXTERNAL',
+      applicantType: 'INDIVIDUAL',
+      customerId: customer.id,
+      applicantDisplayName: 'María Pérez',
+      productCode: 'PERSONAL_DOP',
+      currency: 'DOP',
+      requestedAmount: 50000,
+      requestedTermMonths: 12,
+      paymentFrequency: 'MENSUAL',
+      amortizationMethod: 'SALDO_INSOLUTO',
+      loanPurpose: 'Consumo',
+      financialData: {
+        incomeCurrency: 'DOP',
+        incomeSourceType: 'FIJA_RECURRENTE',
+        primaryNetIncome: 40000,
+        declaredTotalMonthlyIncome: 40000,
+        essentialExpenses: 18000,
+        housingPayment: 15000,
+        housingIncludedInExpenses: false,
+        debtDeclarationStatus: 'HAS_DEBTS',
+        debtCount: 2,
+        totalDebtBalance: 60000,
+        currentDebtPayments: 8000,
+      },
+      references: [{ name: 'Juan López', relationship: 'Hermano', phone: '8095551111' }],
+      declaredDocumentsSummary: {
+        hasIdentityDoc: true,
+        hasIncomeEvidence: false,
+        hasAddressProof: false,
+        hasCorporateDocs: false,
+      },
+      status: 'RECIBIDA',
+      createdBy: 'usr_1',
+    };
+
+    const diffs = buildApplicationFieldDiff({
+      application: app,
+      customer,
+      customerUpdates: {
+        firstName: 'María',
+        lastName: 'Pérez',
+        phone: '8095559999',
+        email: 'maria.nuevo@example.com',
+        address: 'Calle Vieja 10',
+        municipality: 'Santo Domingo',
+        province: 'Distrito Nacional',
+        residenceMonths: 12,
+        housingType: 'ALQUILADA',
+        housingPayment: 15000,
+        socialMediaDeclared: 'NO_MEDIA',
+      },
+      updates: {
+        productCode: 'PERSONAL_DOP',
+        currency: 'DOP',
+        requestedAmount: 75000,
+        requestedTermMonths: 24,
+        paymentFrequency: 'MENSUAL',
+        amortizationMethod: 'SALDO_INSOLUTO',
+        loanPurpose: 'Consolidación de deudas',
+        financialData: {
+          ...app.financialData,
+          primaryNetIncome: 55000,
+          declaredTotalMonthlyIncome: 55000,
+          currentDebtPayments: 5000,
+        },
+        references: app.references,
+        declaredDocumentsSummary: app.declaredDocumentsSummary,
+      },
+    });
+
+    expect(diffs.some((d) => d.field === 'requestedAmount' && d.category === 'BASICO' && d.previousValue.includes('50,000') && d.newValue.includes('75,000'))).toBe(true);
+    expect(diffs.some((d) => d.field === 'requestedTermMonths' && d.previousValue === '12 meses' && d.newValue === '24 meses')).toBe(true);
+    expect(diffs.some((d) => d.field === 'financialData.primaryNetIncome' && d.category === 'FINANCIERO')).toBe(true);
+    expect(diffs.some((d) => d.field === 'financialData.currentDebtPayments' && d.category === 'FINANCIERO')).toBe(true);
+    expect(diffs.some((d) => d.field === 'customer.phone' && d.category === 'CLIENTE' && d.newValue === '8095559999')).toBe(true);
+    // Unchanged fields must not appear
+    expect(diffs.some((d) => d.field === 'productCode')).toBe(false);
+
+    const history = appendMovementHistory(app.movementHistory, {
+      timestamp: '2026-11-20T14:20:00.000Z',
+      action: 'Solicitud actualizada',
+      fromStatus: 'RECIBIDA',
+      toStatus: 'RECIBIDA',
+      userId: 'usr_officer',
+      userName: 'Oficial Negocios',
+      userRole: 'BUSINESS_OFFICER',
+      note: 'Cliente corrigió monto e ingresos con carta laboral',
+      changes: diffs,
+    });
+
+    expect(history).toHaveLength(1);
+    expect(history[0].userRole).toBe('BUSINESS_OFFICER');
+    expect(history[0].changes?.length).toBe(diffs.length);
   });
 });
 

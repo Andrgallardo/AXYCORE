@@ -177,8 +177,21 @@ export type CurrencyCode = 'DOP' | 'USD';
 export type ProductCode = 'PERSONAL_DOP' | 'EMPRESARIAL_DOP' | 'PERSONAL_USD' | 'EMPRESARIAL_USD';
 export type ChannelType = 'INTERNAL' | 'EXTERNAL';
 export type ApplicantType = 'INDIVIDUAL' | 'BUSINESS';
-export type PaymentFrequency = 'MENSUAL' | 'QUINCENAL' | 'SEMANAL';
+export type PaymentFrequency = 'DIARIA' | 'SEMANAL' | 'QUINCENAL' | 'MENSUAL';
 export type AmortizationMethod = 'SALDO_INSOLUTO' | 'INTERES_FIJO';
+export type LegalFeeApplicationMode = 'DESCONTAR_DESEMBOLSO' | 'FINANCIAR';
+export type FinancialAnalysisStatus = 'VIGENTE' | 'HISTORICO' | 'APROBADO_EVALUACION' | 'RECHAZADO';
+export type FinancialAnalysisType =
+  | 'SOLICITUD_INICIAL'
+  | 'REEVALUACION_HUMANA'
+  | 'AJUSTE_EVALUACION'
+  | 'ACTUALIZACION_DATOS';
+export type DecisionQualificationStatus =
+  | 'CALIFICA_AUTO_EVALUACION'
+  | 'REQUIERE_INTERVENCION_HUMANA'
+  | 'REEVALUADA_APROBADA_EVALUACION'
+  | 'DATOS_INSUFICIENTES';
+export type InstallmentStageCode = 'SOLO_INTERESES' | 'NORMAL';
 
 export type ApplicationStatus =
   | 'BORRADOR'
@@ -473,6 +486,14 @@ export interface DeclaredDocumentsSummary {
   hasCorporateDocs?: boolean;
 }
 
+export interface ApplicationFieldChange {
+  field: string;
+  label: string;
+  category: 'BASICO' | 'FINANCIERO' | 'CLIENTE' | 'REFERENCIAS';
+  previousValue: string;
+  newValue: string;
+}
+
 export interface MovementHistoryEntry {
   timestamp: string;
   action: string;
@@ -480,7 +501,9 @@ export interface MovementHistoryEntry {
   toStatus?: string;
   userId: string;
   userName: string;
+  userRole?: string;
   note?: string;
+  changes?: ApplicationFieldChange[];
 }
 
 export interface ApplicationRecord {
@@ -523,11 +546,211 @@ export interface ApplicationRecord {
   assignedToName?: string | null;
   authorizedAlternateAmount?: number | null;
   alternateAmountAuthorizedBy?: string | null;
+  originalRequestedConditions?: CreditConditionsSnapshot | null;
+  activeFinancialAnalysisId?: string | null;
+  approvedEvaluationAnalysisId?: string | null;
+  requiresHumanIntervention?: boolean;
+  decisionQualificationStatus?: DecisionQualificationStatus | null;
+  financialAnalysisVersion?: number | null;
+  legalFeeMode?: LegalFeeApplicationMode;
+  interestOnlyPeriods?: number;
+  installmentCount?: number;
   movementHistory?: MovementHistoryEntry[];
   createdBy: string;
   createdByName?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
+}
+
+export interface CreditConditionsSnapshot {
+  currency: CurrencyCode;
+  requestedAmount: number;
+  termMonths: number;
+  installmentCount: number;
+  paymentFrequency: PaymentFrequency;
+  amortizationMethod: AmortizationMethod;
+  monthlyRatePct: number;
+  monthlyRateDecimal: number;
+  rateSource: 'AUTOMATICA_ESCALA' | 'MOTOR_V2_BANDA' | 'PERSONALIZADA';
+  legalFeesAmount: number;
+  legalFeeMode: LegalFeeApplicationMode;
+  interestOnlyPeriods: number;
+  disbursementDate: string;
+}
+
+export interface DecisionRuleEvaluationItem {
+  code: string;
+  label: string;
+  passed: boolean;
+  severity: 'BLOCKING' | 'WARNING' | 'INFO';
+  detail: string;
+}
+
+export interface ExchangeRateAuditMetadata {
+  applied: boolean;
+  currencyPair: 'USD/DOP';
+  sellRate: number;
+  source: string;
+  rateDate: string;
+  obtainedAtIso: string;
+  isAutomaticBcrd: boolean;
+  isFallback: boolean;
+  fallbackReason?: string | null;
+  manualOverrideBy?: string | null;
+  manualOverrideByName?: string | null;
+}
+
+export interface FinancialAnalysisInstallmentPreviewRow {
+  numero: number;
+  fecha: string;
+  etapa: InstallmentStageCode;
+  capital: number;
+  interes: number;
+  cuota: number;
+  balance: number;
+  dopCuota?: number | null;
+}
+
+export interface FinancialAnalysisInstallmentRecord {
+  id: string;
+  analysisId: string;
+  applicationId: string;
+  organizationId: string;
+  installmentNumber: number;
+  dueDate: string;
+  stage: InstallmentStageCode;
+  principalAmount: number;
+  interestAmount: number;
+  totalAmount: number;
+  remainingBalance: number;
+  dopEquivalent?: {
+    capital: number;
+    interes: number;
+    cuota: number;
+    balance: number;
+  } | null;
+  createdAt?: unknown;
+}
+
+export interface FinancialAnalysisRecord {
+  id: string;
+  organizationId: string;
+  applicationId: string;
+  scoringExecutionId: string | null;
+  idempotencyKey: string;
+  version: number;
+  analysisType: FinancialAnalysisType;
+  status: FinancialAnalysisStatus;
+  originalRequestedConditions: CreditConditionsSnapshot;
+  calculatedConditions: CreditConditionsSnapshot;
+  decisionSummary: {
+    score: number;
+    riskBandCode: RiskBandCode;
+    riskBandLabel: string;
+    scoringStatus: ScoringStatus;
+    qualifiesForRequested: boolean;
+    qualifiesForCalculated: boolean;
+    requiresHumanIntervention: boolean;
+    verdict: string;
+    explanation: string;
+    rulesPassed: DecisionRuleEvaluationItem[];
+    rulesFailed: DecisionRuleEvaluationItem[];
+    failureReasons: string[];
+    missingData: string[];
+    recommendedAlternative: {
+      amount: number;
+      termMonths: number;
+      installmentCount: number;
+      monthlyRatePct: number;
+      frequency: PaymentFrequency;
+      amortizationMethod: AmortizationMethod;
+      estimatedInstallment: number;
+    } | null;
+  };
+  financialSummary: {
+    currency: CurrencyCode;
+    requestedAmount: number;
+    legalFeesAmount: number;
+    legalFeeMode: LegalFeeApplicationMode;
+    financedPrincipal: number;
+    netDisbursementAmount: number;
+    monthlyRatePct: number;
+    periodicRatePct: number;
+    paymentFrequency: PaymentFrequency;
+    amortizationMethod: AmortizationMethod;
+    installmentCount: number;
+    interestOnlyPeriods: number;
+    amortizationPeriods: number;
+    initialInstallment: number;
+    finalInstallment: number;
+    equalInstallments: boolean;
+    totalPrincipal: number;
+    totalInterest: number;
+    totalPayable: number;
+    totalCostIncludingFees: number;
+    disbursementDate: string;
+    firstDueDate: string;
+    lastDueDate: string;
+    finalBalance: number;
+    isReconciled: boolean;
+    dopEquivalentSummary?: {
+      requestedAmount: number;
+      legalFeesAmount: number;
+      financedPrincipal: number;
+      netDisbursementAmount: number;
+      initialInstallment: number;
+      finalInstallment: number;
+      totalPrincipal: number;
+      totalInterest: number;
+      totalPayable: number;
+      totalCostIncludingFees: number;
+    } | null;
+  } | null;
+  exchangeRateMeta?: ExchangeRateAuditMetadata | null;
+  installmentsCount: number;
+  installmentsPreview: FinancialAnalysisInstallmentPreviewRow[];
+  canSendToEvaluation: boolean;
+  sendToEvaluationBlockedReasons: string[];
+  justification?: string | null;
+  calculatedBy: string;
+  calculatedByName: string;
+  calculatedByRole: UserRole;
+  calculatedAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface ApplicationDecisionHistoryRecord {
+  id: string;
+  organizationId: string;
+  applicationId: string;
+  analysisId: string | null;
+  scoringExecutionId: string | null;
+  eventType:
+    | 'INITIAL_AUTO_EVALUATION'
+    | 'HUMAN_REEVALUATION_SIMULATION'
+    | 'SENT_TO_EVALUATION_AFTER_REEVALUATION'
+    | 'EVALUATION_CONDITIONS_ADJUSTED'
+    | 'RETRY_FINANCIAL_PROCESSING';
+  originalConditions: CreditConditionsSnapshot;
+  evaluatedConditions: CreditConditionsSnapshot;
+  previousStatus: ApplicationStatus;
+  newStatus: ApplicationStatus;
+  qualifies: boolean;
+  requiresHumanIntervention: boolean;
+  rulesPassedCount: number;
+  rulesFailedCount: number;
+  unmetReasons: string[];
+  changesSummary: Array<{
+    field: string;
+    label: string;
+    before: string;
+    after: string;
+  }>;
+  justification?: string | null;
+  actorId: string;
+  actorName: string;
+  actorRole: UserRole;
+  createdAt?: unknown;
 }
 
 export interface ApplicationDocumentRecord {
@@ -805,6 +1028,7 @@ export interface FormalizationRecord {
   organizationId: string;
   applicationId: string;
   decisionId: string;
+  approvedFinancialAnalysisId?: string | null;
   approvedCapital: number;
   financedExpenses: number;
   totalFinanced: number;
@@ -870,6 +1094,7 @@ export interface LoanRecord {
   loanNumber: string;
   applicationId: string;
   disbursementId: string;
+  approvedFinancialAnalysisId?: string | null;
   customerId: string;
   businessId?: string | null;
   applicantDisplayName: string;

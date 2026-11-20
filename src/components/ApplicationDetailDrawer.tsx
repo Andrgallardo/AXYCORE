@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Cpu, FileText, History, Mail, Pencil, RefreshCw, ShieldCheck, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Calculator, CheckCircle2, Cpu, FileText, History, Mail, Pencil, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { ApplicationEditModal } from './ApplicationEditModal';
+import { ApplicationFinancialAnalysisPanel } from './ApplicationFinancialAnalysisPanel';
 import { EMAIL_EVENT_LABELS } from '../engine/emailTemplates';
 import {
   canEditApplicationRecord,
@@ -18,11 +19,21 @@ import {
   formatUserFacingError,
 } from '../utils/formatters';
 
+export type ApplicationDrawerTab =
+  | 'overview'
+  | 'financial_analysis'
+  | 'indicators'
+  | 'capacity'
+  | 'history'
+  | 'emails';
+
 export function ApplicationDetailDrawer({
   applicationId,
+  initialTab = 'overview',
   onClose,
 }: {
   applicationId: string | null;
+  initialTab?: ApplicationDrawerTab;
   onClose: () => void;
 }) {
   const {
@@ -41,7 +52,21 @@ export function ApplicationDetailDrawer({
     rbac,
   } = useAxyCore();
 
-  const [tab, setTab] = useState<'overview' | 'indicators' | 'capacity' | 'history' | 'emails'>('overview');
+  const isInternalViewer = rbac.isInternalStaff && userProfile?.role !== 'EXTERNAL_CLIENT';
+  const [tab, setTab] = useState<ApplicationDrawerTab>(
+    !isInternalViewer && ['financial_analysis', 'indicators', 'capacity'].includes(initialTab)
+      ? 'overview'
+      : initialTab
+  );
+  useEffect(() => {
+    if (applicationId) {
+      setTab(
+        !isInternalViewer && ['financial_analysis', 'indicators', 'capacity'].includes(initialTab)
+          ? 'overview'
+          : initialTab
+      );
+    }
+  }, [applicationId, initialTab, isInternalViewer]);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -153,26 +178,30 @@ export function ApplicationDetailDrawer({
               <span className="font-medium text-slate-700 dark:text-slate-300">
                 Estado del expediente: {APPLICATION_STATUS_LABELS[app.status]}
               </span>
-              <span aria-hidden="true">·</span>
-              <span
-                className={`font-semibold ${
-                  isApprovedOrBeyond
-                    ? 'text-emerald-700 dark:text-emerald-400'
-                    : 'text-sky-700 dark:text-sky-400'
-                }`}
-              >
-                {isApprovedOrBeyond
-                  ? 'APROBADO CONTRACTUALMENTE'
-                  : `PRECALIFICACIÓN PRELIMINAR: ${
-                      app.prequalificationStatus
-                        ? SCORING_STATUS_LABELS[app.prequalificationStatus]
-                        : 'Pendiente'
+              {isInternalViewer && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span
+                    className={`font-semibold ${
+                      isApprovedOrBeyond
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-sky-700 dark:text-sky-400'
                     }`}
-              </span>
+                  >
+                    {isApprovedOrBeyond
+                      ? 'APROBADO CONTRACTUALMENTE'
+                      : `PRECALIFICACIÓN PRELIMINAR: ${
+                          app.prequalificationStatus
+                            ? SCORING_STATUS_LABELS[app.prequalificationStatus]
+                            : 'Pendiente'
+                        }`}
+                  </span>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {canEditApplicationRecord(app.status, userProfile?.role) && (
+            {isInternalViewer && canEditApplicationRecord(app.status, userProfile?.role) && (
               <>
                 <button
                   type="button"
@@ -235,13 +264,27 @@ export function ApplicationDetailDrawer({
 
         {/* Navigation Tabs */}
         <div className="px-6 pt-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex items-center gap-1 overflow-x-auto">
-          {[
-            { id: 'overview', label: 'Resumen y Condiciones' },
-            { id: 'indicators', label: '22 Indicadores Motor V2' },
-            { id: 'capacity', label: 'Capacidad de Pago y Estrés' },
-            { id: 'history', label: `Historial (${appExecutions.length} ejecuciones)` },
-            { id: 'emails', label: `Emails Cliente (${appEmails.length})` },
-          ].map((t) => (
+          {(isInternalViewer
+            ? [
+                { id: 'overview', label: 'Resumen y Condiciones' },
+                {
+                  id: 'financial_analysis',
+                  label: app.requiresHumanIntervention
+                    ? 'Análisis Financiero y Reevaluación'
+                    : `Análisis Financiero y Amortización${
+                        app.financialAnalysisVersion ? ` (v${app.financialAnalysisVersion})` : ''
+                      }`,
+                },
+                { id: 'indicators', label: '22 Indicadores Motor V2' },
+                { id: 'capacity', label: 'Capacidad de Pago y Estrés' },
+                { id: 'history', label: `Historial (${appExecutions.length} ejecuciones)` },
+                { id: 'emails', label: `Emails Cliente (${appEmails.length})` },
+              ]
+            : [
+                { id: 'overview', label: 'Resumen de Solicitud' },
+                { id: 'emails', label: `Notificaciones (${appEmails.length})` },
+              ]
+          ).map((t) => (
             <button
               key={t.id}
               type="button"
@@ -273,7 +316,7 @@ export function ApplicationDetailDrawer({
               </button>
             </div>
           )}
-          {activeExecution && (
+          {isInternalViewer && activeExecution && (
             <div className="axy-surface-tonal p-4 rounded-xl space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
                 <span>
@@ -287,50 +330,118 @@ export function ApplicationDetailDrawer({
             </div>
           )}
 
+          {isInternalViewer && tab === 'financial_analysis' && (
+            <ApplicationFinancialAnalysisPanel
+              application={app}
+              customer={customer}
+              mode="INBOX"
+            />
+          )}
+
           {tab === 'overview' && (
             <div className="space-y-6">
+              {isInternalViewer && (
+                <div className="rounded-xl border border-[#0066FF]/25 dark:border-[#00D1FF]/25 bg-sky-50/50 dark:bg-[#091834] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <Calculator className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF] shrink-0" />
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-white">
+                        {app.requiresHumanIntervention
+                          ? 'Solicitud retenida en Recibida — requiere reevaluación humana comparativa'
+                          : app.activeFinancialAnalysisId
+                          ? `Análisis Financiero y Tabla de Amortización guardados (v${app.financialAnalysisVersion ?? 1})`
+                          : 'Análisis Financiero y Tabla de Amortización integrados'}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Consulta las condiciones calculadas, tasa BCRD (USD), tabla de amortización persistida o ejecuta reevaluación comparativa.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTab('financial_analysis')}
+                    className="axy-brand-gradient px-3 py-1.5 rounded-xl text-xs font-semibold text-white cursor-pointer whitespace-nowrap"
+                  >
+                    {app.requiresHumanIntervention
+                      ? 'Abrir Reevaluación Humana'
+                      : 'Ver Análisis y Amortización'}
+                  </button>
+                </div>
+              )}
               {/* Top KPI Summary */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="axy-surface p-4 rounded-xl">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Score Interno V2</p>
-                  <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
-                    {activeExecution ? `${activeExecution.totalScore}/100` : '—'}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                    Riesgo: {activeExecution?.riskBand.label ?? '—'}
-                  </p>
+              {isInternalViewer ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Score Interno V2</p>
+                    <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
+                      {activeExecution ? `${activeExecution.totalScore}/100` : '—'}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      Riesgo: {activeExecution?.riskBand.label ?? '—'}
+                    </p>
+                  </div>
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Monto Solicitado</p>
+                    <p className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
+                      {formatMoney(app.requestedAmount, app.currency)}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      {app.requestedTermMonths} meses · {PRODUCT_LABELS[app.productCode]}
+                    </p>
+                  </div>
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Monto Recomendado</p>
+                    <p className="text-xl font-bold font-mono tabular-nums text-[#0066FF] dark:text-[#00D1FF] mt-1">
+                      {formatMoney(activeExecution?.recommendedAmount ?? 0, app.currency)}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      Plazo rec.: {activeExecution?.recommendedTermMonths || '—'} meses
+                    </p>
+                  </div>
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Tasa y Cuota Rec.</p>
+                    <p className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
+                      {formatRatePct(activeExecution?.recommendedRateMonthly)}
+                    </p>
+                    <p className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300 mt-0.5">
+                      Cuota: {formatMoney(activeExecution?.recommendedInstallment ?? 0, app.currency)}
+                    </p>
+                  </div>
                 </div>
-                <div className="axy-surface p-4 rounded-xl">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Monto Solicitado</p>
-                  <p className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
-                    {formatMoney(app.requestedAmount, app.currency)}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                    {app.requestedTermMonths} meses · {PRODUCT_LABELS[app.productCode]}
-                  </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Monto Solicitado</p>
+                    <p className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
+                      {formatMoney(app.requestedAmount, app.currency)}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      {PRODUCT_LABELS[app.productCode]}
+                    </p>
+                  </div>
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Plazo Solicitado</p>
+                    <p className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
+                      {app.requestedTermMonths} meses
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      Frecuencia: {app.paymentFrequency}
+                    </p>
+                  </div>
+                  <div className="axy-surface p-4 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Estado Actual</p>
+                    <p className="text-base font-bold text-[#0066FF] dark:text-[#00D1FF] mt-1">
+                      {APPLICATION_STATUS_LABELS[app.status]}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      Seguimiento institucional
+                    </p>
+                  </div>
                 </div>
-                <div className="axy-surface p-4 rounded-xl">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Monto Recomendado</p>
-                  <p className="text-xl font-bold font-mono tabular-nums text-[#0066FF] dark:text-[#00D1FF] mt-1">
-                    {formatMoney(activeExecution?.recommendedAmount ?? 0, app.currency)}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                    Plazo rec.: {activeExecution?.recommendedTermMonths || '—'} meses
-                  </p>
-                </div>
-                <div className="axy-surface p-4 rounded-xl">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Tasa y Cuota Rec.</p>
-                  <p className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-white mt-1">
-                    {formatRatePct(activeExecution?.recommendedRateMonthly)}
-                  </p>
-                  <p className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300 mt-0.5">
-                    Cuota: {formatMoney(activeExecution?.recommendedInstallment ?? 0, app.currency)}
-                  </p>
-                </div>
-              </div>
+              )}
 
               {/* Favorable, Alerts & Missing Data */}
-              {activeExecution && (
+              {isInternalViewer && activeExecution && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="axy-surface-tonal p-4 rounded-xl space-y-2">
                     <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
@@ -583,21 +694,63 @@ export function ApplicationDetailDrawer({
               </div>
 
               <div className="space-y-3 pt-4 border-t border-slate-200/80 dark:border-[#00B8FF]/15">
-                <h4 className="font-semibold text-sm text-slate-900 dark:text-white">Historial de Movimientos del Expediente</h4>
-                <div className="space-y-2">
-                  {(app.movementHistory ?? []).map((m, i) => (
+                <h4 className="font-semibold text-sm text-slate-900 dark:text-white">
+                  Historial de Movimientos y Cambios de Auditoría
+                </h4>
+                <div className="space-y-2.5">
+                  {[...(app.movementHistory ?? [])].reverse().map((m, i) => (
                     <div
-                      key={i}
-                      className="axy-surface-tonal p-3 rounded-lg text-xs flex flex-wrap justify-between gap-2"
+                      key={`${m.timestamp}-${i}`}
+                      className="axy-surface-tonal p-3.5 rounded-xl text-xs space-y-2.5"
                     >
-                      <div>
-                        <p className="font-medium text-slate-900 dark:text-white">{m.action}</p>
-                        {m.note && <p className="text-slate-600 dark:text-slate-400 mt-0.5">{m.note}</p>}
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900 dark:text-white">{m.action}</p>
+                          {m.note && (
+                            <p className="text-slate-600 dark:text-slate-300 mt-0.5">
+                              <span className="font-semibold">Motivo:</span> {m.note}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right text-slate-500 dark:text-slate-400 shrink-0">
+                          <p className="font-medium text-slate-700 dark:text-slate-200">
+                            {m.userName}
+                            {m.userRole ? ` · ${m.userRole}` : ''}
+                          </p>
+                          <p className="font-mono">{formatTimestamp(m.timestamp)}</p>
+                        </div>
                       </div>
-                      <div className="text-right text-slate-500 dark:text-slate-400">
-                        <p>{m.userName}</p>
-                        <p className="font-mono">{formatTimestamp(m.timestamp)}</p>
-                      </div>
+
+                      {m.changes && m.changes.length > 0 && (
+                        <div className="rounded-lg overflow-hidden border border-slate-200/80 dark:border-[#00B8FF]/16 bg-white dark:bg-[#040C1E]">
+                          <table className="w-full text-[11px] text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 dark:bg-[#08132B] text-slate-600 dark:text-slate-300">
+                                <th className="py-1.5 px-2.5 font-semibold">Sección</th>
+                                <th className="py-1.5 px-2.5 font-semibold">Campo</th>
+                                <th className="py-1.5 px-2.5 font-semibold">Valor Anterior</th>
+                                <th className="py-1.5 px-2.5 font-semibold">Valor Nuevo</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200/70 dark:divide-[#00B8FF]/12">
+                              {m.changes.map((ch, cIdx) => (
+                                <tr key={`${ch.field}-${cIdx}`}>
+                                  <td className="py-1.5 px-2.5 text-slate-500 font-medium">{ch.category}</td>
+                                  <td className="py-1.5 px-2.5 font-semibold text-slate-800 dark:text-slate-200">
+                                    {ch.label}
+                                  </td>
+                                  <td className="py-1.5 px-2.5 font-mono text-rose-700 dark:text-rose-400">
+                                    {ch.previousValue}
+                                  </td>
+                                  <td className="py-1.5 px-2.5 font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                                    {ch.newValue}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

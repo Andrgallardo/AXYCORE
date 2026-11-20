@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Bell,
   BellOff,
-  Calculator,
   CalendarClock,
   CheckCircle2,
   CreditCard,
@@ -609,14 +608,6 @@ export function ClientPortalView() {
             >
               <RefreshCw className="w-4 h-4" />
               <span>Solicitar Renovación</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('loan_calculator')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-[#00B8FF]/30 text-white text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
-            >
-              <Calculator className="w-4 h-4 text-[#00D1FF]" />
-              <span>Calculadora</span>
             </button>
             <button
               type="button"

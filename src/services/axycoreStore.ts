@@ -31,6 +31,14 @@ import {
   type CollegialVoteEntry,
 } from '../engine/workflowGuards';
 import { hasRolePermission } from '../engine/rbac';
+import {
+  buildOriginalRequestedConditions,
+  canUserExecuteHumanReevaluation,
+  canUserOverrideRateOrFees,
+  runIntegratedDecisionAndCalculation,
+  type AlternativeConditionsOverrideInput,
+  type IntegratedCreditEvaluationResult,
+} from '../engine/integratedCreditEngine';
 import { buildCustomerStatusEmailPayload } from '../engine/emailTemplates';
 import {
   formatMoney,
@@ -79,7 +87,9 @@ import {
 } from '../engine/pushPayload';
 import { dispatchApplicationStatusChangePush } from './pushSubscriptionService';
 import type {
+  ApplicationDecisionHistoryRecord,
   ApplicationDocumentRecord,
+  ApplicationFieldChange,
   ApplicationRecord,
   ApplicationStatus,
   AuditLogRecord,
@@ -96,6 +106,8 @@ import type {
   DocumentOcrResult,
   EmailNotificationRecord,
   FcmDeviceTokenRecord,
+  FinancialAnalysisInstallmentRecord,
+  FinancialAnalysisRecord,
   FormalizationRecord,
   GranularActionPermission,
   LicenseStatus,
@@ -156,6 +168,15 @@ export function appendMovementHistory(
     ? existing.map((item) => sanitizeFirestorePayload(item))
     : [];
   const trimmedNote = typeof entry.note === 'string' ? entry.note.trim() : '';
+  const sanitizedChanges = Array.isArray(entry.changes) && entry.changes.length > 0
+    ? entry.changes.slice(0, 30).map((c) => ({
+        field: String(c.field || '').slice(0, 80),
+        label: String(c.label || '').slice(0, 120),
+        category: c.category,
+        previousValue: String(c.previousValue ?? '—').slice(0, 200),
+        newValue: String(c.newValue ?? '—').slice(0, 200),
+      }))
+    : undefined;
   const nextEntry: MovementHistoryEntry = sanitizeFirestorePayload({
     timestamp: entry.timestamp,
     action: String(entry.action || 'Actualización de expediente').slice(0, 300),
@@ -163,7 +184,9 @@ export function appendMovementHistory(
     toStatus: entry.toStatus,
     userId: entry.userId,
     userName: entry.userName,
+    ...(entry.userRole ? { userRole: String(entry.userRole).slice(0, 64) } : {}),
     ...(trimmedNote ? { note: trimmedNote.slice(0, 500) } : {}),
+    ...(sanitizedChanges ? { changes: sanitizedChanges } : {}),
   });
   return [...sanitizedExisting, nextEntry].slice(-50);
 }
@@ -217,6 +240,15 @@ const APPLICATION_ALLOWED_KEYS = new Set<string>([
   'consentAcceptedAt',
   'assignedTo',
   'assignedToName',
+  'originalRequestedConditions',
+  'activeFinancialAnalysisId',
+  'approvedEvaluationAnalysisId',
+  'requiresHumanIntervention',
+  'decisionQualificationStatus',
+  'financialAnalysisVersion',
+  'legalFeeMode',
+  'interestOnlyPeriods',
+  'installmentCount',
   'movementHistory',
   'createdByName',
 ]);
@@ -230,7 +262,7 @@ const VALID_PRODUCT_CODES = new Set([
   'EMPRESARIAL_USD',
 ]);
 const VALID_CURRENCIES = new Set(['DOP', 'USD']);
-const VALID_PAYMENT_FREQUENCIES = new Set(['MENSUAL', 'QUINCENAL', 'SEMANAL']);
+const VALID_PAYMENT_FREQUENCIES = new Set(['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL']);
 const VALID_AMORTIZATION_METHODS = new Set(['SALDO_INSOLUTO', 'INTERES_FIJO']);
 const VALID_APPLICATION_STATUSES = new Set([
   'BORRADOR',
@@ -867,6 +899,61 @@ export function buildMaterializedApplicationPayload(
               : String(merged.alternateAmountAuthorizedBy).slice(0, 128),
         }
       : {}),
+    ...(merged.originalRequestedConditions !== undefined &&
+    (merged.originalRequestedConditions === null || isPlainObject(merged.originalRequestedConditions))
+      ? { originalRequestedConditions: merged.originalRequestedConditions }
+      : {}),
+    ...(merged.activeFinancialAnalysisId !== undefined
+      ? {
+          activeFinancialAnalysisId:
+            typeof merged.activeFinancialAnalysisId === 'string' &&
+            VALID_ID_REGEX.test(merged.activeFinancialAnalysisId.trim())
+              ? merged.activeFinancialAnalysisId.trim()
+              : null,
+        }
+      : {}),
+    ...(merged.approvedEvaluationAnalysisId !== undefined
+      ? {
+          approvedEvaluationAnalysisId:
+            typeof merged.approvedEvaluationAnalysisId === 'string' &&
+            VALID_ID_REGEX.test(merged.approvedEvaluationAnalysisId.trim())
+              ? merged.approvedEvaluationAnalysisId.trim()
+              : null,
+        }
+      : {}),
+    ...(merged.requiresHumanIntervention !== undefined
+      ? { requiresHumanIntervention: Boolean(merged.requiresHumanIntervention) }
+      : {}),
+    ...(merged.decisionQualificationStatus !== undefined
+      ? {
+          decisionQualificationStatus:
+            merged.decisionQualificationStatus === null
+              ? null
+              : String(merged.decisionQualificationStatus).slice(0, 64),
+        }
+      : {}),
+    ...(merged.financialAnalysisVersion !== undefined
+      ? { financialAnalysisVersion: toFiniteNumOrNull(merged.financialAnalysisVersion) }
+      : {}),
+    ...(merged.legalFeeMode === 'DESCONTAR_DESEMBOLSO' || merged.legalFeeMode === 'FINANCIAR'
+      ? { legalFeeMode: merged.legalFeeMode }
+      : {}),
+    ...(merged.interestOnlyPeriods !== undefined
+      ? {
+          interestOnlyPeriods: Math.max(
+            0,
+            Math.min(360, Math.round(Number(merged.interestOnlyPeriods) || 0))
+          ),
+        }
+      : {}),
+    ...(merged.installmentCount !== undefined && Number(merged.installmentCount) > 0
+      ? {
+          installmentCount: Math.max(
+            1,
+            Math.min(10000, Math.round(Number(merged.installmentCount) || 1))
+          ),
+        }
+      : {}),
     consentVersion: String(merged.consentVersion || 'v1.0-Ley172-13').slice(0, 40),
     consentAcceptedAt: consentAt,
     ...(merged.assignedTo !== undefined && merged.assignedTo !== null && String(merged.assignedTo).trim()
@@ -1073,6 +1160,212 @@ export async function runBackendAmortization(payload: {
     throw new Error(errBody.error || 'Error calculando tabla de amortización.');
   }
   return resp.json();
+}
+
+export async function runBackendIntegratedDecisionAndCalculation(payload: {
+  application: ApplicationRecord;
+  customer: CustomerRecord;
+  policy: CreditPolicyRecord;
+  analysisType: FinancialAnalysisRecord['analysisType'];
+  version?: number;
+  useVerifiedData?: boolean;
+  alternativeConditions?: AlternativeConditionsOverrideInput | null;
+  justification?: string | null;
+  user: UserProfile;
+}): Promise<IntegratedCreditEvaluationResult> {
+  const alignedCustomer: CustomerRecord = {
+    ...payload.customer,
+    organizationId: payload.application.organizationId || payload.customer.organizationId,
+  };
+  const body = {
+    application: payload.application,
+    customer: alignedCustomer,
+    policy: payload.policy,
+    analysisType: payload.analysisType,
+    version: payload.version ?? 1,
+    useVerifiedData: Boolean(payload.useVerifiedData),
+    alternativeConditions: payload.alternativeConditions ?? null,
+    justification: payload.justification ?? null,
+    actor: {
+      uid: payload.user.uid,
+      displayName: payload.user.displayName || payload.user.email || 'Usuario AxyCore',
+      role: payload.user.role,
+    },
+  };
+
+  try {
+    const resp = await fetch('/api/applications/process-decision-and-calculation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      return (await resp.json()) as IntegratedCreditEvaluationResult;
+    }
+    const errBody = await resp.json().catch(() => ({}));
+    if (resp.status === 403 || resp.status === 422) {
+      throw new Error(errBody.error || 'Operación rechazada por políticas o permisos del servidor.');
+    }
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err.message.includes('Acceso denegado') ||
+        err.message.includes('Violación de aislamiento') ||
+        err.message.includes('Operación rechazada'))
+    ) {
+      throw err;
+    }
+    // Deterministic local fallback if dev server API is temporarily unreachable
+  }
+
+  return runIntegratedDecisionAndCalculation({
+    application: payload.application,
+    customer: alignedCustomer,
+    policy: payload.policy ?? DEFAULT_POLICY_V2,
+    analysisType: payload.analysisType,
+    version: payload.version ?? 1,
+    useVerifiedData: Boolean(payload.useVerifiedData),
+    alternativeConditions: payload.alternativeConditions ?? null,
+    justification: payload.justification ?? null,
+    actor: {
+      uid: payload.user.uid,
+      displayName: payload.user.displayName || payload.user.email || 'Usuario AxyCore',
+      role: payload.user.role,
+    },
+    intent: 'EVALUATE_ONLY',
+  });
+}
+
+export async function runBackendHumanReevaluation(payload: {
+  application: ApplicationRecord;
+  customer: CustomerRecord;
+  policy: CreditPolicyRecord;
+  version: number;
+  alternativeConditions: AlternativeConditionsOverrideInput;
+  justification?: string | null;
+  user: UserProfile;
+  intent: 'EVALUATE_ONLY' | 'SEND_TO_EVALUATION';
+}): Promise<IntegratedCreditEvaluationResult> {
+  if (!canUserExecuteHumanReevaluation(payload.user.role)) {
+    throw new Error(
+      `Acceso denegado: el rol ${payload.user.role} no tiene autorización para ejecutar reevaluación humana.`
+    );
+  }
+  const alignedCustomer: CustomerRecord = {
+    ...payload.customer,
+    organizationId: payload.application.organizationId || payload.customer.organizationId,
+  };
+
+  const body = {
+    application: payload.application,
+    customer: alignedCustomer,
+    policy: payload.policy,
+    version: payload.version,
+    alternativeConditions: payload.alternativeConditions,
+    justification: payload.justification ?? null,
+    actor: {
+      uid: payload.user.uid,
+      displayName: payload.user.displayName || payload.user.email || 'Analista AxyCore',
+      role: payload.user.role,
+    },
+    actorOrganizationId: payload.user.organizationId,
+    intent: payload.intent,
+  };
+
+  try {
+    const resp = await fetch('/api/applications/reevaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      return (await resp.json()) as IntegratedCreditEvaluationResult;
+    }
+    const errBody = await resp.json().catch(() => ({}));
+    if (resp.status >= 400 && resp.status < 500) {
+      const reasons = Array.isArray(errBody.blockedReasons) && errBody.blockedReasons.length > 0
+        ? ` (${errBody.blockedReasons.join('; ')})`
+        : '';
+      throw new Error(
+        (errBody.error || 'Error validando reevaluación humana en el servidor.') + reasons
+      );
+    }
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err.message.includes('Acceso denegado') ||
+        err.message.includes('Permiso insuficiente') ||
+        err.message.includes('Violación de aislamiento') ||
+        err.message.includes('No es posible enviar la solicitud'))
+    ) {
+      throw err;
+    }
+  }
+
+  const localRes = runIntegratedDecisionAndCalculation({
+    application: payload.application,
+    customer: alignedCustomer,
+    policy: payload.policy ?? DEFAULT_POLICY_V2,
+    analysisType: 'REEVALUACION_HUMANA',
+    version: payload.version,
+    useVerifiedData: false,
+    alternativeConditions: payload.alternativeConditions,
+    justification: payload.justification ?? null,
+    actor: {
+      uid: payload.user.uid,
+      displayName: payload.user.displayName || payload.user.email || 'Analista AxyCore',
+      role: payload.user.role,
+    },
+    intent: payload.intent,
+  });
+
+  if (payload.intent === 'SEND_TO_EVALUATION' && !localRes.canSendToEvaluation) {
+    throw new Error(
+      `No es posible enviar la solicitud a Evaluación: ${localRes.sendToEvaluationBlockedReasons.join('; ')}`
+    );
+  }
+  return localRes;
+}
+
+async function persistFinancialAnalysisInstallmentsChunked(
+  installments: Array<Omit<FinancialAnalysisInstallmentRecord, 'createdAt'>>
+): Promise<void> {
+  if (!installments.length) return;
+  const CHUNK_SIZE = 380;
+  for (let i = 0; i < installments.length; i += CHUNK_SIZE) {
+    const chunk = installments.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+    for (const row of chunk) {
+      batch.set(
+        doc(db, 'financial_analysis_installments', row.id),
+        cleanObject({
+          ...row,
+          createdAt: serverTimestamp(),
+        })
+      );
+    }
+    await batch.commit();
+  }
+}
+
+export async function fetchFinancialAnalysisInstallments(
+  analysisId: string,
+  organizationId: string
+): Promise<FinancialAnalysisInstallmentRecord[]> {
+  if (!analysisId || !organizationId) return [];
+  const q = query(
+    collection(db, 'financial_analysis_installments'),
+    where('organizationId', '==', organizationId),
+    where('analysisId', '==', analysisId)
+  );
+  try {
+    const snap = await getDocs(q);
+    return snap.docs
+      .map((d) => d.data() as FinancialAnalysisInstallmentRecord)
+      .sort((a, b) => a.installmentNumber - b.installmentNumber);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.LIST, 'financial_analysis_installments');
+  }
 }
 
 export async function dispatchEmailViaServerRelay(payload: {
@@ -2185,7 +2478,11 @@ export async function submitOrSaveApplication(params: {
   mode: 'DRAFT' | 'SUBMIT';
   user: UserProfile;
   consentText?: string;
-}): Promise<{ application: ApplicationRecord; scoring?: ScoringExecutionRecord }> {
+}): Promise<{
+  application: ApplicationRecord;
+  scoring?: ScoringExecutionRecord;
+  financialAnalysis?: FinancialAnalysisRecord;
+}> {
   const { application, customer, policy, mode, user, consentText } = params;
   const effectiveOrgId =
     (application.organizationId && VALID_ID_REGEX.test(application.organizationId.trim())
@@ -2282,23 +2579,39 @@ export async function submitOrSaveApplication(params: {
     }
   }
 
-  // SUBMIT mode: Execute Motor de Decisiones Crediticias V2 on backend immediately
-  const scoringResult = await runBackendDecisionEngine({
-    application: normalizedApp,
+  // SUBMIT mode: Automatically execute Decision Engine V2 + Financial Calculation Engine (Stage 1 -> 3)
+  const originalConditionsSnapshot = buildOriginalRequestedConditions(normalizedApp);
+  const integrated = await runBackendIntegratedDecisionAndCalculation({
+    application: {
+      ...normalizedApp,
+      originalRequestedConditions: originalConditionsSnapshot,
+    },
     customer: { ...customer, organizationId: effectiveOrgId },
     policy,
-    executionTrigger: 'INITIAL_SUBMIT',
-    executedBy: user.uid,
-    executedByName: safeActorName,
+    analysisType: 'SOLICITUD_INICIAL',
+    version: 1,
+    useVerifiedData: false,
+    user,
   });
 
+  const scoringResult = integrated.scoring;
   const nowIso = new Date().toISOString();
+  const autoQualifiedToEval = integrated.canAutoAdvanceToEvaluation;
+  const targetPostSubmitStatus: ApplicationStatus = autoQualifiedToEval
+    ? 'EN_EVALUACION'
+    : 'RECIBIDA';
+
   const updatedHistory = appendMovementHistory(normalizedApp.movementHistory, {
     timestamp: nowIso,
-    action: `Solicitud enviada y precalificada por Motor V2 (${scoringResult.status}, Score ${scoringResult.totalScore}/100)`,
-    toStatus: 'RECIBIDA',
+    action: autoQualifiedToEval
+      ? `Solicitud recibida, calificada por Motor V2 (Score ${scoringResult.totalScore}/100) y cálculo financiero conciliado -> paso automático a Evaluación`
+      : `Solicitud recibida y evaluada por Motor V2 (${scoringResult.status}, Score ${scoringResult.totalScore}/100) -> requiere intervención humana`,
+    fromStatus: normalizedApp.status,
+    toStatus: targetPostSubmitStatus,
     userId: user.uid,
     userName: safeActorName,
+    userRole: user.role,
+    note: integrated.analysis.decisionSummary.explanation,
   });
 
   const execPayload = sanitizeScoringExecutionPayload({
@@ -2313,10 +2626,35 @@ export async function submitOrSaveApplication(params: {
     Array.isArray(execPayload.indicatorDetails) &&
     (execPayload.indicatorDetails.length === 22 || execPayload.status === 'ERROR_CALCULO');
 
+  const analysisPayload = cleanObject({
+    ...integrated.analysis,
+    organizationId: effectiveOrgId,
+    applicationId: normalizedApp.id,
+    scoringExecutionId: canPersistScoring ? execPayload.id : null,
+    calculatedBy: user.uid,
+    calculatedByName: safeActorName,
+    calculatedByRole: user.role,
+    calculatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const decisionHistoryPayload = cleanObject({
+    ...integrated.decisionHistory,
+    organizationId: effectiveOrgId,
+    applicationId: normalizedApp.id,
+    analysisId: integrated.analysis.id,
+    scoringExecutionId: canPersistScoring ? execPayload.id : null,
+    newStatus: targetPostSubmitStatus,
+    actorId: user.uid,
+    actorName: safeActorName,
+    actorRole: user.role,
+    createdAt: serverTimestamp(),
+  });
+
   const finalApp = buildMaterializedApplicationPayload(
     normalizedApp,
     {
-      status: 'RECIBIDA',
+      status: targetPostSubmitStatus,
       prequalificationStatus: execPayload.status,
       latestScoringExecutionId: canPersistScoring ? execPayload.id : null,
       latestScore: execPayload.totalScore,
@@ -2324,7 +2662,17 @@ export async function submitOrSaveApplication(params: {
       recommendedAmount: execPayload.recommendedAmount,
       recommendedRateMonthly: execPayload.recommendedRateMonthly,
       recommendedTermMonths: execPayload.recommendedTermMonths,
-      recommendedInstallment: execPayload.recommendedInstallment,
+      recommendedInstallment:
+        integrated.analysis.financialSummary?.initialInstallment ?? execPayload.recommendedInstallment,
+      originalRequestedConditions: originalConditionsSnapshot,
+      activeFinancialAnalysisId: integrated.analysis.id,
+      approvedEvaluationAnalysisId: autoQualifiedToEval ? integrated.analysis.id : null,
+      requiresHumanIntervention: !autoQualifiedToEval,
+      decisionQualificationStatus: integrated.decisionQualificationStatus,
+      financialAnalysisVersion: 1,
+      legalFeeMode: originalConditionsSnapshot.legalFeeMode,
+      interestOnlyPeriods: originalConditionsSnapshot.interestOnlyPeriods,
+      installmentCount: originalConditionsSnapshot.installmentCount,
       consentAcceptedAt:
         normalizedApp.consentAcceptedAt && normalizedApp.consentAcceptedAt.length >= 10
           ? normalizedApp.consentAcceptedAt
@@ -2355,7 +2703,7 @@ export async function submitOrSaveApplication(params: {
     businessFinancialData: finalApp.businessFinancialData ?? null,
     references: finalApp.references ?? [],
     declaredDocumentsSummary: finalApp.declaredDocumentsSummary,
-    status: 'RECIBIDA',
+    status: targetPostSubmitStatus,
     prequalificationStatus: finalApp.prequalificationStatus,
     latestScoringExecutionId: finalApp.latestScoringExecutionId ?? null,
     latestScore: finalApp.latestScore,
@@ -2364,6 +2712,15 @@ export async function submitOrSaveApplication(params: {
     recommendedRateMonthly: finalApp.recommendedRateMonthly,
     recommendedTermMonths: finalApp.recommendedTermMonths,
     recommendedInstallment: finalApp.recommendedInstallment,
+    originalRequestedConditions: originalConditionsSnapshot,
+    activeFinancialAnalysisId: integrated.analysis.id,
+    approvedEvaluationAnalysisId: autoQualifiedToEval ? integrated.analysis.id : null,
+    requiresHumanIntervention: !autoQualifiedToEval,
+    decisionQualificationStatus: integrated.decisionQualificationStatus,
+    financialAnalysisVersion: 1,
+    legalFeeMode: originalConditionsSnapshot.legalFeeMode,
+    interestOnlyPeriods: originalConditionsSnapshot.interestOnlyPeriods,
+    installmentCount: originalConditionsSnapshot.installmentCount,
     consentVersion: finalApp.consentVersion,
     consentAcceptedAt: finalApp.consentAcceptedAt,
     movementHistory: updatedHistory,
@@ -2386,12 +2743,14 @@ export async function submitOrSaveApplication(params: {
     ...buildCriticalAuditEntryPayload({
       id: auditId,
       organizationId: effectiveOrgId,
-      eventType: 'APPLICATION_SUBMITTED_AND_SCORED',
+      eventType: autoQualifiedToEval
+        ? 'APPLICATION_AUTO_QUALIFIED_TO_EVALUATION'
+        : 'APPLICATION_SUBMITTED_REQUIRES_INTERVENTION',
       entityType: 'applications',
       entityId: normalizedApp.id,
-      action: `Originación ${finalApp.applicationNumber} (${finalApp.channel}) + Score ${execPayload.totalScore}/100`,
-      newState: `RECIBIDA | ${execPayload.status}`,
-      transactionId: generateId('tx'),
+      action: `Originación ${finalApp.applicationNumber} (${finalApp.channel}) + Score ${execPayload.totalScore}/100 + Análisis ${integrated.analysis.id} -> ${targetPostSubmitStatus}`,
+      newState: `${targetPostSubmitStatus} | ${integrated.decisionQualificationStatus}`,
+      transactionId: integrated.analysis.idempotencyKey,
       engineVersion: policy.version,
       userId: user.uid,
       userEmail: user.email,
@@ -2416,15 +2775,14 @@ export async function submitOrSaveApplication(params: {
   if (canPersistScoring) {
     batch.set(doc(db, 'scoring_executions', execPayload.id), execPayload);
   }
+  batch.set(doc(db, 'financial_analyses', integrated.analysis.id), analysisPayload);
+  batch.set(doc(db, 'application_decision_history', integrated.decisionHistory.id), decisionHistoryPayload);
   batch.set(doc(db, 'application_consents', consentId), consentPayload);
   batch.set(doc(db, 'audit_logs', auditId), auditPayload);
 
   try {
     await batch.commit();
   } catch (batchErr) {
-    // Fallback de persistencia en 2 fases cuando un batch multi-documento encuentra restricciones
-    // de evaluación cruzada (p. ej. existsAfter en creación simultánea de solicitud + scoring):
-    // 1) Persistir primero `applications/{id}` para garantizar que el expediente exista en disco.
     try {
       if (isExisting) {
         if (shouldSelfHealExisting) {
@@ -2439,7 +2797,6 @@ export async function submitOrSaveApplication(params: {
       handleFirestoreError(appErr, OperationType.WRITE, `applications/${normalizedApp.id}`);
     }
 
-    // 2) Persistir registros satelitales (scoring, consentimiento y auditoría) con el expediente ya creado.
     const secondaryWrites: Array<Promise<void>> = [];
     if (canPersistScoring) {
       secondaryWrites.push(
@@ -2448,6 +2805,19 @@ export async function submitOrSaveApplication(params: {
         })
       );
     }
+    secondaryWrites.push(
+      setDoc(doc(db, 'financial_analyses', integrated.analysis.id), analysisPayload).catch((err) => {
+        console.warn('Financial analysis write warning after application creation:', err);
+      })
+    );
+    secondaryWrites.push(
+      setDoc(
+        doc(db, 'application_decision_history', integrated.decisionHistory.id),
+        decisionHistoryPayload
+      ).catch((err) => {
+        console.warn('Decision history write warning after application creation:', err);
+      })
+    );
     secondaryWrites.push(
       setDoc(doc(db, 'application_consents', consentId), consentPayload).catch((err) => {
         console.warn('Consent record write warning after application creation:', err);
@@ -2462,19 +2832,545 @@ export async function submitOrSaveApplication(params: {
     console.warn('Application submitted via 2-phase fallback after batch error:', batchErr);
   }
 
+  // Persist individual amortization installments idempotently (deterministic IDs per analysisId + cuota)
+  if (integrated.installments.length > 0) {
+    await persistFinancialAnalysisInstallmentsChunked(
+      integrated.installments.map((row) => ({
+        ...row,
+        organizationId: effectiveOrgId,
+        applicationId: normalizedApp.id,
+      }))
+    ).catch((err) => {
+      console.warn('Installments chunk write warning after application submit:', err);
+    });
+  }
+
   await enqueueCustomerStatusEmail({
     application: finalApp,
     customer,
-    eventCode: 'RECIBIDA',
+    eventCode: autoQualifiedToEval ? 'EN_EVALUACION' : 'RECIBIDA',
     fromStatus: normalizedApp.status,
-    toStatus: 'RECIBIDA',
+    toStatus: targetPostSubmitStatus,
     historyLength: updatedHistory.length,
     user,
   }).catch((err) => {
     console.warn('Customer status email notification skipped after submit:', err);
   });
 
-  return { application: finalApp, scoring: execPayload };
+  return {
+    application: finalApp,
+    scoring: execPayload,
+    financialAnalysis: {
+      ...integrated.analysis,
+      calculatedAt: nowIso,
+      updatedAt: nowIso,
+    } as FinancialAnalysisRecord,
+  };
+}
+
+export async function runHumanReevaluationAndPersist(params: {
+  application: ApplicationRecord;
+  customer: CustomerRecord;
+  policy: CreditPolicyRecord;
+  existingAnalyses: FinancialAnalysisRecord[];
+  alternativeConditions: AlternativeConditionsOverrideInput;
+  justification?: string | null;
+  user: UserProfile;
+}): Promise<{
+  result: IntegratedCreditEvaluationResult;
+  analysis: FinancialAnalysisRecord;
+}> {
+  const { application, customer, policy, existingAnalyses, alternativeConditions, justification, user } =
+    params;
+
+  if (!canUserExecuteHumanReevaluation(user.role)) {
+    throw new Error(
+      `Acceso denegado: el rol ${user.role} no está autorizado para ejecutar reevaluación humana.`
+    );
+  }
+  if (
+    (alternativeConditions.useSuggestedRate === false ||
+      alternativeConditions.customLegalFeesAmount !== undefined ||
+      alternativeConditions.manualExchangeRate !== undefined) &&
+    !canUserOverrideRateOrFees(user.role)
+  ) {
+    throw new Error(
+      `Permiso insuficiente: el rol ${user.role} no puede modificar tasa, gastos legales o tipo de cambio manualmente.`
+    );
+  }
+
+  const maxPrevVersion = existingAnalyses.reduce((m, a) => Math.max(m, a.version || 0), 0);
+  const nextVersion = Math.max(2, maxPrevVersion + 1);
+  const effectiveOrgId = application.organizationId || user.organizationId || DEFAULT_ORG_ID;
+
+  const result = await runBackendHumanReevaluation({
+    application: { ...application, organizationId: effectiveOrgId },
+    customer: { ...customer, organizationId: effectiveOrgId },
+    policy,
+    version: nextVersion,
+    alternativeConditions,
+    justification,
+    user,
+    intent: 'EVALUATE_ONLY',
+  });
+
+  const nowIso = new Date().toISOString();
+  const execPayload = sanitizeScoringExecutionPayload({
+    ...result.scoring,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    executedBy: user.uid,
+    executedByName: user.displayName,
+  });
+  const canPersistScoring =
+    Array.isArray(execPayload.indicatorDetails) && execPayload.indicatorDetails.length === 22;
+
+  const analysisPayload = cleanObject({
+    ...result.analysis,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    scoringExecutionId: canPersistScoring ? execPayload.id : null,
+    status: 'VIGENTE' as const,
+    calculatedBy: user.uid,
+    calculatedByName: user.displayName,
+    calculatedByRole: user.role,
+    calculatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const historyPayload = cleanObject({
+    ...result.decisionHistory,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    analysisId: result.analysis.id,
+    scoringExecutionId: canPersistScoring ? execPayload.id : null,
+    actorId: user.uid,
+    actorName: user.displayName,
+    actorRole: user.role,
+    createdAt: serverTimestamp(),
+  });
+
+  const batch = writeBatch(db);
+  // Preserve prior analyses by marking previously active VIGENTE versions as HISTORICO (never delete!)
+  for (const prev of existingAnalyses) {
+    if (prev.id !== result.analysis.id && prev.status === 'VIGENTE') {
+      batch.update(doc(db, 'financial_analyses', prev.id), {
+        status: 'HISTORICO',
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
+  if (canPersistScoring) {
+    batch.set(doc(db, 'scoring_executions', execPayload.id), execPayload);
+  }
+  batch.set(doc(db, 'financial_analyses', result.analysis.id), analysisPayload);
+  batch.set(doc(db, 'application_decision_history', result.decisionHistory.id), historyPayload);
+
+  const newHistory = appendMovementHistory(application.movementHistory, {
+    timestamp: nowIso,
+    action: `Reevaluación humana v${nextVersion}: ${
+      result.analysis.decisionSummary.qualifiesForCalculated
+        ? 'Cumple políticas (lista para enviar a Evaluación)'
+        : 'Aún requiere ajuste de condiciones'
+    }`,
+    fromStatus: application.status,
+    toStatus: application.status,
+    userId: user.uid,
+    userName: user.displayName,
+    userRole: user.role,
+    note: justification?.trim() || result.analysis.decisionSummary.explanation,
+  });
+
+  batch.update(
+    doc(db, 'applications', application.id),
+    cleanObject({
+      originalRequestedConditions:
+        application.originalRequestedConditions ?? result.analysis.originalRequestedConditions,
+      activeFinancialAnalysisId: result.analysis.id,
+      financialAnalysisVersion: nextVersion,
+      prequalificationStatus: execPayload.status,
+      ...(canPersistScoring ? { latestScoringExecutionId: execPayload.id } : {}),
+      latestScore: execPayload.totalScore,
+      latestRiskBand: execPayload.riskBand.code,
+      recommendedAmount: execPayload.recommendedAmount,
+      recommendedRateMonthly: execPayload.recommendedRateMonthly,
+      recommendedTermMonths: execPayload.recommendedTermMonths,
+      recommendedInstallment:
+        result.analysis.financialSummary?.initialInstallment ?? execPayload.recommendedInstallment,
+      movementHistory: newHistory,
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  const auditId = generateId('audit');
+  batch.set(doc(db, 'audit_logs', auditId), {
+    ...buildCriticalAuditEntryPayload({
+      id: auditId,
+      organizationId: effectiveOrgId,
+      eventType: 'APPLICATION_HUMAN_REEVALUATION',
+      entityType: 'applications',
+      entityId: application.id,
+      action: `Reevaluación humana v${nextVersion} (${result.analysis.id}) · Score ${execPayload.totalScore}/100`,
+      previousState: application.status,
+      newState: application.status,
+      justification: justification?.trim() || 'Simulación de condiciones alternativas',
+      transactionId: result.analysis.idempotencyKey,
+      engineVersion: policy.version,
+      userId: user.uid,
+      userEmail: user.email,
+      userRole: user.role,
+    }),
+    timestamp: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `financial_analyses/${result.analysis.id}`);
+  }
+
+  if (result.installments.length > 0) {
+    await persistFinancialAnalysisInstallmentsChunked(
+      result.installments.map((r) => ({
+        ...r,
+        organizationId: effectiveOrgId,
+        applicationId: application.id,
+      }))
+    );
+  }
+
+  return {
+    result,
+    analysis: {
+      ...result.analysis,
+      status: 'VIGENTE',
+      calculatedAt: nowIso,
+      updatedAt: nowIso,
+    } as FinancialAnalysisRecord,
+  };
+}
+
+export async function sendReevaluatedApplicationToEvaluation(params: {
+  application: ApplicationRecord;
+  customer: CustomerRecord;
+  policy: CreditPolicyRecord;
+  existingAnalyses: FinancialAnalysisRecord[];
+  alternativeConditions: AlternativeConditionsOverrideInput;
+  justification: string;
+  user: UserProfile;
+}): Promise<{
+  application: ApplicationRecord;
+  analysis: FinancialAnalysisRecord;
+}> {
+  const { application, customer, policy, existingAnalyses, alternativeConditions, justification, user } =
+    params;
+
+  if (!canUserExecuteHumanReevaluation(user.role)) {
+    throw new Error(
+      `Acceso denegado: el rol ${user.role} no está autorizado para enviar solicitudes reevaluadas a Evaluación.`
+    );
+  }
+  if (!justification || justification.trim().length < 10) {
+    throw new Error(
+      'Debe registrar una justificación de al menos 10 caracteres antes de enviar la solicitud a Evaluación.'
+    );
+  }
+
+  const maxPrevVersion = existingAnalyses.reduce((m, a) => Math.max(m, a.version || 0), 0);
+  const nextVersion = Math.max(2, maxPrevVersion + 1);
+  const effectiveOrgId = application.organizationId || user.organizationId || DEFAULT_ORG_ID;
+
+  // Authoritative server-side revalidation with intent = SEND_TO_EVALUATION (blocks bypasses with HTTP 422)
+  const result = await runBackendHumanReevaluation({
+    application: { ...application, organizationId: effectiveOrgId },
+    customer: { ...customer, organizationId: effectiveOrgId },
+    policy,
+    version: nextVersion,
+    alternativeConditions,
+    justification: justification.trim(),
+    user,
+    intent: 'SEND_TO_EVALUATION',
+  });
+
+  if (!result.canSendToEvaluation || !result.analysis.financialSummary?.isReconciled) {
+    throw new Error(
+      `No se puede enviar a Evaluación: ${result.sendToEvaluationBlockedReasons.join('; ')}`
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  const execPayload = sanitizeScoringExecutionPayload({
+    ...result.scoring,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    executedBy: user.uid,
+    executedByName: user.displayName,
+  });
+  const canPersistScoring =
+    Array.isArray(execPayload.indicatorDetails) && execPayload.indicatorDetails.length === 22;
+
+  const analysisPayload = cleanObject({
+    ...result.analysis,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    scoringExecutionId: canPersistScoring ? execPayload.id : null,
+    status: 'APROBADO_EVALUACION' as const,
+    justification: justification.trim().slice(0, 1000),
+    calculatedBy: user.uid,
+    calculatedByName: user.displayName,
+    calculatedByRole: user.role,
+    calculatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const historyPayload = cleanObject({
+    ...result.decisionHistory,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    analysisId: result.analysis.id,
+    scoringExecutionId: canPersistScoring ? execPayload.id : null,
+    eventType: 'SENT_TO_EVALUATION_AFTER_REEVALUATION' as const,
+    newStatus: 'EN_EVALUACION' as const,
+    justification: justification.trim().slice(0, 1000),
+    actorId: user.uid,
+    actorName: user.displayName,
+    actorRole: user.role,
+    createdAt: serverTimestamp(),
+  });
+
+  const calc = result.analysis.calculatedConditions;
+  const newHistory = appendMovementHistory(application.movementHistory, {
+    timestamp: nowIso,
+    action: `Enviada a Evaluación tras Reevaluación Humana v${nextVersion} (${formatMoney(calc.requestedAmount, calc.currency)} · ${calc.installmentCount} cuotas ${calc.paymentFrequency})`,
+    fromStatus: application.status,
+    toStatus: 'EN_EVALUACION',
+    userId: user.uid,
+    userName: user.displayName,
+    userRole: user.role,
+    note: justification.trim(),
+  });
+
+  const batch = writeBatch(db);
+  for (const prev of existingAnalyses) {
+    if (prev.id !== result.analysis.id && (prev.status === 'VIGENTE' || prev.status === 'APROBADO_EVALUACION')) {
+      batch.update(doc(db, 'financial_analyses', prev.id), {
+        status: 'HISTORICO',
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
+  if (canPersistScoring) {
+    batch.set(doc(db, 'scoring_executions', execPayload.id), execPayload);
+  }
+  batch.set(doc(db, 'financial_analyses', result.analysis.id), analysisPayload);
+  batch.set(doc(db, 'application_decision_history', result.decisionHistory.id), historyPayload);
+
+  const appUpdates: Partial<ApplicationRecord> = {
+    status: 'EN_EVALUACION',
+    requestedAmount: calc.requestedAmount,
+    requestedTermMonths: calc.termMonths,
+    paymentFrequency: calc.paymentFrequency,
+    amortizationMethod: calc.amortizationMethod,
+    authorizedAlternateAmount: calc.requestedAmount,
+    alternateAmountAuthorizedBy: user.uid,
+    originalRequestedConditions:
+      application.originalRequestedConditions ?? result.analysis.originalRequestedConditions,
+    activeFinancialAnalysisId: result.analysis.id,
+    approvedEvaluationAnalysisId: result.analysis.id,
+    requiresHumanIntervention: false,
+    decisionQualificationStatus: 'REEVALUADA_APROBADA_EVALUACION',
+    financialAnalysisVersion: nextVersion,
+    legalFeeMode: calc.legalFeeMode,
+    interestOnlyPeriods: calc.interestOnlyPeriods,
+    installmentCount: calc.installmentCount,
+    prequalificationStatus: execPayload.status,
+    ...(canPersistScoring ? { latestScoringExecutionId: execPayload.id } : {}),
+    latestScore: execPayload.totalScore,
+    latestRiskBand: execPayload.riskBand.code,
+    recommendedAmount: calc.requestedAmount,
+    recommendedRateMonthly: calc.monthlyRateDecimal,
+    recommendedTermMonths: calc.termMonths,
+    recommendedInstallment:
+      result.analysis.financialSummary?.initialInstallment ?? execPayload.recommendedInstallment,
+    movementHistory: newHistory,
+  };
+
+  batch.update(
+    doc(db, 'applications', application.id),
+    cleanObject({
+      ...appUpdates,
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  const auditId = generateId('audit');
+  batch.set(doc(db, 'audit_logs', auditId), {
+    ...buildCriticalAuditEntryPayload({
+      id: auditId,
+      organizationId: effectiveOrgId,
+      eventType: 'APPLICATION_REEVALUATED_SENT_TO_EVALUATION',
+      entityType: 'applications',
+      entityId: application.id,
+      action: `Solicitud enviada a Evaluación con análisis v${nextVersion} (${result.analysis.id})`,
+      previousState: application.status,
+      newState: 'EN_EVALUACION',
+      justification: justification.trim(),
+      transactionId: result.analysis.idempotencyKey,
+      engineVersion: policy.version,
+      userId: user.uid,
+      userEmail: user.email,
+      userRole: user.role,
+    }),
+    timestamp: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `applications/${application.id}`);
+  }
+
+  if (result.installments.length > 0) {
+    await persistFinancialAnalysisInstallmentsChunked(
+      result.installments.map((r) => ({
+        ...r,
+        organizationId: effectiveOrgId,
+        applicationId: application.id,
+      }))
+    );
+  }
+
+  const updatedApp: ApplicationRecord = {
+    ...application,
+    ...appUpdates,
+  };
+
+  await enqueueCustomerStatusEmail({
+    application: updatedApp,
+    customer,
+    eventCode: 'EN_EVALUACION',
+    fromStatus: application.status,
+    toStatus: 'EN_EVALUACION',
+    historyLength: newHistory.length,
+    user,
+    observations: justification.trim(),
+  }).catch(() => {});
+
+  return {
+    application: updatedApp,
+    analysis: {
+      ...result.analysis,
+      status: 'APROBADO_EVALUACION',
+      calculatedAt: nowIso,
+      updatedAt: nowIso,
+    } as FinancialAnalysisRecord,
+  };
+}
+
+export async function retryApplicationFinancialProcessing(params: {
+  application: ApplicationRecord;
+  customer: CustomerRecord;
+  policy: CreditPolicyRecord;
+  existingAnalyses: FinancialAnalysisRecord[];
+  user: UserProfile;
+}): Promise<{ analysis: FinancialAnalysisRecord; autoAdvanced: boolean }> {
+  const { application, customer, policy, existingAnalyses, user } = params;
+  if (!canUserExecuteHumanReevaluation(user.role)) {
+    throw new Error('Permiso denegado para reprocesar análisis financiero.');
+  }
+  const effectiveOrgId = application.organizationId || user.organizationId || DEFAULT_ORG_ID;
+  const maxVersion = existingAnalyses.reduce((m, a) => Math.max(m, a.version || 0), 0);
+  const nextVersion = maxVersion + 1;
+
+  const integrated = await runBackendIntegratedDecisionAndCalculation({
+    application: { ...application, organizationId: effectiveOrgId },
+    customer: { ...customer, organizationId: effectiveOrgId },
+    policy,
+    analysisType: maxVersion === 0 ? 'SOLICITUD_INICIAL' : 'ACTUALIZACION_DATOS',
+    version: nextVersion,
+    useVerifiedData: false,
+    user,
+  });
+
+  const nowIso = new Date().toISOString();
+  const autoAdvanced =
+    application.status === 'RECIBIDA' && integrated.canAutoAdvanceToEvaluation;
+  const nextStatus: ApplicationStatus = autoAdvanced ? 'EN_EVALUACION' : application.status;
+
+  const analysisPayload = cleanObject({
+    ...integrated.analysis,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    calculatedBy: user.uid,
+    calculatedByName: user.displayName,
+    calculatedByRole: user.role,
+    calculatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const historyPayload = cleanObject({
+    ...integrated.decisionHistory,
+    organizationId: effectiveOrgId,
+    applicationId: application.id,
+    eventType: 'RETRY_FINANCIAL_PROCESSING' as const,
+    previousStatus: application.status,
+    newStatus: nextStatus,
+    actorId: user.uid,
+    actorName: user.displayName,
+    actorRole: user.role,
+    createdAt: serverTimestamp(),
+  });
+
+  const batch = writeBatch(db);
+  for (const prev of existingAnalyses) {
+    if (prev.id !== integrated.analysis.id && prev.status === 'VIGENTE') {
+      batch.update(doc(db, 'financial_analyses', prev.id), {
+        status: 'HISTORICO',
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
+  batch.set(doc(db, 'financial_analyses', integrated.analysis.id), analysisPayload);
+  batch.set(doc(db, 'application_decision_history', integrated.decisionHistory.id), historyPayload);
+  batch.update(
+    doc(db, 'applications', application.id),
+    cleanObject({
+      status: nextStatus,
+      originalRequestedConditions:
+        application.originalRequestedConditions ?? integrated.analysis.originalRequestedConditions,
+      activeFinancialAnalysisId: integrated.analysis.id,
+      ...(autoAdvanced ? { approvedEvaluationAnalysisId: integrated.analysis.id } : {}),
+      requiresHumanIntervention: !integrated.analysis.decisionSummary.qualifiesForCalculated,
+      decisionQualificationStatus: integrated.decisionQualificationStatus,
+      financialAnalysisVersion: nextVersion,
+      updatedAt: serverTimestamp(),
+    })
+  );
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `financial_analyses/${integrated.analysis.id}`);
+  }
+
+  if (integrated.installments.length > 0) {
+    await persistFinancialAnalysisInstallmentsChunked(
+      integrated.installments.map((r) => ({
+        ...r,
+        organizationId: effectiveOrgId,
+        applicationId: application.id,
+      }))
+    );
+  }
+
+  return {
+    analysis: {
+      ...integrated.analysis,
+      calculatedAt: nowIso,
+      updatedAt: nowIso,
+    } as FinancialAnalysisRecord,
+    autoAdvanced,
+  };
 }
 
 const recentDocAccessCache = new Map<string, number>();
@@ -3182,6 +4078,175 @@ export interface ReceivedBusinessEditInput {
   corporateDocsSummary?: string;
 }
 
+function formatAuditFieldValue(val: unknown, suffix = ''): string {
+  if (val === null || val === undefined || val === '') return '—';
+  if (typeof val === 'boolean') return val ? 'Sí' : 'No';
+  if (typeof val === 'number') {
+    const formatted = Number.isFinite(val)
+      ? val.toLocaleString('en-US', { maximumFractionDigits: 2 })
+      : '—';
+    return suffix ? `${formatted} ${suffix}`.trim() : formatted;
+  }
+  const s = String(val).trim();
+  return s.length > 0 ? (suffix ? `${s} ${suffix}`.trim() : s) : '—';
+}
+
+function normalizeComparable(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'number') return Number.isFinite(val) ? String(val) : '';
+  if (typeof val === 'boolean') return val ? 'true' : 'false';
+  return String(val).trim();
+}
+
+export function buildApplicationFieldDiff(params: {
+  application: ApplicationRecord;
+  updates: ReceivedApplicationEditInput;
+  customer?: CustomerRecord | null;
+  customerUpdates?: CustomerUpdateInput | null;
+  business?: BusinessRecord | null;
+  businessUpdates?: ReceivedBusinessEditInput | null;
+}): ApplicationFieldChange[] {
+  const { application, updates, customer, customerUpdates, business, businessUpdates } = params;
+  const diffs: ApplicationFieldChange[] = [];
+
+  const pushDiff = (
+    field: string,
+    label: string,
+    category: ApplicationFieldChange['category'],
+    prev: unknown,
+    next: unknown,
+    suffix = ''
+  ) => {
+    if (normalizeComparable(prev) === normalizeComparable(next)) return;
+    diffs.push({
+      field,
+      label,
+      category,
+      previousValue: formatAuditFieldValue(prev, suffix),
+      newValue: formatAuditFieldValue(next, suffix),
+    });
+  };
+
+  const curr = updates.currency || application.currency;
+  const prevCurr = application.currency;
+  const finCurr = updates.financialData?.incomeCurrency || curr;
+  const prevFinCurr = application.financialData?.incomeCurrency || prevCurr;
+
+  // 1. Datos básicos del crédito
+  pushDiff('productCode', 'Producto crediticio', 'BASICO', application.productCode, updates.productCode);
+  pushDiff('currency', 'Moneda', 'BASICO', application.currency, updates.currency);
+  if (normalizeComparable(application.requestedAmount) !== normalizeComparable(updates.requestedAmount)) {
+    diffs.push({
+      field: 'requestedAmount',
+      label: 'Monto solicitado',
+      category: 'BASICO',
+      previousValue: `${prevCurr} ${formatAuditFieldValue(application.requestedAmount)}`,
+      newValue: `${curr} ${formatAuditFieldValue(updates.requestedAmount)}`,
+    });
+  }
+  pushDiff('requestedTermMonths', 'Plazo solicitado', 'BASICO', application.requestedTermMonths, updates.requestedTermMonths, 'meses');
+  pushDiff('paymentFrequency', 'Frecuencia de pago', 'BASICO', application.paymentFrequency, updates.paymentFrequency);
+  pushDiff('amortizationMethod', 'Método de amortización', 'BASICO', application.amortizationMethod, updates.amortizationMethod);
+  pushDiff('loanPurpose', 'Destino del préstamo', 'BASICO', application.loanPurpose ?? '', updates.loanPurpose ?? '');
+  pushDiff('loanPurposeDescription', 'Detalle del destino', 'BASICO', application.loanPurposeDescription ?? '', updates.loanPurposeDescription ?? '');
+  pushDiff('proposedCollateral', 'Garantía propuesta', 'BASICO', application.proposedCollateral ?? '', updates.proposedCollateral ?? '');
+
+  // 2. Datos financieros individuales
+  const pFd = application.financialData ?? ({} as ApplicationRecord['financialData']);
+  const nFd = updates.financialData ?? ({} as ApplicationRecord['financialData']);
+  pushDiff('financialData.incomeSourceType', 'Fuente principal de ingreso', 'FINANCIERO', pFd.incomeSourceType, nFd.incomeSourceType);
+  pushDiff('financialData.incomeCurrency', 'Moneda de ingresos', 'FINANCIERO', pFd.incomeCurrency, nFd.incomeCurrency);
+  pushDiff('financialData.employerOrBusinessName', 'Empleador o negocio', 'FINANCIERO', pFd.employerOrBusinessName, nFd.employerOrBusinessName);
+  pushDiff('financialData.occupationOrRole', 'Cargo u ocupación', 'FINANCIERO', pFd.occupationOrRole, nFd.occupationOrRole);
+  pushDiff('financialData.activityType', 'Actividad económica', 'FINANCIERO', pFd.activityType, nFd.activityType);
+  pushDiff('financialData.employmentMonths', 'Antigüedad laboral', 'FINANCIERO', pFd.employmentMonths, nFd.employmentMonths, 'meses');
+  pushDiff('financialData.primaryNetIncome', 'Ingreso principal neto mensual', 'FINANCIERO', pFd.primaryNetIncome, nFd.primaryNetIncome, finCurr);
+  pushDiff('financialData.additionalIncomeStatus', 'Estado ingresos adicionales', 'FINANCIERO', pFd.additionalIncomeStatus, nFd.additionalIncomeStatus);
+  pushDiff('financialData.additionalNetIncome', 'Ingreso adicional mensual', 'FINANCIERO', pFd.additionalNetIncome, nFd.additionalNetIncome, finCurr);
+  pushDiff('financialData.declaredTotalMonthlyIncome', 'Ingreso mensual total declarado', 'FINANCIERO', pFd.declaredTotalMonthlyIncome, nFd.declaredTotalMonthlyIncome, finCurr);
+  pushDiff('financialData.essentialExpenses', 'Gastos esenciales mensuales', 'FINANCIERO', pFd.essentialExpenses, nFd.essentialExpenses, finCurr);
+  pushDiff('financialData.housingPayment', 'Pago vivienda / alquiler', 'FINANCIERO', pFd.housingPayment, nFd.housingPayment, finCurr);
+  pushDiff('financialData.housingIncludedInExpenses', 'Vivienda incluida en gastos', 'FINANCIERO', Boolean(pFd.housingIncludedInExpenses), Boolean(nFd.housingIncludedInExpenses));
+  pushDiff('financialData.debtDeclarationStatus', 'Estado declaración de deudas', 'FINANCIERO', pFd.debtDeclarationStatus, nFd.debtDeclarationStatus);
+  pushDiff('financialData.debtCount', 'Cantidad de deudas actuales', 'FINANCIERO', pFd.debtCount, nFd.debtCount);
+  pushDiff('financialData.totalDebtBalance', 'Saldo total de deudas', 'FINANCIERO', pFd.totalDebtBalance, nFd.totalDebtBalance, finCurr);
+  pushDiff('financialData.currentDebtPayments', 'Cuota mensual total de deudas', 'FINANCIERO', pFd.currentDebtPayments, nFd.currentDebtPayments, finCurr);
+  if (prevFinCurr !== finCurr && normalizeComparable(pFd.primaryNetIncome) === normalizeComparable(nFd.primaryNetIncome)) {
+    // Currency diff already captured above
+  }
+
+  // 2b. Datos financieros empresariales
+  if (application.applicantType === 'BUSINESS' && updates.businessFinancialData) {
+    const pBfd = application.businessFinancialData ?? ({} as NonNullable<ApplicationRecord['businessFinancialData']>);
+    const nBfd = updates.businessFinancialData;
+    pushDiff('businessFinancialData.grossSales', 'Ventas brutas mensuales', 'FINANCIERO', pBfd.grossSales, nBfd.grossSales, finCurr);
+    pushDiff('businessFinancialData.operatingCosts', 'Costos operativos mensuales', 'FINANCIERO', pBfd.operatingCosts, nBfd.operatingCosts, finCurr);
+    pushDiff('businessFinancialData.netMonthlyFlow', 'Flujo neto mensual empresa', 'FINANCIERO', pBfd.netMonthlyFlow, nBfd.netMonthlyFlow, finCurr);
+    pushDiff('businessFinancialData.businessObligationsMonthly', 'Obligaciones mensuales empresa', 'FINANCIERO', pBfd.businessObligationsMonthly, nBfd.businessObligationsMonthly, finCurr);
+    pushDiff('businessFinancialData.totalBusinessDebtBalance', 'Saldo deuda empresarial', 'FINANCIERO', pBfd.totalBusinessDebtBalance, nBfd.totalBusinessDebtBalance, finCurr);
+    pushDiff('businessFinancialData.operationsMonths', 'Meses de operación empresa', 'FINANCIERO', pBfd.operationsMonths, nBfd.operationsMonths, 'meses');
+    pushDiff('businessFinancialData.repaymentSource', 'Fuente de repago', 'FINANCIERO', pBfd.repaymentSource, nBfd.repaymentSource);
+  }
+
+  // 3. Datos básicos del solicitante (cliente y/o empresa)
+  if (customer && customerUpdates) {
+    pushDiff('customer.firstName', 'Nombres del cliente', 'CLIENTE', customer.firstName, customerUpdates.firstName);
+    pushDiff('customer.lastName', 'Apellidos del cliente', 'CLIENTE', customer.lastName, customerUpdates.lastName);
+    pushDiff('customer.phone', 'Teléfono principal', 'CLIENTE', customer.phone, customerUpdates.phone);
+    pushDiff('customer.altPhone', 'Teléfono alterno', 'CLIENTE', customer.altPhone ?? '', customerUpdates.altPhone ?? '');
+    pushDiff('customer.email', 'Correo electrónico', 'CLIENTE', customer.email ?? '', customerUpdates.email ?? '');
+    pushDiff('customer.birthDate', 'Fecha de nacimiento', 'CLIENTE', customer.birthDate ?? '', customerUpdates.birthDate ?? '');
+    pushDiff('customer.maritalStatus', 'Estado civil', 'CLIENTE', customer.maritalStatus ?? '', customerUpdates.maritalStatus ?? '');
+    pushDiff('customer.address', 'Dirección residencial', 'CLIENTE', customer.address ?? '', customerUpdates.address ?? '');
+    pushDiff('customer.municipality', 'Municipio', 'CLIENTE', customer.municipality ?? '', customerUpdates.municipality ?? '');
+    pushDiff('customer.province', 'Provincia', 'CLIENTE', customer.province ?? '', customerUpdates.province ?? '');
+    pushDiff('customer.housingType', 'Tipo de vivienda', 'CLIENTE', customer.housingType ?? '', customerUpdates.housingType ?? '');
+    pushDiff('customer.residenceMonths', 'Meses de residencia', 'CLIENTE', customer.residenceMonths ?? 0, customerUpdates.residenceMonths ?? 0, 'meses');
+    pushDiff('customer.housingPayment', 'Pago vivienda (perfil)', 'CLIENTE', customer.housingPayment ?? 0, customerUpdates.housingPayment ?? 0);
+  }
+  if (business && businessUpdates && application.applicantType === 'BUSINESS') {
+    pushDiff('business.legalName', 'Razón social', 'CLIENTE', business.legalName, businessUpdates.legalName);
+    pushDiff('business.tradeName', 'Nombre comercial', 'CLIENTE', business.tradeName ?? '', businessUpdates.tradeName ?? '');
+    pushDiff('business.economicActivity', 'Actividad económica empresa', 'CLIENTE', business.economicActivity ?? '', businessUpdates.economicActivity ?? '');
+    pushDiff('business.authorizedRepName', 'Representante autorizado', 'CLIENTE', business.authorizedRepName, businessUpdates.authorizedRepName);
+  }
+
+  // 4. Referencias y documentos declarados
+  const prevRefs = application.references ?? [];
+  const nextRefs = (updates.references ?? []).filter((r) => (r.name ?? '').trim() || (r.phone ?? '').trim());
+  if (JSON.stringify(prevRefs) !== JSON.stringify(nextRefs)) {
+    diffs.push({
+      field: 'references',
+      label: 'Referencias declaradas',
+      category: 'REFERENCIAS',
+      previousValue: `${prevRefs.length} referencia(s)`,
+      newValue: `${nextRefs.length} referencia(s)`,
+    });
+  }
+  const pDocs = application.declaredDocumentsSummary;
+  const nDocs = updates.declaredDocumentsSummary;
+  if (JSON.stringify(pDocs) !== JSON.stringify(nDocs)) {
+    const summarizeDocs = (d?: ApplicationRecord['declaredDocumentsSummary']) => {
+      if (!d) return 'Ninguno';
+      const active: string[] = [];
+      if (d.hasIdentityDoc) active.push('Identidad');
+      if (d.hasIncomeEvidence) active.push('Ingresos');
+      if (d.hasAddressProof) active.push('Domicilio');
+      if (d.hasCorporateDocs) active.push('Societarios');
+      return active.length > 0 ? active.join(', ') : 'Ninguno';
+    };
+    diffs.push({
+      field: 'declaredDocumentsSummary',
+      label: 'Documentos declarados',
+      category: 'REFERENCIAS',
+      previousValue: summarizeDocs(pDocs),
+      newValue: summarizeDocs(nDocs),
+    });
+  }
+
+  return diffs;
+}
+
 export async function updateReceivedApplicationAndReevaluate(params: {
   application: ApplicationRecord;
   customer?: CustomerRecord | null;
@@ -3199,6 +4264,7 @@ export async function updateReceivedApplicationAndReevaluate(params: {
   newScoring?: ScoringExecutionRecord;
   previousScore: number | null;
   changedFields: string[];
+  fieldChanges: ApplicationFieldChange[];
 }> {
   const {
     application,
@@ -3353,6 +4419,9 @@ export async function updateReceivedApplicationAndReevaluate(params: {
     changedFields.push('Nombre solicitante');
   }
 
+  const validAmortization: ApplicationRecord['amortizationMethod'] =
+    updates.amortizationMethod === 'INTERES_FIJO' ? 'INTERES_FIJO' : 'SALDO_INSOLUTO';
+
   const sanitizedRefs = (updates.references ?? [])
     .map((r) => ({
       name: (r.name ?? '').trim().slice(0, 120),
@@ -3361,12 +4430,13 @@ export async function updateReceivedApplicationAndReevaluate(params: {
       ...(r.verified !== undefined ? { verified: r.verified } : {}),
       ...(r.verificationNotes ? { verificationNotes: r.verificationNotes.trim().slice(0, 300) } : {}),
     }))
-    .filter((r) => r.name.length > 0 || r.phone.length > 0);
+    .filter((r) => r.name.length > 0 || r.phone.length > 0)
+    .slice(0, 4);
 
   const normalizedFinancialData: ApplicationRecord['financialData'] = {
     ...updates.financialData,
     incomeCurrency: updates.financialData.incomeCurrency || updates.currency,
-    debtDeclarationStatus: updates.financialData.debtDeclarationStatus || 'NO_DECLARADO',
+    debtDeclarationStatus: updates.financialData.debtDeclarationStatus || 'UNDECLARED',
   };
 
   const normalizedBusinessFinancialData: ApplicationRecord['businessFinancialData'] =
@@ -3374,9 +4444,26 @@ export async function updateReceivedApplicationAndReevaluate(params: {
       ? {
           ...updates.businessFinancialData,
           incomeCurrency: updates.businessFinancialData.incomeCurrency || updates.currency,
-          debtDeclarationStatus: updates.businessFinancialData.debtDeclarationStatus || 'NO_DECLARADO',
+          debtDeclarationStatus: updates.businessFinancialData.debtDeclarationStatus || 'UNDECLARED',
         }
       : application.businessFinancialData ?? null;
+
+  const fieldChanges = buildApplicationFieldDiff({
+    application,
+    updates: {
+      ...updates,
+      requestedAmount: nextAmount,
+      requestedTermMonths: nextTerm,
+      amortizationMethod: validAmortization,
+      financialData: normalizedFinancialData,
+      businessFinancialData: normalizedBusinessFinancialData,
+      references: sanitizedRefs,
+    },
+    customer: params.customer ?? null,
+    customerUpdates,
+    business: params.business ?? null,
+    businessUpdates,
+  });
 
   const updatedFieldsBase: Partial<ApplicationRecord> = {
     applicantDisplayName: nextApplicantDisplayName.slice(0, 180),
@@ -3385,8 +4472,8 @@ export async function updateReceivedApplicationAndReevaluate(params: {
     requestedAmount: nextAmount,
     requestedTermMonths: nextTerm,
     paymentFrequency: updates.paymentFrequency,
-    amortizationMethod: updates.amortizationMethod,
-    loanPurpose: (updates.loanPurpose ?? '').trim().slice(0, 160),
+    amortizationMethod: validAmortization,
+    loanPurpose: (updates.loanPurpose ?? '').trim().slice(0, 120),
     loanPurposeDescription: (updates.loanPurposeDescription ?? '').trim().slice(0, 600),
     proposedCollateral: (updates.proposedCollateral ?? '').trim().slice(0, 400),
     financialData: normalizedFinancialData,
@@ -3481,7 +4568,9 @@ export async function updateReceivedApplicationAndReevaluate(params: {
     toStatus: persistedStatus,
     userId: user.uid,
     userName: user.displayName || user.email || 'Usuario AxyCore',
+    userRole: user.role,
     note: correctionNote?.trim() || null,
+    changes: fieldChanges,
   });
 
   const persistedMeta = await ensureApplicationPersistedInBatch({
@@ -3497,6 +4586,19 @@ export async function updateReceivedApplicationAndReevaluate(params: {
     },
   });
 
+  const prevStatePayload = JSON.stringify({
+    status: persistedStatus,
+    score: previousScore,
+    fields: Object.fromEntries(fieldChanges.map((c) => [c.label, c.previousValue])),
+  }).slice(0, 3900);
+
+  const nextStatePayload = JSON.stringify({
+    status: persistedStatus,
+    score: reevaluateWithEngine && newScoring ? newScoring.totalScore : previousScore,
+    ...(reevaluateWithEngine && newScoring ? { prequalificationStatus: newScoring.status } : {}),
+    fields: Object.fromEntries(fieldChanges.map((c) => [c.label, c.newValue])),
+  }).slice(0, 3900);
+
   const auditId = generateId('audit');
   batch.set(doc(db, 'audit_logs', auditId), {
     ...buildCriticalAuditEntryPayload({
@@ -3507,17 +4609,15 @@ export async function updateReceivedApplicationAndReevaluate(params: {
         : 'APPLICATION_DATA_UPDATED',
       entityType: 'applications',
       entityId: application.id,
-      action: actionLabel,
-      previousState: previousScore !== null ? `${persistedStatus} (Score ${previousScore})` : persistedStatus,
-      newState:
-        reevaluateWithEngine && newScoring
-          ? `${persistedStatus} (Score ${newScoring.totalScore} · ${newScoring.status})`
-          : persistedStatus,
-      justification:
+      action: actionLabel.slice(0, 200),
+      previousState: prevStatePayload,
+      newState: nextStatePayload,
+      justification: (
         correctionNote?.trim() ||
         `Actualización de solicitud recibida (${fieldsSummary})${
           reevaluateWithEngine ? ' con reevaluación de Motor V2' : ''
-        }.`,
+        }.`
+      ).slice(0, 1000),
       transactionId: generateId('tx'),
       engineVersion: policy.version,
       userId: user.uid,
@@ -3548,6 +4648,7 @@ export async function updateReceivedApplicationAndReevaluate(params: {
     newScoring,
     previousScore,
     changedFields,
+    fieldChanges,
   };
 }
 
@@ -3689,6 +4790,87 @@ export async function saveAnalystEvaluationAndRecalc(params: {
     );
   }
 
+  // If analyst adjusted conditions in Evaluation, create a new versioned FinancialAnalysis marked VIGENTE
+  // while preserving all prior versions as HISTORICO.
+  let evalAnalysisId: string | null = application.activeFinancialAnalysisId ?? null;
+  let evalAnalysisVersion: number = application.financialAnalysisVersion ?? 1;
+  let evalInstallmentsToSave: Array<Omit<FinancialAnalysisInstallmentRecord, 'createdAt'>> = [];
+
+  if (effRecAmount > 0 && effRecTerm > 0) {
+    try {
+      const nextVer = (application.financialAnalysisVersion ?? 1) + 1;
+      const evalIntegrated = await runBackendIntegratedDecisionAndCalculation({
+        application: updatedAppForScoring,
+        customer,
+        policy,
+        analysisType: 'AJUSTE_EVALUACION',
+        version: nextVer,
+        useVerifiedData: true,
+        alternativeConditions: {
+          requestedAmount: effRecAmount,
+          termMonths: effRecTerm,
+          paymentFrequency: application.paymentFrequency,
+          amortizationMethod: application.amortizationMethod,
+          useSuggestedRate: effRecRate <= 0,
+          customMonthlyRatePct: effRecRate > 0 ? Number((effRecRate * 100).toFixed(4)) : undefined,
+          legalFeeMode: application.legalFeeMode ?? 'DESCONTAR_DESEMBOLSO',
+          interestOnlyPeriods: application.interestOnlyPeriods ?? 0,
+        },
+        justification: evaluation.justification || evaluation.findings || 'Ajuste en etapa de Evaluación',
+        user,
+      });
+
+      evalAnalysisId = evalIntegrated.analysis.id;
+      evalAnalysisVersion = nextVer;
+      evalInstallmentsToSave = evalIntegrated.installments;
+
+      if (
+        application.activeFinancialAnalysisId &&
+        application.activeFinancialAnalysisId !== evalIntegrated.analysis.id
+      ) {
+        batch.update(doc(db, 'financial_analyses', application.activeFinancialAnalysisId), {
+          status: 'HISTORICO',
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      batch.set(
+        doc(db, 'financial_analyses', evalIntegrated.analysis.id),
+        cleanObject({
+          ...evalIntegrated.analysis,
+          organizationId: application.organizationId,
+          applicationId: application.id,
+          scoringExecutionId: validScoringDoc ? newScoring.id : null,
+          status: 'VIGENTE' as const,
+          calculatedBy: user.uid,
+          calculatedByName: user.displayName,
+          calculatedByRole: user.role,
+          calculatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+      batch.set(
+        doc(db, 'application_decision_history', evalIntegrated.decisionHistory.id),
+        cleanObject({
+          ...evalIntegrated.decisionHistory,
+          organizationId: application.organizationId,
+          applicationId: application.id,
+          analysisId: evalIntegrated.analysis.id,
+          scoringExecutionId: validScoringDoc ? newScoring.id : null,
+          eventType: 'EVALUATION_CONDITIONS_ADJUSTED' as const,
+          previousStatus: application.status,
+          newStatus: targetStatus,
+          actorId: user.uid,
+          actorName: user.displayName,
+          actorRole: user.role,
+          createdAt: serverTimestamp(),
+        })
+      );
+    } catch (evalCalcErr) {
+      console.warn('Evaluation financial analysis versioning warning:', evalCalcErr);
+    }
+  }
+
   await ensureApplicationPersistedInBatch({
     batch,
     application,
@@ -3706,6 +4888,13 @@ export async function saveAnalystEvaluationAndRecalc(params: {
       recommendedRateMonthly: effRecRate,
       recommendedTermMonths: effRecTerm,
       recommendedInstallment: newScoring.recommendedInstallment,
+      ...(evalAnalysisId
+        ? {
+            activeFinancialAnalysisId: evalAnalysisId,
+            approvedEvaluationAnalysisId: evalAnalysisId,
+            financialAnalysisVersion: evalAnalysisVersion,
+          }
+        : {}),
       assignedTo: user.uid,
       assignedToName: user.displayName,
       movementHistory: newHistory,
@@ -3786,6 +4975,18 @@ export async function saveAnalystEvaluationAndRecalc(params: {
     await batch.commit();
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `credit_evaluations/${evaluation.id}`);
+  }
+
+  if (evalInstallmentsToSave.length > 0) {
+    await persistFinancialAnalysisInstallmentsChunked(
+      evalInstallmentsToSave.map((r) => ({
+        ...r,
+        organizationId: application.organizationId,
+        applicationId: application.id,
+      }))
+    ).catch((err) => {
+      console.warn('Evaluation installments persistence warning:', err);
+    });
   }
 
   if (targetStatus !== application.status) {
@@ -4490,6 +5691,12 @@ export async function saveFormalizationRecord(params: {
     });
   }
 
+  const linkedApprovedAnalysisId =
+    formalization.approvedFinancialAnalysisId ??
+    application.approvedEvaluationAnalysisId ??
+    application.activeFinancialAnalysisId ??
+    null;
+
   if (existingSnap?.exists()) {
     batch.update(
       formRef,
@@ -4511,6 +5718,7 @@ export async function saveFormalizationRecord(params: {
         legalReviewConfirmed: syncedLegalConfirmed,
         promissoryNoteConfirmed: promissoryConfirmed,
         contractConfirmed: contractConfirmed,
+        approvedFinancialAnalysisId: linkedApprovedAnalysisId,
         status: targetStatus,
         updatedAt: serverTimestamp(),
       })
@@ -4533,6 +5741,7 @@ export async function saveFormalizationRecord(params: {
         legalReviewConfirmed: syncedLegalConfirmed,
         promissoryNoteConfirmed: promissoryConfirmed,
         contractConfirmed: contractConfirmed,
+        approvedFinancialAnalysisId: linkedApprovedAnalysisId,
         status: targetStatus,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -4734,6 +5943,11 @@ export async function executeIdempotentDisbursement(params: {
         loanNumber,
         applicationId: application.id,
         disbursementId: disbId,
+        approvedFinancialAnalysisId:
+          formalization.approvedFinancialAnalysisId ??
+          application.approvedEvaluationAnalysisId ??
+          application.activeFinancialAnalysisId ??
+          null,
         customerId: application.customerId,
         businessId: application.businessId ?? null,
         applicantDisplayName: application.applicantDisplayName.slice(0, 200),

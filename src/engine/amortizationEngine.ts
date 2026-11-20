@@ -116,7 +116,11 @@ export function generateAmortizationSchedule(input: AmortizationInput): Amortiza
   let periodRate = input.monthlyRate;
   let stepDays = 0;
 
-  if (input.frequency === 'QUINCENAL') {
+  if (input.frequency === 'DIARIA') {
+    periods = input.termMonths * 30;
+    periodRate = input.monthlyRate / 30;
+    stepDays = 1;
+  } else if (input.frequency === 'QUINCENAL') {
     periods = input.termMonths * 2;
     periodRate = input.monthlyRate / 2;
     stepDays = 15;

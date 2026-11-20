@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, Bell, CheckCheck, Cpu, Eye, Mail, Pencil, Radio, RefreshCw, Search, ShieldAlert, UserCheck, X } from 'lucide-react';
+import { ArrowRight, Bell, Calculator, CheckCheck, Cpu, Eye, History, Mail, Pencil, Radio, RefreshCw, Search, ShieldAlert, UserCheck, X } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
-import { ApplicationDetailDrawer } from '../components/ApplicationDetailDrawer';
+import { ApplicationDetailDrawer, type ApplicationDrawerTab } from '../components/ApplicationDetailDrawer';
 import { ApplicationEditModal } from '../components/ApplicationEditModal';
 import { PreEvaluationValidationAlert } from '../components/PreEvaluationValidationAlert';
 import { EMAIL_EVENT_LABELS } from '../engine/emailTemplates';
@@ -69,8 +69,14 @@ export function ApplicationsInboxView() {
   const [alternateAmountInput, setAlternateAmountInput] = useState<string>('');
   const [alternateNoteInput, setAlternateNoteInput] = useState<string>('');
   const [alternateModalError, setAlternateModalError] = useState<string | null>(null);
-  const [editingApp, setEditingApp] = useState<ApplicationRecord | null>(null);
+  const [editingAppId, setEditingAppId] = useState<string | null>(null);
+  const [drawerInitialTab, setDrawerInitialTab] = useState<ApplicationDrawerTab>('overview');
   const [reevaluatingAppId, setReevaluatingAppId] = useState<string | null>(null);
+
+  const editingApp = useMemo(
+    () => (editingAppId ? applications.find((a) => a.id === editingAppId) ?? null : null),
+    [applications, editingAppId]
+  );
 
   const handleRevalidateAlert = async () => {
     if (!validationAlert || !userProfile) return;
@@ -436,15 +442,27 @@ export function ApplicationsInboxView() {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span
-                          className={
-                            isContractApproved
-                              ? 'text-emerald-700 dark:text-emerald-400 font-semibold'
-                              : 'text-slate-700 dark:text-slate-300 font-medium'
-                          }
-                        >
-                          {APPLICATION_STATUS_LABELS[app.status]}
-                        </span>
+                        <div className="space-y-0.5">
+                          <span
+                            className={
+                              isContractApproved
+                                ? 'text-emerald-700 dark:text-emerald-400 font-semibold'
+                                : 'text-slate-700 dark:text-slate-300 font-medium'
+                            }
+                          >
+                            {APPLICATION_STATUS_LABELS[app.status]}
+                          </span>
+                          {app.requiresHumanIntervention && app.status === 'RECIBIDA' && (
+                            <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                              Requiere intervención humana
+                            </p>
+                          )}
+                          {app.activeFinancialAnalysisId && (
+                            <p className="text-[10px] font-mono text-[#0052CC] dark:text-[#00D1FF]">
+                              Análisis v{app.financialAnalysisVersion ?? 1} guardado
+                            </p>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 font-mono whitespace-nowrap text-slate-500">
                         {formatTimestamp(app.createdAt)}
@@ -456,19 +474,58 @@ export function ApplicationsInboxView() {
                         <div className="inline-flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setSelectedApplicationId(app.id)}
+                            onClick={() => {
+                              setDrawerInitialTab('overview');
+                              setSelectedApplicationId(app.id);
+                            }}
                             className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-slate-700 dark:text-slate-200 cursor-pointer"
                           >
                             <Eye className="w-3 h-3" />
                             Ver Solicitud
                           </button>
+                          {rbac.isInternalStaff && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDrawerInitialTab('financial_analysis');
+                                setSelectedApplicationId(app.id);
+                              }}
+                              className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-[#0052CC] dark:text-[#00D1FF] font-semibold cursor-pointer"
+                              title="Abrir Análisis Financiero, Tabla de Amortización y Reevaluación Comparativa"
+                            >
+                              <Calculator className="w-3 h-3" />
+                              {app.requiresHumanIntervention && app.status === 'RECIBIDA'
+                                ? 'Reevaluar y Calcular'
+                                : 'Análisis / Tabla'}
+                            </button>
+                          )}
+                          {(() => {
+                            const editAuditCount = (app.movementHistory ?? []).filter(
+                              (m) => (m.changes && m.changes.length > 0) || /actualizad/i.test(m.action)
+                            ).length;
+                            if (editAuditCount === 0) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDrawerInitialTab('history');
+                                  setSelectedApplicationId(app.id);
+                                }}
+                                className="axy-btn-secondary inline-flex items-center gap-1 px-2 py-1 text-amber-700 dark:text-amber-300 font-medium cursor-pointer"
+                                title="Ver historial de cambios y auditoría de esta solicitud"
+                              >
+                                <History className="w-3 h-3" />
+                                <span>{editAuditCount}</span>
+                              </button>
+                            );
+                          })()}
                           {canEditApplicationRecord(app.status, userProfile?.role) && (
                             <>
                               <button
                                 type="button"
-                                onClick={() => setEditingApp(app)}
+                                onClick={() => setEditingAppId(app.id)}
                                 className="axy-btn-secondary inline-flex items-center gap-1 px-2.5 py-1 text-[#0052CC] dark:text-[#00D1FF] font-semibold cursor-pointer"
-                                title="Actualizar datos de la solicitud y reevaluar con Motor V2"
+                                title="Editar datos básicos y financieros de la solicitud con registro de auditoría"
                               >
                                 <Pencil className="w-3 h-3" />
                                 Editar
@@ -592,6 +649,14 @@ export function ApplicationsInboxView() {
                                   type="button"
                                   disabled={routingAppId === app.id || !userProfile}
                                   onClick={() => {
+                                    if (
+                                      app.requiresHumanIntervention ||
+                                      app.decisionQualificationStatus === 'REQUIERE_INTERVENCION_HUMANA'
+                                    ) {
+                                      setDrawerInitialTab('financial_analysis');
+                                      setSelectedApplicationId(app.id);
+                                      return;
+                                    }
                                     const suggested =
                                       app.recommendedAmount && app.recommendedAmount > 0
                                         ? app.recommendedAmount
@@ -604,7 +669,10 @@ export function ApplicationsInboxView() {
                                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer disabled:opacity-50"
                                 >
                                   <ShieldAlert className="w-3 h-3" />
-                                  Autorizar Otro Monto
+                                  {app.requiresHumanIntervention ||
+                                  app.decisionQualificationStatus === 'REQUIERE_INTERVENCION_HUMANA'
+                                    ? 'Reevaluación Humana'
+                                    : 'Autorizar Otro Monto'}
                                 </button>
                               );
                             })()}
@@ -984,22 +1052,25 @@ export function ApplicationsInboxView() {
       {editingApp && (
         <ApplicationEditModal
           application={editingApp}
-          onClose={() => setEditingApp(null)}
+          onClose={() => setEditingAppId(null)}
           onSaved={(res) => {
+            const diffSummary =
+              res.fieldChanges.length > 0
+                ? `${res.fieldChanges.length} campo(s) auditado(s): ${res.fieldChanges
+                    .slice(0, 3)
+                    .map((c) => c.label)
+                    .join(', ')}${res.fieldChanges.length > 3 ? '…' : ''}`
+                : res.changedFields.join(', ') || 'confirmada';
             setRouteFeedback({
               type: 'ok',
               msg: res.newScoring
-                ? `${res.application.applicationNumber} actualizada (${
-                    res.changedFields.join(', ') || 'confirmada'
-                  }) y reevaluada por Motor V2: Score ${
+                ? `${res.application.applicationNumber} actualizada (${diffSummary}) y reevaluada por Motor V2: Score ${
                     res.previousScore !== null ? `${res.previousScore} → ` : ''
                   }${res.newScoring.totalScore}/100 (${SCORING_STATUS_LABELS[res.newScoring.status]} · Rec.: ${formatMoney(
                     res.newScoring.recommendedAmount,
                     res.application.currency
                   )}).`
-                : `${res.application.applicationNumber} actualizada correctamente (${
-                    res.changedFields.join(', ') || 'sin cambios estructurales'
-                  }).`,
+                : `${res.application.applicationNumber} actualizada correctamente con registro de auditoría (${diffSummary}).`,
             });
           }}
         />
@@ -1007,7 +1078,11 @@ export function ApplicationsInboxView() {
 
       <ApplicationDetailDrawer
         applicationId={selectedApplicationId}
-        onClose={() => setSelectedApplicationId(null)}
+        initialTab={drawerInitialTab}
+        onClose={() => {
+          setSelectedApplicationId(null);
+          setDrawerInitialTab('overview');
+        }}
       />
     </div>
   );
