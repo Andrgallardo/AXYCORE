@@ -1994,31 +1994,70 @@ function IndicatorDetailDrawer({
   onOpenLoan: (loanId: string) => void;
   onNavigate: (sec: NavSectionId) => void;
 }) {
-  const { loans, collectionAccounts, payments, dopMetrics, usdMetrics, rbac } = useAxyCore();
+  const { loans, collectionAccounts, payments, dopMetrics, usdMetrics, rbac, isPlatformAdminPortal } = useAxyCore();
+  const [drawerSearch, setDrawerSearch] = useState('');
   const metrics = currency === 'USD' ? usdMetrics : dopMetrics;
 
-  const activeCurrencyLoans = loans
-    .filter((l) => l.currency === currency && (l.status === 'ACTIVO' || l.status === 'VENCIDO'))
-    .sort((a, b) => Number(b.currentPrincipalBalance || 0) - Number(a.currentPrincipalBalance || 0))
-    .slice(0, 8);
+  const allCurrencyLoans = loans.filter((l) => l.currency === currency);
+  const allActiveOrOverdueLoans = allCurrencyLoans
+    .filter((l) => l.status === 'ACTIVO' || l.status === 'VENCIDO')
+    .sort((a, b) => Number(b.currentPrincipalBalance || 0) - Number(a.currentPrincipalBalance || 0));
+
+  const filteredActiveLoans = allActiveOrOverdueLoans.filter((l) => {
+    if (!drawerSearch.trim()) return true;
+    const q = drawerSearch.trim().toLowerCase();
+    return (
+      l.applicantDisplayName.toLowerCase().includes(q) ||
+      l.loanNumber.toLowerCase().includes(q) ||
+      l.status.toLowerCase().includes(q)
+    );
+  });
+
+  const portfolioAudit = (() => {
+    const activeOnly = allCurrencyLoans.filter((l) => l.status === 'ACTIVO');
+    const overdueOnly = allCurrencyLoans.filter((l) => l.status === 'VENCIDO');
+    const paidOnly = allCurrencyLoans.filter((l) => l.status === 'PAGADO');
+    const cancelledOnly = allCurrencyLoans.filter((l) => l.status === 'CANCELADO');
+    const activePrincipal = activeOnly.reduce((s, l) => s + Number(l.currentPrincipalBalance || 0), 0);
+    const overduePrincipal = overdueOnly.reduce((s, l) => s + Number(l.currentPrincipalBalance || 0), 0);
+    const totalApprovedActive = allActiveOrOverdueLoans.reduce((s, l) => s + Number(l.approvedPrincipal || 0), 0);
+    const collAccCapital = collectionAccounts
+      .filter((a) => a.currency === currency && a.stage !== 'CANCELADO')
+      .reduce((s, a) => s + Number(a.totalOutstandingPrincipal || 0), 0);
+    const missingCollAcc = allActiveOrOverdueLoans.filter(
+      (l) => !collectionAccounts.some((a) => a.loanId === l.id)
+    ).length;
+
+    return {
+      activeCount: activeOnly.length,
+      overdueCount: overdueOnly.length,
+      paidCount: paidOnly.length,
+      cancelledCount: cancelledOnly.length,
+      activePrincipal,
+      overduePrincipal,
+      totalApprovedActive,
+      collAccCapital,
+      missingCollAcc,
+    };
+  })();
 
   const overdueAccounts = collectionAccounts
     .filter((a) => a.currency === currency && a.stage !== 'CANCELADO' && a.dpd >= 1)
     .sort((a, b) => b.dpd - a.dpd)
-    .slice(0, 8);
+    .slice(0, 20);
 
   const recentLoans = [...loans]
     .filter((l) => l.currency === currency)
     .sort((a, b) => (b.disbursementDate || '').localeCompare(a.disbursementDate || ''))
-    .slice(0, 8);
+    .slice(0, 15);
 
   const appliedPayments = payments
     .filter((p) => p.currency === currency && p.status === 'APLICADO')
     .sort((a, b) => (b.appliedDate || b.paymentDate || '').localeCompare(a.appliedDate || a.paymentDate || ''))
-    .slice(0, 8);
+    .slice(0, 15);
 
   const titleMap: Record<DetailIndicatorKey, string> = {
-    CARTERA_TOTAL: `Desglose de Cartera Total (${currency})`,
+    CARTERA_TOTAL: `Auditoría y Desglose de Cartera Total (${currency})`,
     CARTERA_VENCIDA: `Cuentas con Morosidad Activa (${currency})`,
     DESEMBOLSOS: `Detalle de Desembolsos (${currency})`,
     RECUPERACION: `Composición de Recuperación Aplicada (${currency})`,
@@ -2053,19 +2092,88 @@ function IndicatorDetailDrawer({
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {detailKey === 'CARTERA_TOTAL' && (
             <>
-              <div className="p-4 rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E] flex items-center justify-between">
-                <span className="text-xs text-slate-600 dark:text-slate-300">Capital Activo Total</span>
-                <strong className="font-mono tabular-nums text-lg font-extrabold text-[#0B1F3A] dark:text-white">
-                  {formatMoney(metrics.activePortfolioCapital, currency)}
-                </strong>
+              <div className="p-4 rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 block">
+                      Capital Activo Total (ACTIVO + VENCIDO)
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      {allActiveOrOverdueLoans.length} préstamos vigentes ({allCurrencyLoans.length} totales incl. saldados)
+                    </span>
+                  </div>
+                  <strong className="font-mono tabular-nums text-lg font-extrabold text-[#0B1F3A] dark:text-white">
+                    {formatMoney(metrics.activePortfolioCapital, currency)}
+                  </strong>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-white/10 text-[11px]">
+                  <div className="p-2 rounded-lg bg-white dark:bg-[#08132B]">
+                    <span className="text-slate-500 block">Vigentes / Al día ({portfolioAudit.activeCount})</span>
+                    <strong className="font-mono text-slate-900 dark:text-white">
+                      {formatMoney(portfolioAudit.activePrincipal, currency)}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white dark:bg-[#08132B]">
+                    <span className="text-slate-500 block">Vencidos ({portfolioAudit.overdueCount})</span>
+                    <strong className="font-mono text-rose-700 dark:text-rose-400">
+                      {formatMoney(portfolioAudit.overduePrincipal, currency)}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white dark:bg-[#08132B]">
+                    <span className="text-slate-500 block">Capital Original Desemb.</span>
+                    <strong className="font-mono text-slate-800 dark:text-slate-200">
+                      {formatMoney(portfolioAudit.totalApprovedActive, currency)}
+                    </strong>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white dark:bg-[#08132B]">
+                    <span className="text-slate-500 block">Pagados / Cancelados</span>
+                    <strong className="font-mono text-emerald-700 dark:text-emerald-400">
+                      {portfolioAudit.paidCount} / {portfolioAudit.cancelledCount}
+                    </strong>
+                  </div>
+                </div>
+
+                {(Math.abs(portfolioAudit.collAccCapital - metrics.activePortfolioCapital) > 1 ||
+                  portfolioAudit.missingCollAcc > 0) && (
+                  <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/40 text-[11px] text-amber-900 dark:text-amber-200">
+                    Desfase detectado entre Préstamos y Cobranzas:{' '}
+                    <strong>{portfolioAudit.missingCollAcc}</strong> préstamo(s) sin cuenta de cobranza o diferencia de{' '}
+                    <strong className="font-mono">
+                      {formatMoney(Math.abs(portfolioAudit.collAccCapital - metrics.activePortfolioCapital), currency)}
+                    </strong>
+                    .
+                  </div>
+                )}
+
+                {isPlatformAdminPortal && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('platform_control')}
+                    className="w-full py-2 px-3 rounded-lg bg-[#0066FF]/10 hover:bg-[#0066FF]/20 border border-[#0066FF]/30 text-[#0052CC] dark:text-[#00D1FF] text-xs font-semibold cursor-pointer"
+                  >
+                    Reconectar AppSheet / Auditar Inventario Completo →
+                  </button>
+                )}
               </div>
+
+              <div>
+                <input
+                  type="text"
+                  value={drawerSearch}
+                  onChange={(e) => setDrawerSearch(e.target.value)}
+                  placeholder="Filtrar cliente, número o estado..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-[#040C1E] text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+
               <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">
-                {activeCurrencyLoans.length === 0 ? (
+                {filteredActiveLoans.length === 0 ? (
                   <p className="py-6 text-center text-xs text-slate-500">
                     Sin préstamos vigentes en {currency}.
                   </p>
                 ) : (
-                  activeCurrencyLoans.map((l) => (
+                  filteredActiveLoans.map((l) => (
                     <button
                       key={l.id}
                       type="button"
@@ -2077,12 +2185,17 @@ function IndicatorDetailDrawer({
                           {l.applicantDisplayName}
                         </p>
                         <p className="text-[11px] font-mono text-slate-500">
-                          {l.loanNumber} · Desemb. {l.disbursementDate}
+                          {l.loanNumber} · {l.status} · Desemb. {l.disbursementDate}
                         </p>
                       </div>
-                      <span className="font-mono tabular-nums text-xs font-bold text-[#168BFF] shrink-0">
-                        {formatMoney(l.currentPrincipalBalance, currency)}
-                      </span>
+                      <div className="text-right shrink-0">
+                        <span className="font-mono tabular-nums text-xs font-bold text-[#168BFF] block">
+                          {formatMoney(l.currentPrincipalBalance, currency)}
+                        </span>
+                        <span className="font-mono text-[10px] text-slate-400">
+                          Orig: {formatMoney(l.approvedPrincipal, currency)}
+                        </span>
+                      </div>
                     </button>
                   ))
                 )}

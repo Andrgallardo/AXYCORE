@@ -27,10 +27,28 @@ interface SimulatedScheduleRow {
   remainingPrincipalBalance: number;
 }
 
+type LoanStatusFilter = 'TODOS' | 'VIGENTES' | 'ACTIVO' | 'VENCIDO' | 'PAGADO' | 'CANCELADO';
+
+function getLoanStatusBadgeClass(status: LoanRecord['status']): string {
+  switch (status) {
+    case 'ACTIVO':
+      return 'text-emerald-700 dark:text-emerald-400';
+    case 'VENCIDO':
+      return 'text-amber-700 dark:text-amber-400';
+    case 'PAGADO':
+      return 'text-[#0066FF] dark:text-[#00D1FF]';
+    case 'CANCELADO':
+      return 'text-rose-700 dark:text-rose-400';
+    default:
+      return 'text-slate-600 dark:text-slate-300';
+  }
+}
+
 export function DisbursedLoansView() {
   const {
     loans,
     customers,
+    loanInstallments,
     disbursements,
     documents,
     userProfile,
@@ -40,7 +58,7 @@ export function DisbursedLoansView() {
   const isExternal = userProfile?.role === 'EXTERNAL_CLIENT';
 
   const [tab, setTab] = useState<'PORTFOLIO' | 'SIMULATOR'>('PORTFOLIO');
-  const [statusFilter, setStatusFilter] = useState<'ACTIVO' | 'TODOS'>('ACTIVO');
+  const [statusFilter, setStatusFilter] = useState<LoanStatusFilter>('TODOS');
   const [search, setSearch] = useState('');
   const [selectedLoan, setSelectedLoan] = useState<LoanRecord | null>(null);
   const [installments, setInstallments] = useState<LoanInstallmentRecord[]>([]);
@@ -64,25 +82,55 @@ export function DisbursedLoansView() {
   const [simLoading, setSimLoading] = useState(false);
   const [simError, setSimError] = useState<string | null>(null);
 
-  const activeLoansCount = useMemo(
-    () => loans.filter((l) => l.status === 'ACTIVO').length,
-    [loans]
-  );
+  const customerById = useMemo(() => {
+    const map = new Map<string, (typeof customers)[number]>();
+    for (const c of customers) map.set(c.id, c);
+    return map;
+  }, [customers]);
+
+  const statusCounts = useMemo(() => {
+    let activos = 0;
+    let vencidos = 0;
+    let pagados = 0;
+    let cancelados = 0;
+    for (const l of loans) {
+      if (l.status === 'ACTIVO') activos++;
+      else if (l.status === 'VENCIDO') vencidos++;
+      else if (l.status === 'PAGADO') pagados++;
+      else if (l.status === 'CANCELADO') cancelados++;
+    }
+    return {
+      total: loans.length,
+      vigentes: activos + vencidos,
+      activos,
+      vencidos,
+      pagados,
+      cancelados,
+    };
+  }, [loans]);
 
   const filteredLoans = useMemo(() => {
     const q = search.trim().toLowerCase();
     return loans
       .filter((l) => {
-        if (statusFilter === 'ACTIVO' && l.status !== 'ACTIVO') return false;
+        if (statusFilter === 'VIGENTES') {
+          if (l.status !== 'ACTIVO' && l.status !== 'VENCIDO') return false;
+        } else if (statusFilter !== 'TODOS' && l.status !== statusFilter) {
+          return false;
+        }
         if (!q) return true;
+        const cust = customerById.get(l.customerId);
         return (
           l.loanNumber.toLowerCase().includes(q) ||
           l.applicantDisplayName.toLowerCase().includes(q) ||
-          l.productCode.toLowerCase().includes(q)
+          l.productCode.toLowerCase().includes(q) ||
+          l.customerId.toLowerCase().includes(q) ||
+          (cust?.documentNumber || '').toLowerCase().includes(q) ||
+          (cust?.phone || '').toLowerCase().includes(q)
         );
       })
       .sort((a, b) => (b.disbursementDate || '').localeCompare(a.disbursementDate || ''));
-  }, [loans, search, statusFilter]);
+  }, [loans, search, statusFilter, customerById]);
 
   useEffect(() => {
     if (filteredLoans.length === 0) {
@@ -96,8 +144,8 @@ export function DisbursedLoansView() {
 
   const selectedCustomer = useMemo(
     () =>
-      selectedLoan ? customers.find((c) => c.id === selectedLoan.customerId) ?? null : null,
-    [selectedLoan, customers]
+      selectedLoan ? customerById.get(selectedLoan.customerId) ?? null : null,
+    [selectedLoan, customerById]
   );
 
   const selectedDisbursement = useMemo(
@@ -127,11 +175,21 @@ export function DisbursedLoansView() {
         setInstallments([]);
         return;
       }
+      const contextRows = loanInstallments
+        .filter((inst) => inst.loanId === selectedLoan.id)
+        .sort((a, b) => a.installmentNumber - b.installmentNumber);
+
+      if (contextRows.length > 0 && !isExternal) {
+        setInstallments(contextRows);
+        setLoadingInstallments(false);
+        return;
+      }
+
       setLoadingInstallments(true);
       try {
         if (!isExternal) {
           const rows = await fetchInstallmentsByLoan(selectedLoan.id, selectedLoan.organizationId);
-          if (active) setInstallments(rows);
+          if (active) setInstallments(rows.length > 0 ? rows : contextRows);
         } else {
           const sim = await runBackendAmortization({
             financedPrincipal: selectedLoan.totalFinancedPrincipal,
@@ -161,7 +219,7 @@ export function DisbursedLoansView() {
           }
         }
       } catch {
-        if (active) setInstallments([]);
+        if (active) setInstallments(contextRows);
       } finally {
         if (active) setLoadingInstallments(false);
       }
@@ -170,7 +228,7 @@ export function DisbursedLoansView() {
     return () => {
       active = false;
     };
-  }, [selectedLoan, isExternal]);
+  }, [selectedLoan, isExternal, loanInstallments]);
 
   const handleSimulate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,10 +259,10 @@ export function DisbursedLoansView() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-display text-xl sm:text-[22px] font-bold tracking-tight text-slate-950 dark:text-white">
-            Activos — Cartera de Préstamos Vigentes
+            Cartera de Préstamos — Activos e Históricos
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Clientes activos con su ficha completa del préstamo adquirido, comprobante de desembolso y plan de cuotas inmutable.
+            Préstamos activos, vencidos, saldados e históricos persistidos en la plataforma con su ficha completa, comprobante y plan de cuotas.
           </p>
         </div>
 
@@ -219,7 +277,7 @@ export function DisbursedLoansView() {
             }`}
           >
             <Landmark className="w-3.5 h-3.5" />
-            Activos ({activeLoansCount})
+            Cartera ({statusCounts.total})
           </button>
           <button
             type="button"
@@ -245,23 +303,27 @@ export function DisbursedLoansView() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por préstamo o cliente activo..."
+                  placeholder="Buscar préstamo, cliente, cédula o teléfono..."
                   className="axy-input w-full pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white"
                 />
               </div>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'ACTIVO' | 'TODOS')}
+                onChange={(e) => setStatusFilter(e.target.value as LoanStatusFilter)}
                 className="axy-input px-3 py-2 text-xs text-slate-900 dark:text-white"
               >
-                <option value="ACTIVO">Solo Activos</option>
-                <option value="TODOS">Todos ({loans.length})</option>
+                <option value="TODOS">Todos ({statusCounts.total})</option>
+                <option value="VIGENTES">Vigentes ({statusCounts.vigentes})</option>
+                <option value="ACTIVO">Activos ({statusCounts.activos})</option>
+                <option value="VENCIDO">Vencidos ({statusCounts.vencidos})</option>
+                <option value="PAGADO">Pagados ({statusCounts.pagados})</option>
+                <option value="CANCELADO">Cancelados ({statusCounts.cancelados})</option>
               </select>
             </div>
 
             {filteredLoans.length === 0 ? (
               <div className="axy-surface p-8 rounded-2xl text-center text-xs text-slate-500">
-                No existen préstamos activos que coincidan con el filtro. Complete un Desembolso para incorporar clientes a Activos.
+                No existen préstamos que coincidan con el filtro actual. Complete un Desembolso o cambie el filtro de estado para visualizar la cartera completa.
               </div>
             ) : (
               <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1">
@@ -282,7 +344,7 @@ export function DisbursedLoansView() {
                         <span className="font-mono font-semibold text-[#0066FF] dark:text-[#00D1FF]">
                           {loan.loanNumber}
                         </span>
-                        <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+                        <span className={`font-semibold ${getLoanStatusBadgeClass(loan.status)}`}>
                           {loan.status}
                         </span>
                       </div>

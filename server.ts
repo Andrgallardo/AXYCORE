@@ -42,12 +42,6 @@ import {
   shouldTriggerApplicationCriticalPush,
 } from './src/engine/pushPayload';
 import {
-  buildAppSheetMigrationBundle,
-  DEFAULT_APPSHEET_MIGRATION_ACCESS_KEY,
-  DEFAULT_APPSHEET_MIGRATION_APP_ID,
-  type AppSheetRawTables,
-} from './src/engine/appsheetMigrationEngine';
-import {
   generateDevOnlyTestPkcs12,
   loadDecryptedCertificateFromVault,
   parsePkcs12Certificate,
@@ -1554,112 +1548,6 @@ async function startServer() {
     });
   });
 
-  // --- AppSheet Platform Migration Proxy & Adapter (/api/migration/appsheet/pull) ---
-  let cachedAppSheetRaw: {
-    cacheKey: string;
-    fetchedAtMs: number;
-    tables: AppSheetRawTables;
-  } | null = null;
-
-  app.post('/api/migration/appsheet/pull', async (req, res) => {
-    try {
-      const appId = String(
-        req.body?.appId || process.env.APPSHEET_MIGRATION_APP_ID || DEFAULT_APPSHEET_MIGRATION_APP_ID
-      ).trim();
-      const accessKey = String(
-        req.body?.accessKey ||
-          process.env.APPSHEET_MIGRATION_ACCESS_KEY ||
-          DEFAULT_APPSHEET_MIGRATION_ACCESS_KEY
-      ).trim();
-      const organizationId = String(req.body?.organizationId || 'org_axycore_main').trim();
-      const actorUid = String(req.body?.actorUid || 'system_migrator').trim();
-      const actorName = String(req.body?.actorName || 'Migrador Oficial AxyCore').trim();
-      const forceRefresh = Boolean(req.body?.forceRefresh);
-
-      const cacheKey = `${appId}:${accessKey.slice(0, 12)}`;
-      const nowMs = Date.now();
-      let rawTables: AppSheetRawTables;
-
-      if (
-        !forceRefresh &&
-        cachedAppSheetRaw &&
-        cachedAppSheetRaw.cacheKey === cacheKey &&
-        nowMs - cachedAppSheetRaw.fetchedAtMs < 120000
-      ) {
-        rawTables = cachedAppSheetRaw.tables;
-      } else {
-        const tableNames = [
-          'Clientes',
-          'Solicitudes',
-          'Formalizacion',
-          'Desembolsos',
-          'Prestamos',
-          'Cuotas',
-          'Pagos',
-          'Gestiones',
-          'Acuerdos',
-          'COMITE_CREDITO',
-        ] as const;
-
-        const fetchedEntries = await Promise.all(
-          tableNames.map(async (tableName) => {
-            const url = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(
-              appId
-            )}/tables/${encodeURIComponent(tableName)}/Action`;
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                ApplicationAccessKey: accessKey,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                Action: 'Find',
-                Properties: { Locale: 'en-US' },
-                Rows: [],
-              }),
-            });
-
-            if (!response.ok) {
-              return [tableName, []] as const;
-            }
-            const text = await response.text();
-            if (!text) return [tableName, []] as const;
-            const parsed = JSON.parse(text);
-            return [tableName, Array.isArray(parsed) ? parsed : []] as const;
-          })
-        );
-
-        rawTables = Object.fromEntries(fetchedEntries) as AppSheetRawTables;
-        cachedAppSheetRaw = {
-          cacheKey,
-          fetchedAtMs: nowMs,
-          tables: rawTables,
-        };
-      }
-
-      const bundle = buildAppSheetMigrationBundle({
-        tables: rawTables,
-        organizationId,
-        actorUid,
-        actorName,
-        sourceAppId: appId,
-      });
-
-      res.json({
-        ok: true,
-        bundle,
-      });
-    } catch (err) {
-      res.status(500).json({
-        ok: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'No fue posible conectar con la API de AppSheet para extraer la migración.',
-      });
-    }
-  });
-
   // ============================================================================
   // DGII Facturación Electrónica (Ley 32-23) — Bóveda Cifrada, Firma XMLDSig y API
   // ============================================================================
@@ -2220,6 +2108,151 @@ async function startServer() {
       res.json(result);
     } catch (err) {
       handleRegulaAiError(res, err, 'Error generando borrador de informe con REGULA AI.');
+    }
+  });
+
+  // =========================================================================
+  // One-Time Self-Cleaning Portfolio Remigration Handoff (Superadmin Only)
+  // Cryptographically verifies Google Firebase Auth RS256 ID Token before
+  // serving the extracted snapshot, and deletes the file upon completion.
+  // =========================================================================
+  const FIREBASE_PROJECT_ID = (() => {
+    try {
+      const cfgPath = path.resolve(__dirname, 'firebase-applet-config.json');
+      const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) as { projectId?: string };
+      return parsed.projectId || 'future-bridge-skpm1';
+    } catch {
+      return 'future-bridge-skpm1';
+    }
+  })();
+
+  const BOOTSTRAPPED_SUPERADMIN_EMAIL = 'andrygallardo7@gmail.com';
+  const REMIGRATION_SNAPSHOT_PATH = path.resolve(
+    __dirname,
+    'server',
+    'data',
+    'su_gloria_remigration_v2.json'
+  );
+
+  let cachedFirebaseCerts: { certs: Record<string, string>; expiresAtMs: number } | null = null;
+
+  const getGoogleFirebasePublicCerts = async (): Promise<Record<string, string>> => {
+    if (cachedFirebaseCerts && Date.now() < cachedFirebaseCerts.expiresAtMs) {
+      return cachedFirebaseCerts.certs;
+    }
+    const resp = await fetch(
+      'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+    );
+    if (!resp.ok) {
+      throw new Error('No se pudieron obtener los certificados públicos de Firebase Auth.');
+    }
+    const certs = (await resp.json()) as Record<string, string>;
+    const cc = resp.headers.get('cache-control') || '';
+    const maxAgeMatch = cc.match(/max-age=(\d+)/i);
+    const ttlMs = maxAgeMatch ? Math.min(3600, Number(maxAgeMatch[1])) * 1000 : 1800_000;
+    cachedFirebaseCerts = { certs, expiresAtMs: Date.now() + ttlMs };
+    return certs;
+  };
+
+  const verifySuperadminBearerToken = async (
+    req: express.Request,
+    res: express.Response
+  ): Promise<{ uid: string; email: string } | null> => {
+    try {
+      const authHeader = String(req.headers.authorization || '');
+      if (!authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Token de sesión requerido.' });
+        return null;
+      }
+      const token = authHeader.slice(7).trim();
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        res.status(401).json({ error: 'Formato de token inválido.' });
+        return null;
+      }
+      const [headerB64, payloadB64, sigB64] = parts;
+      const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8')) as {
+        alg?: string;
+        kid?: string;
+      };
+      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as {
+        aud?: string;
+        iss?: string;
+        sub?: string;
+        exp?: number;
+        iat?: number;
+        email?: string;
+        email_verified?: boolean;
+      };
+
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (
+        header.alg !== 'RS256' ||
+        !header.kid ||
+        payload.aud !== FIREBASE_PROJECT_ID ||
+        payload.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID}` ||
+        !payload.sub ||
+        typeof payload.exp !== 'number' ||
+        payload.exp <= nowSec
+      ) {
+        res.status(401).json({ error: 'Token de sesión expirado o inválido.' });
+        return null;
+      }
+
+      const certs = await getGoogleFirebasePublicCerts();
+      const certPem = certs[header.kid];
+      if (!certPem) {
+        res.status(401).json({ error: 'Firma de token no reconocida.' });
+        return null;
+      }
+
+      const verifier = crypto.createVerify('RSA-SHA256');
+      verifier.update(`${headerB64}.${payloadB64}`);
+      verifier.end();
+      const signatureValid = verifier.verify(certPem, Buffer.from(sigB64, 'base64url'));
+      if (!signatureValid) {
+        res.status(401).json({ error: 'Firma criptográfica del token inválida.' });
+        return null;
+      }
+
+      const email = String(payload.email || '').toLowerCase();
+      if (!payload.email_verified || email !== BOOTSTRAPPED_SUPERADMIN_EMAIL) {
+        res.status(403).json({ error: 'Acceso restringido al Superadministrador principal.' });
+        return null;
+      }
+
+      return { uid: payload.sub, email };
+    } catch {
+      res.status(401).json({ error: 'No se pudo verificar la sesión de Superadministrador.' });
+      return null;
+    }
+  };
+
+  app.get('/api/internal/su-gloria-remigration-bundle', async (req, res) => {
+    const verified = await verifySuperadminBearerToken(req, res);
+    if (!verified) return;
+    if (!fs.existsSync(REMIGRATION_SNAPSHOT_PATH)) {
+      res.json({ available: false });
+      return;
+    }
+    try {
+      const raw = JSON.parse(fs.readFileSync(REMIGRATION_SNAPSHOT_PATH, 'utf8'));
+      res.json({ available: true, ...raw });
+    } catch {
+      res.status(500).json({ error: 'No se pudo leer el paquete de re-migración.' });
+    }
+  });
+
+  app.post('/api/internal/su-gloria-remigration-complete', async (req, res) => {
+    const verified = await verifySuperadminBearerToken(req, res);
+    if (!verified) return;
+    try {
+      if (fs.existsSync(REMIGRATION_SNAPSHOT_PATH)) {
+        fs.unlinkSync(REMIGRATION_SNAPSHOT_PATH);
+      }
+      res.json({ cleaned: true });
+    } catch {
+      res.json({ cleaned: false });
     }
   });
 

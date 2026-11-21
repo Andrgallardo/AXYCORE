@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ArrowRightLeft,
   BookOpen,
   CalendarRange,
   Download,
@@ -53,7 +52,6 @@ export function AccountingStatementsView({
     investors,
     investorTransactions,
     setActiveSection,
-    setMigrationModalOpen,
     rbac,
   } = useAxyCore();
 
@@ -266,14 +264,6 @@ export function AccountingStatementsView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setMigrationModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0B1F3A] hover:bg-[#123B65] text-white border border-[#20C4E8]/30 text-xs font-semibold cursor-pointer transition-colors shadow-xs"
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-[#20C4E8]" />
-            <span>Sincronizar Migración</span>
-          </button>
 
           {/* Currency Toggle */}
           <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-[#040C1E] border border-slate-200 dark:border-[#00B8FF]/20">

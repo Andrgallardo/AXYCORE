@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRightLeft,
   Building2,
   CheckCircle2,
   Eye,
@@ -96,7 +95,6 @@ export function CustomersView({
     rbac,
     setActiveSection,
     setSelectedCollectionLoanId,
-    setMigrationModalOpen,
   } = useAxyCore();
 
   const canUpdateCustomers = rbac.canAccessSection('customers_update');
@@ -464,14 +462,6 @@ export function CustomersView({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => setMigrationModalOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0B1F3A] hover:bg-[#123B65] text-white border border-[#20C4E8]/30 text-xs font-semibold cursor-pointer transition-colors shadow-sm"
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-[#20C4E8]" />
-            <span>Migración AppSheet</span>
-          </button>
         </div>
       </div>
 

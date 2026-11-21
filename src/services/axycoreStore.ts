@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   query,
@@ -536,6 +537,61 @@ export function hasApplicationSchemaDrift(
     return true;
   }
   if (
+    'originalRequestedConditions' in data &&
+    data.originalRequestedConditions !== null &&
+    !isPlainObject(data.originalRequestedConditions)
+  ) {
+    return true;
+  }
+  for (const optIdKey of ['activeFinancialAnalysisId', 'approvedEvaluationAnalysisId']) {
+    if (
+      optIdKey in data &&
+      data[optIdKey] !== null &&
+      (typeof data[optIdKey] !== 'string' || !VALID_ID_REGEX.test(data[optIdKey] as string))
+    ) {
+      return true;
+    }
+  }
+  if (
+    'requiresHumanIntervention' in data &&
+    data.requiresHumanIntervention !== null &&
+    typeof data.requiresHumanIntervention !== 'boolean'
+  ) {
+    return true;
+  }
+  if (
+    'decisionQualificationStatus' in data &&
+    data.decisionQualificationStatus !== null &&
+    (typeof data.decisionQualificationStatus !== 'string' ||
+      ![
+        'CALIFICA_AUTO_EVALUACION',
+        'REQUIERE_INTERVENCION_HUMANA',
+        'REEVALUADA_APROBADA_EVALUACION',
+        'DATOS_INSUFICIENTES',
+      ].includes(data.decisionQualificationStatus))
+  ) {
+    return true;
+  }
+  if (
+    'legalFeeMode' in data &&
+    data.legalFeeMode !== null &&
+    (typeof data.legalFeeMode !== 'string' ||
+      !['DESCONTAR_DESEMBOLSO', 'FINANCIAR'].includes(data.legalFeeMode))
+  ) {
+    return true;
+  }
+  for (const nonNegKey of ['financialAnalysisVersion', 'interestOnlyPeriods', 'installmentCount']) {
+    if (
+      nonNegKey in data &&
+      data[nonNegKey] !== null &&
+      (typeof data[nonNegKey] !== 'number' ||
+        !Number.isFinite(data[nonNegKey] as number) ||
+        (data[nonNegKey] as number) < 0)
+    ) {
+      return true;
+    }
+  }
+  if (
     'movementHistory' in data &&
     (!Array.isArray(data.movementHistory) || data.movementHistory.length > 50)
   ) {
@@ -697,14 +753,20 @@ function buildMaterializedCustomerPayload(
     ...(customer.address ? { address: String(customer.address).slice(0, 300) } : {}),
     ...(customer.municipality ? { municipality: String(customer.municipality).slice(0, 100) } : {}),
     ...(customer.province ? { province: String(customer.province).slice(0, 100) } : {}),
-    ...(typeof customer.residenceMonths === 'number'
+    ...(typeof customer.residenceMonths === 'number' && Number.isFinite(customer.residenceMonths)
       ? { residenceMonths: Math.max(0, Math.min(1200, Math.round(customer.residenceMonths))) }
       : {}),
-    ...(customer.housingType ? { housingType: customer.housingType } : {}),
-    ...(typeof customer.housingPayment === 'number'
+    ...(customer.housingType &&
+    ['PROPIA', 'ALQUILADA', 'FAMILIAR', 'OTRA', 'NO_DECLARADA'].includes(customer.housingType)
+      ? { housingType: customer.housingType }
+      : {}),
+    ...(typeof customer.housingPayment === 'number' && Number.isFinite(customer.housingPayment)
       ? { housingPayment: Math.max(0, customer.housingPayment) }
       : {}),
-    ...(customer.socialMediaDeclared ? { socialMediaDeclared: customer.socialMediaDeclared } : {}),
+    ...(customer.socialMediaDeclared &&
+    ['YES', 'NO_MEDIA', 'UNANSWERED'].includes(customer.socialMediaDeclared)
+      ? { socialMediaDeclared: customer.socialMediaDeclared }
+      : {}),
     ...(customer.socialMediaHandle
       ? { socialMediaHandle: String(customer.socialMediaHandle).slice(0, 120) }
       : {}),
@@ -924,12 +986,18 @@ export function buildMaterializedApplicationPayload(
     ...(merged.requiresHumanIntervention !== undefined
       ? { requiresHumanIntervention: Boolean(merged.requiresHumanIntervention) }
       : {}),
-    ...(merged.decisionQualificationStatus !== undefined
+    ...(merged.decisionQualificationStatus === null ||
+    [
+      'CALIFICA_AUTO_EVALUACION',
+      'REQUIERE_INTERVENCION_HUMANA',
+      'REEVALUADA_APROBADA_EVALUACION',
+      'DATOS_INSUFICIENTES',
+    ].includes(String(merged.decisionQualificationStatus))
       ? {
           decisionQualificationStatus:
             merged.decisionQualificationStatus === null
               ? null
-              : String(merged.decisionQualificationStatus).slice(0, 64),
+              : String(merged.decisionQualificationStatus),
         }
       : {}),
     ...(merged.financialAnalysisVersion !== undefined
@@ -1003,8 +1071,8 @@ async function ensureApplicationPersistedInBatch(params: {
         ? existingData.createdBy
         : user.uid;
 
-    // Self-heal legacy/corrupt migrated docs when an ADMIN performs the transition so isValidApplication never rejects the update.
-    if (user.role === 'ADMIN' && hasApplicationSchemaDrift(existingData, application.id)) {
+    // Self-heal legacy/corrupt docs when an ADMIN performs the transition so isValidApplication never rejects the update.
+    if ((user.role === 'ADMIN' || user.isSuperAdmin) && hasApplicationSchemaDrift(existingData, application.id)) {
       const mergedBase: ApplicationRecord = {
         ...application,
         ...(existingData as Partial<ApplicationRecord>),
@@ -1040,7 +1108,7 @@ async function ensureApplicationPersistedInBatch(params: {
 
   const effectiveOrgId = application.organizationId || user.organizationId || DEFAULT_ORG_ID;
 
-  // Application only existed in memory (e.g. AppSheet migration bundle): materialize customer + application cleanly.
+  // Application not yet materialized in Firestore: materialize customer + application cleanly.
   if (application.customerId) {
     const custRef = doc(db, 'customers', application.customerId);
     const existingCustSnap = await getDoc(custRef).catch(() => null);
@@ -4493,17 +4561,23 @@ export async function updateReceivedApplicationAndReevaluate(params: {
   const batch = writeBatch(db);
   const nowIso = new Date().toISOString();
 
-  // Fallback synthetic customer if customer record missing in legacy migrated doc
+  const actorUid = auth.currentUser?.uid || user.uid;
+  const actorUser: UserProfile = {
+    ...user,
+    uid: actorUid,
+  };
+
+  // Fallback synthetic customer if linked customer record is missing
   const scoringCustomer: CustomerRecord = effectiveCustomer ?? {
     id: application.customerId,
     organizationId: effectiveOrgId,
     documentType: 'CEDULA',
-    documentNumber: `MIG-${application.customerId}`.slice(0, 40),
+    documentNumber: `CLI-${application.customerId}`.slice(0, 40),
     documentKey: `${effectiveOrgId}_CEDULA_${application.customerId}`.slice(0, 175),
     firstName: (nextApplicantDisplayName.split(/\s+/)[0] || 'Cliente').slice(0, 120),
     lastName: (nextApplicantDisplayName.split(/\s+/).slice(1).join(' ') || 'Registrado').slice(0, 120),
     phone: '809-000-0000',
-    createdBy: user.uid,
+    createdBy: actorUid,
   };
 
   let scoringAppFields: Partial<ApplicationRecord> = {};
@@ -4519,7 +4593,7 @@ export async function updateReceivedApplicationAndReevaluate(params: {
       policy,
       useVerifiedData: false,
       executionTrigger: 'MANUAL_RERUN',
-      executedBy: user.uid,
+      executedBy: actorUid,
       executedByName: user.displayName || user.email || 'Usuario AxyCore',
     });
 
@@ -4533,6 +4607,7 @@ export async function updateReceivedApplicationAndReevaluate(params: {
         sanitizeScoringExecutionPayload({
           ...newScoring,
           organizationId: effectiveOrgId,
+          executedBy: actorUid,
         })
       );
     }
@@ -4566,7 +4641,7 @@ export async function updateReceivedApplicationAndReevaluate(params: {
     action: actionLabel,
     fromStatus: persistedStatus,
     toStatus: persistedStatus,
-    userId: user.uid,
+    userId: actorUid,
     userName: user.displayName || user.email || 'Usuario AxyCore',
     userRole: user.role,
     note: correctionNote?.trim() || null,
@@ -4577,7 +4652,7 @@ export async function updateReceivedApplicationAndReevaluate(params: {
     batch,
     application: { ...application, organizationId: effectiveOrgId },
     customer: scoringCustomer,
-    user,
+    user: actorUser,
     existingAppData,
     updates: {
       ...updatedFieldsBase,
@@ -4620,7 +4695,7 @@ export async function updateReceivedApplicationAndReevaluate(params: {
       ).slice(0, 1000),
       transactionId: generateId('tx'),
       engineVersion: policy.version,
-      userId: user.uid,
+      userId: actorUid,
       userEmail: user.email,
       userRole: user.role,
     }),
@@ -7693,39 +7768,186 @@ export async function listAllTenantOrganizations(): Promise<OrganizationRecord[]
 export async function ensureSuGloriaManoAmigaExists(actorUid?: string): Promise<OrganizationRecord> {
   const orgRef = doc(db, 'organizations', SU_GLORIA_ORG_ID);
   const snap = await getDoc(orgRef).catch(() => null);
-  const existing = snap?.exists() ? (snap.data() as OrganizationRecord) : null;
+  if (snap?.exists()) {
+    const existing = snap.data() as OrganizationRecord;
+    return {
+      ...SU_GLORIA_MANO_AMIGA_ORG,
+      ...existing,
+      id: SU_GLORIA_ORG_ID,
+      organizationId: SU_GLORIA_ORG_ID,
+      enabledModules: existing.enabledModules || existing.modulesEnabled || SU_GLORIA_ENABLED_MODULES,
+      modulesEnabled: existing.modulesEnabled || existing.enabledModules || SU_GLORIA_ENABLED_MODULES,
+    };
+  }
 
   const orgDoc: OrganizationRecord = cleanObject({
-    ...SU_GLORIA_MANO_AMIGA_ORG,
-    ...(existing || {}),
     id: SU_GLORIA_ORG_ID,
     organizationId: SU_GLORIA_ORG_ID,
-    accessCode: existing?.accessCode || 'SGMA-001',
+    tenantId: SU_GLORIA_MANO_AMIGA_ORG.tenantId,
+    tenant_id: SU_GLORIA_MANO_AMIGA_ORG.tenant_id,
+    accessCode: SU_GLORIA_MANO_AMIGA_ORG.accessCode || 'SGMA-001',
     name: 'SU GLORIA MANO AMIGA',
+    legalName: SU_GLORIA_MANO_AMIGA_ORG.legalName,
     tradeName: 'SU GLORIA MANO AMIGA',
     taxId: '1-31-98421-2',
     rnc: '1-31-98421-2',
-    status: existing?.status || 'ACTIVA',
-    planCode: existing?.planCode || 'CORPORATIVO',
-    licenseStatus: existing?.licenseStatus || 'ACTIVA',
-    enabledModules: existing?.enabledModules || existing?.modulesEnabled || SU_GLORIA_ENABLED_MODULES,
-    modulesEnabled: existing?.modulesEnabled || existing?.enabledModules || SU_GLORIA_ENABLED_MODULES,
-    primaryAdminUid: existing?.primaryAdminUid || actorUid || SU_GLORIA_MANO_AMIGA_ORG.primaryAdminUid,
-    createdAt: existing?.createdAt || serverTimestamp(),
+    country: SU_GLORIA_MANO_AMIGA_ORG.country,
+    province: SU_GLORIA_MANO_AMIGA_ORG.province,
+    city: SU_GLORIA_MANO_AMIGA_ORG.city,
+    address: SU_GLORIA_MANO_AMIGA_ORG.address,
+    phone: SU_GLORIA_MANO_AMIGA_ORG.phone,
+    corporateEmail: SU_GLORIA_MANO_AMIGA_ORG.corporateEmail,
+    currency: SU_GLORIA_MANO_AMIGA_ORG.currency,
+    timezone: SU_GLORIA_MANO_AMIGA_ORG.timezone,
+    status: 'ACTIVA',
+    onboardingDate: SU_GLORIA_MANO_AMIGA_ORG.onboardingDate,
+    planCode: 'CORPORATIVO',
+    licenseId: SU_GLORIA_MANO_AMIGA_ORG.licenseId,
+    licenseStatus: 'ACTIVA',
+    licenseStartDate: SU_GLORIA_MANO_AMIGA_ORG.licenseStartDate,
+    licenseEndDate: SU_GLORIA_MANO_AMIGA_ORG.licenseEndDate,
+    maxUsers: SU_GLORIA_MANO_AMIGA_ORG.maxUsers,
+    enabledModules: SU_GLORIA_ENABLED_MODULES,
+    modulesEnabled: SU_GLORIA_ENABLED_MODULES,
+    primaryAdminUid: actorUid || SU_GLORIA_MANO_AMIGA_ORG.primaryAdminUid,
+    primaryAdminName: SU_GLORIA_MANO_AMIGA_ORG.primaryAdminName,
+    primaryAdminEmail: SU_GLORIA_MANO_AMIGA_ORG.primaryAdminEmail,
+    primaryAdminPhone: SU_GLORIA_MANO_AMIGA_ORG.primaryAdminPhone,
+    notes: SU_GLORIA_MANO_AMIGA_ORG.notes,
+    primaryColor: SU_GLORIA_MANO_AMIGA_ORG.primaryColor,
+    accentColor: SU_GLORIA_MANO_AMIGA_ORG.accentColor,
+    createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  await setDoc(orgRef, orgDoc, { merge: true }).catch((err) =>
-    handleFirestoreError(err, OperationType.WRITE, `organizations/${SU_GLORIA_ORG_ID}`)
+  await setDoc(orgRef, orgDoc).catch((err) =>
+    handleFirestoreError(err, OperationType.CREATE, `organizations/${SU_GLORIA_ORG_ID}`)
   );
 
   return orgDoc;
 }
 
+const LEGACY_ORG_IDS = ['org_default', 'org_su_gloria_mano_amiga', 'su-gloria-mano-amiga'] as const;
+
+export interface FirestoreInventoryCollectionSummary {
+  collectionName: string;
+  label: string;
+  category: 'ORIGINACION' | 'CARTERA' | 'COBRANZA_Y_PAGOS' | 'INVERSIONISTAS';
+  primaryOrgCount: number;
+  legacyOrgCount: number;
+  totalFound: number;
+  status: 'OK' | 'WARNING';
+  note?: string;
+}
+
+export interface FirestorePortfolioInventoryReport {
+  checkedAtIso: string;
+  primaryOrgId: string;
+  legacyOrgIdsChecked: string[];
+  collections: FirestoreInventoryCollectionSummary[];
+  totalPrimaryDocs: number;
+  totalLegacyDocs: number;
+  loansWithoutCollectionAccountEstimate: number;
+}
+
+async function safeCountCollectionByOrgs(
+  colName: string,
+  orgIds: string[]
+): Promise<{ count: number; error?: string }> {
+  try {
+    const q =
+      orgIds.length === 1
+        ? query(collection(db, colName), where('organizationId', '==', orgIds[0]))
+        : query(collection(db, colName), where('organizationId', 'in', orgIds));
+    try {
+      const agg = await getCountFromServer(q);
+      return { count: agg.data().count };
+    } catch {
+      const snap = await getDocs(q);
+      return { count: snap.size };
+    }
+  } catch (err) {
+    return {
+      count: 0,
+      error: err instanceof Error ? err.message : 'Sin acceso o índice pendiente',
+    };
+  }
+}
+
+/**
+ * Audita el inventario real persistido en Firestore en todas las colecciones operativas
+ * de la organización principal (SU GLORIA MANO AMIGA: org_axycore_main) y verifica si existen
+ * registros residuales bajo organizationId legados, 100% independiente de plataformas externas.
+ */
+export async function auditFirestorePortfolioInventory(
+  actor: UserProfile
+): Promise<FirestorePortfolioInventoryReport> {
+  if (!isSuperAdminUser(actor, true) && actor.role !== 'ADMIN') {
+    throw new Error('Solo un Administrador o Superadministrador autorizado puede auditar el inventario de Firestore.');
+  }
+
+  const catalog: Array<{
+    collectionName: string;
+    label: string;
+    category: FirestoreInventoryCollectionSummary['category'];
+  }> = [
+    { collectionName: 'customers', label: 'Clientes', category: 'ORIGINACION' },
+    { collectionName: 'businesses', label: 'Negocios / Empresas', category: 'ORIGINACION' },
+    { collectionName: 'applications', label: 'Solicitudes de Crédito', category: 'ORIGINACION' },
+    { collectionName: 'committee_decisions', label: 'Decisiones de Comité', category: 'ORIGINACION' },
+    { collectionName: 'formalizations', label: 'Formalizaciones', category: 'ORIGINACION' },
+    { collectionName: 'disbursements', label: 'Desembolsos', category: 'CARTERA' },
+    { collectionName: 'loans', label: 'Préstamos (Cartera Completa)', category: 'CARTERA' },
+    { collectionName: 'loan_installments', label: 'Cuotas de Préstamos', category: 'CARTERA' },
+    { collectionName: 'collection_accounts', label: 'Cuentas de Cobranza', category: 'COBRANZA_Y_PAGOS' },
+    { collectionName: 'collection_actions', label: 'Gestiones de Cobro', category: 'COBRANZA_Y_PAGOS' },
+    { collectionName: 'payment_promises', label: 'Promesas de Pago', category: 'COBRANZA_Y_PAGOS' },
+    { collectionName: 'payment_agreements', label: 'Acuerdos de Pago', category: 'COBRANZA_Y_PAGOS' },
+    { collectionName: 'payments', label: 'Pagos Realizados / Reportados', category: 'COBRANZA_Y_PAGOS' },
+    { collectionName: 'payment_allocations', label: 'Aplicaciones / Desglose de Pagos', category: 'COBRANZA_Y_PAGOS' },
+    { collectionName: 'collection_receipts', label: 'Recibos Oficiales de Cobro', category: 'COBRANZA_Y_PAGOS' },
+    { collectionName: 'investors', label: 'Inversionistas', category: 'INVERSIONISTAS' },
+    { collectionName: 'investor_transactions', label: 'Movimientos de Inversionistas', category: 'INVERSIONISTAS' },
+  ];
+
+  const summaries = await Promise.all(
+    catalog.map(async (item): Promise<FirestoreInventoryCollectionSummary> => {
+      const [primaryRes, legacyRes] = await Promise.all([
+        safeCountCollectionByOrgs(item.collectionName, [SU_GLORIA_ORG_ID]),
+        safeCountCollectionByOrgs(item.collectionName, [...LEGACY_ORG_IDS]),
+      ]);
+      const note = primaryRes.error || legacyRes.error;
+      return {
+        collectionName: item.collectionName,
+        label: item.label,
+        category: item.category,
+        primaryOrgCount: primaryRes.count,
+        legacyOrgCount: legacyRes.count,
+        totalFound: primaryRes.count + legacyRes.count,
+        status: note || legacyRes.count > 0 ? 'WARNING' : 'OK',
+        ...(note ? { note } : {}),
+      };
+    })
+  );
+
+  const loansCount = summaries.find((s) => s.collectionName === 'loans')?.primaryOrgCount ?? 0;
+  const accountsCount = summaries.find((s) => s.collectionName === 'collection_accounts')?.primaryOrgCount ?? 0;
+
+  return {
+    checkedAtIso: new Date().toISOString(),
+    primaryOrgId: SU_GLORIA_ORG_ID,
+    legacyOrgIdsChecked: [...LEGACY_ORG_IDS],
+    collections: summaries,
+    totalPrimaryDocs: summaries.reduce((acc, s) => acc + s.primaryOrgCount, 0),
+    totalLegacyDocs: summaries.reduce((acc, s) => acc + s.legacyOrgCount, 0),
+    loansWithoutCollectionAccountEstimate: Math.max(0, loansCount - accountsCount),
+  };
+}
+
 /**
  * Asocia y migra de manera controlada e idempotente registros de negocio existentes
- * (clientes, préstamos, pagos, cuotas, gestiones de cobranza) hacia 'SU GLORIA MANO AMIGA',
- * garantizando cero duplicación y preservando los IDs originales y metadatos.
+ * con organizationId legado hacia 'SU GLORIA MANO AMIGA' (org_axycore_main),
+ * procesando lotes seguros de hasta 400 operaciones sin sobrescribir IDs ni duplicar documentos.
  */
 export async function associateExistingBusinessRecordsToSuGloria(actor: UserProfile): Promise<{
   organization: OrganizationRecord;
@@ -7741,13 +7963,21 @@ export async function associateExistingBusinessRecordsToSuGloria(actor: UserProf
 
   const org = await ensureSuGloriaManoAmigaExists(actor.uid);
 
-  // Leer colecciones para garantizar asociación de registros sin organizationId o con 'org_default'
+  const queryLegacy = async (colName: string) => {
+    try {
+      const q = query(collection(db, colName), where('organizationId', 'in', [...LEGACY_ORG_IDS]));
+      return await getDocs(q);
+    } catch {
+      return null;
+    }
+  };
+
   const [custSnap, loanSnap, paySnap, instSnap, actSnap] = await Promise.all([
-    getDocs(collection(db, 'customers')).catch(() => null),
-    getDocs(collection(db, 'loans')).catch(() => null),
-    getDocs(collection(db, 'payments')).catch(() => null),
-    getDocs(collection(db, 'loan_installments')).catch(() => null),
-    getDocs(collection(db, 'collection_actions')).catch(() => null),
+    queryLegacy('customers'),
+    queryLegacy('loans'),
+    queryLegacy('payments'),
+    queryLegacy('loan_installments'),
+    queryLegacy('collection_actions'),
   ]);
 
   let migratedCustomers = 0;
@@ -7756,42 +7986,37 @@ export async function associateExistingBusinessRecordsToSuGloria(actor: UserProf
   let migratedInstallments = 0;
   let migratedActions = 0;
 
-  const batch = writeBatch(db);
-  let batchOps = 0;
+  const pendingRefs: Array<ReturnType<typeof doc>> = [];
 
-  const processDocs = (
-    docs: Array<{ id: string; data: () => Record<string, unknown>; ref: ReturnType<typeof doc> }>,
-    counterCallback: () => void
+  const collectRefs = (
+    snap: Awaited<ReturnType<typeof queryLegacy>>,
+    onAdded: () => void
   ) => {
-    for (const d of docs) {
-      const data = d.data();
-      const rawOrg = typeof data.organizationId === 'string' ? data.organizationId.trim() : '';
-      if (!rawOrg || rawOrg === 'org_default') {
-        batch.update(d.ref, { organizationId: SU_GLORIA_ORG_ID, updatedAt: serverTimestamp() });
-        batchOps++;
-        counterCallback();
-      }
+    if (!snap || snap.empty) return;
+    for (const d of snap.docs) {
+      pendingRefs.push(d.ref);
+      onAdded();
     }
   };
 
-  if (custSnap && !custSnap.empty) {
-    processDocs(custSnap.docs, () => migratedCustomers++);
-  }
-  if (loanSnap && !loanSnap.empty) {
-    processDocs(loanSnap.docs, () => migratedLoans++);
-  }
-  if (paySnap && !paySnap.empty) {
-    processDocs(paySnap.docs, () => migratedPayments++);
-  }
-  if (instSnap && !instSnap.empty) {
-    processDocs(instSnap.docs, () => migratedInstallments++);
-  }
-  if (actSnap && !actSnap.empty) {
-    processDocs(actSnap.docs, () => migratedActions++);
-  }
+  collectRefs(custSnap, () => migratedCustomers++);
+  collectRefs(loanSnap, () => migratedLoans++);
+  collectRefs(paySnap, () => migratedPayments++);
+  collectRefs(instSnap, () => migratedInstallments++);
+  collectRefs(actSnap, () => migratedActions++);
 
-  if (batchOps > 0) {
-    await batch.commit().catch(() => {});
+  const BATCH_LIMIT = 400;
+  for (let i = 0; i < pendingRefs.length; i += BATCH_LIMIT) {
+    const chunk = pendingRefs.slice(i, i + BATCH_LIMIT);
+    const batch = writeBatch(db);
+    for (const ref of chunk) {
+      batch.update(ref, { organizationId: SU_GLORIA_ORG_ID, updatedAt: serverTimestamp() });
+    }
+    try {
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'associate_su_gloria_records');
+    }
   }
 
   return {
@@ -7803,6 +8028,7 @@ export async function associateExistingBusinessRecordsToSuGloria(actor: UserProf
     migratedActions,
   };
 }
+
 
 
 

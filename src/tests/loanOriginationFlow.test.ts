@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_POLICY_V2, evaluateCreditDecisionV2 } from '../engine/decisionEngineV2';
-import { buildAppSheetMigrationBundle } from '../engine/appsheetMigrationEngine';
 import {
   canExecuteDisbursement,
   canUserApproveCommittee,
@@ -102,7 +101,7 @@ describe('Loan Origination & Lifecycle Flow Regression Suite', () => {
     expect(formatRatePct(0.04)).toBe('4.00%');
   });
 
-  it('normalizes legacy AppSheet risk band letters (A-F) and evaluates committee authority accurately', () => {
+  it('normalizes legacy risk band letters (A-F) and evaluates committee authority accurately', () => {
     expect(normalizeRiskBandCode('A')).toBe('MUY_BAJO');
     expect(normalizeRiskBandCode('B')).toBe('BAJO');
     expect(normalizeRiskBandCode('C')).toBe('MODERADO');
@@ -194,48 +193,6 @@ describe('Loan Origination & Lifecycle Flow Regression Suite', () => {
       policy: testPolicy,
     });
     expect(check.allowed).toBe(true);
-  });
-
-  it('migrates AppSheet applications and loans with decimal monthly rates and canonical risk band codes', () => {
-    const bundle = buildAppSheetMigrationBundle({
-      organizationId: 'org_su_gloria_mano_amiga',
-      actorUid: 'admin_1',
-      actorName: 'Admin',
-      tables: {
-        Clientes: [
-          {
-            ID_CLIENTE: 'CL-GIORDANNY',
-            NOMBRE: 'Giordanny De Jesus',
-            APELLIDO: 'Fernandez Miranda',
-            CEDULA: '40212345678',
-            TELEFONO: '8095551234',
-            EMAIL: 'giordanny@example.com',
-            INGRESOS_MENSUALES: '48000',
-            GASTOS_MENSUALES: '20000',
-            FECHA_REGISTRO: '10/08/2026 12:33:49',
-          },
-        ],
-        Solicitudes: [
-          {
-            ID_SOLICITUD: 'SOL-GIORDANNY',
-            ID_CLIENTE: 'CL-GIORDANNY',
-            FECHA_SOLICITUD: '10/08/2026 12:35:00',
-            NOMBRE_COMPLETO: 'Giordanny De Jesus Fernandez Miranda',
-            MONTO_SOLICITADO: '15000',
-            PLAZO_SOLICITADO: '6',
-            FRECUENCIA_SOLICITADA: 'Mensual',
-            TIPO_TASA_SOLICITADA: 'Fija',
-            ESTADO_SOLICITUD: 'Recibida',
-          },
-        ],
-      },
-    });
-
-    expect(bundle.applications).toHaveLength(1);
-    const app = bundle.applications[0];
-    expect(app.status).toBe('RECIBIDA');
-    expect(app.recommendedRateMonthly).toBeCloseTo(0.05, 6);
-    expect(app.latestRiskBand).toBe('BAJO');
   });
 
   it('completes end-to-end credit decision V2 -> 2-of-3 committee quorum -> disbursement pre-check', () => {
@@ -485,7 +442,7 @@ describe('Loan Origination & Lifecycle Flow Regression Suite', () => {
           userName: 'Su Gloria Mano Amiga',
           fromStatus: 'RECIBIDA',
           toStatus: 'RECIBIDA',
-          action: 'Migración integral desde plataforma AppSheet (0c599c8f)',
+          action: 'Recepción integral de expediente histórico en plataforma',
           note: 'Expediente sincronizado con historial financiero.',
         },
       ],

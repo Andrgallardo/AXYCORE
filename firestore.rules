@@ -878,7 +878,7 @@ service cloud.firestore {
       allow update: if isValidId(orgId) && (isBootstrappedAdmin() || (isAdmin() && inSameOrg(orgId)))
         && isValidOrganization(incoming(), orgId)
         && incoming().id == existing().id
-        && incoming().createdAt == existing().createdAt
+        && ((!('createdAt' in existing()) || !(existing().createdAt is timestamp)) ? incoming().createdAt == request.time : incoming().createdAt == existing().createdAt)
         && incoming().updatedAt == request.time;
       allow delete: if false;
     }
@@ -972,7 +972,7 @@ service cloud.firestore {
             ])
           )
         );
-      allow delete: if false;
+      allow delete: if isValidId(customerId) && isBootstrappedAdmin();
     }
 
     match /businesses/{businessId} {
@@ -1629,7 +1629,7 @@ service cloud.firestore {
             )
           )
         );
-      allow delete: if false;
+      allow delete: if isValidId(loanId) && isBootstrappedAdmin();
     }
 
     match /loan_installments/{instId} {
@@ -1673,7 +1673,7 @@ service cloud.firestore {
             )
           )
         );
-      allow delete: if false;
+      allow delete: if isValidId(instId) && isBootstrappedAdmin();
     }
 
     match /audit_logs/{logId} {
@@ -1836,7 +1836,7 @@ service cloud.firestore {
         && incoming().loanId == existing().loanId
         && incoming().currency == existing().currency
         && incoming().updatedAt == request.time;
-      allow delete: if false;
+      allow delete: if isValidId(accountId) && isBootstrappedAdmin();
     }
 
     match /collection_assignments/{assignmentId} {
@@ -1847,7 +1847,8 @@ service cloud.firestore {
         && isValidId(incoming().newCollectorId)
         && incoming().assignedBy == request.auth.uid
         && incoming().createdAt == request.time;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isValidId(assignmentId) && isBootstrappedAdmin();
     }
 
     match /collection_actions/{actionId} {
@@ -1866,7 +1867,7 @@ service cloud.firestore {
         && incoming().collectorId == existing().collectorId
         && incoming().notes == existing().notes
         && incoming().diff(existing()).affectedKeys().hasOnly(['supersededByActionId']);
-      allow delete: if false;
+      allow delete: if isValidId(actionId) && isBootstrappedAdmin();
     }
 
     match /collection_tasks/{taskId} {
@@ -1885,7 +1886,7 @@ service cloud.firestore {
         && incoming().sourceEventKey == existing().sourceEventKey
         && incoming().status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA']
         && incoming().updatedAt == request.time;
-      allow delete: if false;
+      allow delete: if isValidId(taskId) && isBootstrappedAdmin();
     }
 
     match /payment_promises/{promiseId} {
@@ -1906,7 +1907,7 @@ service cloud.firestore {
         && incoming().promisedAmount == existing().promisedAmount
         && incoming().status in ['VIGENTE', 'CUMPLIDA', 'CUMPLIDA_PARCIAL', 'INCUMPLIDA', 'CANCELADA', 'PENDIENTE_VERIFICACION']
         && incoming().updatedAt == request.time;
-      allow delete: if false;
+      allow delete: if isValidId(promiseId) && isBootstrappedAdmin();
     }
 
     match /payment_agreements/{agreementId} {
@@ -1930,7 +1931,7 @@ service cloud.firestore {
         && incoming().loanId == existing().loanId
         && incoming().status in ['PROPUESTO', 'APROBADO', 'ACTIVO', 'CUMPLIDO', 'INCUMPLIDO', 'RECHAZADO']
         && incoming().updatedAt == request.time;
-      allow delete: if false;
+      allow delete: if isValidId(agreementId) && isBootstrappedAdmin();
     }
 
     function hasValidPaymentEvidence(data) {
@@ -1972,7 +1973,7 @@ service cloud.firestore {
             && incoming().status == existing().status
             && incoming().diff(existing()).affectedKeys().hasOnly(['receiptEvidenceName', 'receiptEvidenceMimeType', 'receiptEvidenceSizeBytes', 'receiptEvidenceDataUrl', 'updatedAt']))
         );
-      allow delete: if false;
+      allow delete: if isValidId(paymentId) && isBootstrappedAdmin();
     }
 
     match /payment_allocations/{allocationId} {
@@ -1989,7 +1990,7 @@ service cloud.firestore {
         && incoming().organizationId == existing().organizationId
         && incoming().paymentId == existing().paymentId
         && (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['reversed']));
-      allow delete: if false;
+      allow delete: if isValidId(allocationId) && isBootstrappedAdmin();
     }
 
     match /payment_reversals/{reversalId} {
@@ -2021,7 +2022,7 @@ service cloud.firestore {
           isAdmin() ||
           (incoming().status == 'ANULADO_POR_REVERSO' && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
         );
-      allow delete: if false;
+      allow delete: if isValidId(receiptId) && isBootstrappedAdmin();
     }
 
     match /payment_intents/{intentId} {
@@ -2036,7 +2037,7 @@ service cloud.firestore {
         && incoming().id == existing().id
         && incoming().organizationId == existing().organizationId
         && incoming().updatedAt == request.time;
-      allow delete: if false;
+      allow delete: if isValidId(intentId) && isBootstrappedAdmin();
     }
 
     match /bank_transactions/{txId} {

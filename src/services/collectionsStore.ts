@@ -250,12 +250,15 @@ export async function syncDisbursedLoansAndDailyCutoff(params: {
       }
     }
 
-    // Update loan status ACTIVO <-> VENCIDO when changed (never overwrite CANCELADO/PAGADO)
-    if (
+    // Update loan status ACTIVO <-> VENCIDO when changed (never overwrite CANCELADO/PAGADO, and never downgrade VENCIDO when installments are missing)
+    const canTransitionLoanStatus =
       loan.status !== 'CANCELADO' &&
+      !(loan.status === 'PAGADO' && toCents(loan.currentPrincipalBalance) <= 0) &&
+      !(loan.status === 'VENCIDO' && loanInsts.length === 0 && evaluated.derivedLoanStatus === 'ACTIVO') &&
       evaluated.derivedLoanStatus !== loan.status &&
-      ['ACTIVO', 'VENCIDO'].includes(evaluated.derivedLoanStatus)
-    ) {
+      ['ACTIVO', 'VENCIDO', 'PAGADO'].includes(evaluated.derivedLoanStatus);
+
+    if (canTransitionLoanStatus) {
       ops.push((b) =>
         b.update(doc(db, 'loans', loan.id), {
           status: evaluated.derivedLoanStatus,
@@ -1147,7 +1150,7 @@ export async function verifyAndApplyPaymentTransaction(params: {
         Promise.all(openPromises.map((p) => tx.get(doc(db, 'payment_promises', p.id)))),
       ]);
 
-      // Support both persisted Firestore records and in-memory hydrated AppSheet migrated records
+      // Support persisted Firestore records cleanly with optimistic fallback
       const freshPay: PaymentRecord = paySnap.exists()
         ? ({ ...payment, ...(paySnap.data() as PaymentRecord), id: payment.id } as PaymentRecord)
         : payment;

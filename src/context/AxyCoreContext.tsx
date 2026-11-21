@@ -118,16 +118,6 @@ import {
   type BiometricDeviceCredential,
   type BiometricFlowResult,
 } from '../services/biometricAuth';
-import {
-  checkAppSheetMigrationCompleted,
-  executeAppSheetMigrationToFirestore,
-  type MigrationProgressState,
-} from '../services/appsheetMigrationStore';
-import type {
-  AppSheetMigrationBundle,
-  AppSheetMigrationSummary,
-} from '../engine/appsheetMigrationEngine';
-import { AppSheetMigrationModal } from '../components/AppSheetMigrationModal';
 import { getEffectiveDgiiConfig } from '../services/dgiiEcfStore';
 import { buildDefaultAlteraConfig } from '../engine/altera/alteraTwinAndDnaEngine';
 import {
@@ -519,11 +509,6 @@ interface AxyCoreContextValue {
     requiredModule?: AxyCoreModuleCode | null;
   };
   tenantService: typeof tenantService;
-  migrationModalOpen: boolean;
-  setMigrationModalOpen: (open: boolean) => void;
-  migrationProgress: MigrationProgressState | null;
-  migrationSummary: AppSheetMigrationSummary | null;
-  runAppSheetMigration: (opts?: { forceRefresh?: boolean }) => Promise<void>;
 }
 
 const AxyCoreContext = createContext<AxyCoreContextValue | null>(null);
@@ -689,30 +674,30 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscriptionRecord[]>([]);
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [userInvitations, setUserInvitations] = useState<UserInvitationRecord[]>([]);
-  const [fsCustomers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [fsBusinesses, setBusinesses] = useState<BusinessRecord[]>([]);
-  const [fsApplications, setApplications] = useState<ApplicationRecord[]>([]);
-  const [fsDocuments, setDocuments] = useState<ApplicationDocumentRecord[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [businesses, setBusinesses] = useState<BusinessRecord[]>([]);
+  const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [documents, setDocuments] = useState<ApplicationDocumentRecord[]>([]);
   const [policies, setPolicies] = useState<CreditPolicyRecord[]>([FALLBACK_POLICY]);
   const [scoringExecutions, setScoringExecutions] = useState<ScoringExecutionRecord[]>([]);
   const [financialAnalyses, setFinancialAnalyses] = useState<FinancialAnalysisRecord[]>([]);
   const [applicationDecisionHistory, setApplicationDecisionHistory] = useState<ApplicationDecisionHistoryRecord[]>([]);
   const [evaluations, setEvaluations] = useState<CreditEvaluationRecord[]>([]);
-  const [fsCommitteeDecisions, setCommitteeDecisions] = useState<CommitteeDecisionRecord[]>([]);
-  const [fsFormalizations, setFormalizations] = useState<FormalizationRecord[]>([]);
-  const [fsDisbursements, setDisbursements] = useState<DisbursementRecord[]>([]);
-  const [fsLoans, setLoans] = useState<LoanRecord[]>([]);
-  const [fsLoanInstallments, setLoanInstallments] = useState<LoanInstallmentRecord[]>([]);
-  const [fsCollectionAccounts, setCollectionAccounts] = useState<CollectionAccountRecord[]>([]);
+  const [committeeDecisions, setCommitteeDecisions] = useState<CommitteeDecisionRecord[]>([]);
+  const [formalizations, setFormalizations] = useState<FormalizationRecord[]>([]);
+  const [disbursements, setDisbursements] = useState<DisbursementRecord[]>([]);
+  const [loans, setLoans] = useState<LoanRecord[]>([]);
+  const [loanInstallments, setLoanInstallments] = useState<LoanInstallmentRecord[]>([]);
+  const [rawCollectionAccounts, setCollectionAccounts] = useState<CollectionAccountRecord[]>([]);
   const [collectionAssignments, setCollectionAssignments] = useState<CollectionAssignmentRecord[]>([]);
   const [collectionActions, setCollectionActions] = useState<CollectionActionRecord[]>([]);
   const [collectionTasks, setCollectionTasks] = useState<CollectionTaskRecord[]>([]);
   const [paymentPromises, setPaymentPromises] = useState<PaymentPromiseRecord[]>([]);
-  const [fsPaymentAgreements, setPaymentAgreements] = useState<PaymentAgreementRecord[]>([]);
-  const [fsPayments, setPayments] = useState<PaymentRecord[]>([]);
-  const [fsPaymentAllocations, setPaymentAllocations] = useState<PaymentAllocationRecord[]>([]);
+  const [paymentAgreements, setPaymentAgreements] = useState<PaymentAgreementRecord[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [paymentAllocations, setPaymentAllocations] = useState<PaymentAllocationRecord[]>([]);
   const [paymentReversals, setPaymentReversals] = useState<PaymentReversalRecord[]>([]);
-  const [fsCollectionReceipts, setCollectionReceipts] = useState<CollectionReceiptRecord[]>([]);
+  const [collectionReceipts, setCollectionReceipts] = useState<CollectionReceiptRecord[]>([]);
   const [paymentIntents, setPaymentIntents] = useState<PaymentIntentRecord[]>([]);
   const [bankTransactions, setBankTransactions] = useState<BankTransactionRecord[]>([]);
   const [reconciliationMatches, setReconciliationMatches] = useState<ReconciliationMatchRecord[]>([]);
@@ -730,8 +715,8 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   const [collectionsIntegrationsStatus, setCollectionsIntegrationsStatus] =
     useState<CollectionsIntegrationsStatus>(DEFAULT_INTEGRATIONS_STATUS);
   const [operatingExpenses, setOperatingExpenses] = useState<OperatingExpenseRecord[]>([]);
-  const [fsInvestors, setInvestors] = useState<InvestorRecord[]>([]);
-  const [fsInvestorTransactions, setInvestorTransactions] = useState<InvestorTransactionRecord[]>([]);
+  const [investors, setInvestors] = useState<InvestorRecord[]>([]);
+  const [investorTransactions, setInvestorTransactions] = useState<InvestorTransactionRecord[]>([]);
   const [accountingAccounts, setAccountingAccounts] = useState<AccountingAccountRecord[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntryRecord[]>([]);
   const [dgiiFiscalConfigs, setDgiiFiscalConfigs] = useState<DgiiFiscalConfigRecord[]>([]);
@@ -777,150 +762,6 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   );
   const pushSubscribedStatusesRef = useRef<ApplicationRecord['status'][]>(pushSubscribedStatuses);
   pushSubscribedStatusesRef.current = pushSubscribedStatuses;
-
-  // AppSheet Migration state & instant hydration for Su Gloria Mano Amiga
-  const [migrationModalOpen, setMigrationModalOpen] = useState<boolean>(false);
-  const [migrationProgress, setMigrationProgress] = useState<MigrationProgressState | null>(null);
-  const [migrationSummary, setMigrationSummary] = useState<AppSheetMigrationSummary | null>(null);
-  const [migratedSuGloriaBundle, setMigratedSuGloriaBundle] = useState<AppSheetMigrationBundle | null>(null);
-  const autoMigrationAttemptedRef = useRef<Set<string>>(new Set());
-
-  const activeWorkspaceOrgId = userProfile?.organizationId || organization.id || DEFAULT_ORG_ID;
-  const isSuGloriaWorkspace = useMemo(() => {
-    const idLower = (activeWorkspaceOrgId || '').toLowerCase();
-    const nameUpper = (organization.name || '').toUpperCase();
-    const tradeUpper = (organization.tradeName || '').toUpperCase();
-    const tenantLower = (organization.tenantId || organization.tenant_id || '').toLowerCase();
-    return (
-      activeWorkspaceOrgId === DEFAULT_ORG_ID ||
-      idLower.includes('su_gloria') ||
-      nameUpper.includes('SU GLORIA') ||
-      tradeUpper.includes('SU GLORIA') ||
-      tenantLower.includes('su-gloria')
-    );
-  }, [activeWorkspaceOrgId, organization]);
-
-  // Immediately pull Su Gloria Mano Amiga migrated portfolio from backend adapter so all 82 clients, 79 loans & 326 payments are visible without delay
-  useEffect(() => {
-    if (!isSuGloriaWorkspace) {
-      return;
-    }
-    if (userProfile?.role === 'EXTERNAL_CLIENT' || portalMode === 'client') {
-      return;
-    }
-    let cancelled = false;
-    fetch('/api/migration/appsheet/pull', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        organizationId: activeWorkspaceOrgId,
-        actorUid: userProfile?.uid || 'system_migrator',
-        actorName: userProfile?.displayName || userProfile?.email || 'Su Gloria Mano Amiga',
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled && data?.ok && data?.bundle) {
-          const b = data.bundle as AppSheetMigrationBundle;
-          setMigratedSuGloriaBundle(b);
-          setMigrationSummary((prev) => prev ?? b.summary);
-        }
-      })
-      .catch((err) => {
-        console.error('Error hydrating Su Gloria Mano Amiga portfolio:', err);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isSuGloriaWorkspace, activeWorkspaceOrgId, userProfile?.uid, userProfile?.role, portalMode]);
-
-  const mergeWithMigrated = useCallback(
-    <T extends { id: string }>(migratedItems: T[] | undefined, firestoreItems: T[]): T[] => {
-      if (
-        !isSuGloriaWorkspace ||
-        !migratedItems ||
-        migratedItems.length === 0 ||
-        userProfile?.role === 'EXTERNAL_CLIENT' ||
-        portalMode === 'client'
-      ) {
-        return firestoreItems;
-      }
-      const map = new Map<string, T>();
-      for (const item of migratedItems) {
-        map.set(item.id, item);
-      }
-      for (const fsItem of firestoreItems) {
-        map.set(fsItem.id, fsItem);
-      }
-      return Array.from(map.values());
-    },
-    [isSuGloriaWorkspace, userProfile?.role, portalMode]
-  );
-
-  const customers = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.customers, fsCustomers),
-    [mergeWithMigrated, migratedSuGloriaBundle?.customers, fsCustomers]
-  );
-  const businesses = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.businesses, fsBusinesses),
-    [mergeWithMigrated, migratedSuGloriaBundle?.businesses, fsBusinesses]
-  );
-  const applications = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.applications, fsApplications),
-    [mergeWithMigrated, migratedSuGloriaBundle?.applications, fsApplications]
-  );
-  const documents = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.applicationDocuments, fsDocuments),
-    [mergeWithMigrated, migratedSuGloriaBundle?.applicationDocuments, fsDocuments]
-  );
-  const committeeDecisions = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.committeeDecisions, fsCommitteeDecisions),
-    [mergeWithMigrated, migratedSuGloriaBundle?.committeeDecisions, fsCommitteeDecisions]
-  );
-  const formalizations = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.formalizations, fsFormalizations),
-    [mergeWithMigrated, migratedSuGloriaBundle?.formalizations, fsFormalizations]
-  );
-  const disbursements = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.disbursements, fsDisbursements),
-    [mergeWithMigrated, migratedSuGloriaBundle?.disbursements, fsDisbursements]
-  );
-  const loans = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.loans, fsLoans),
-    [mergeWithMigrated, migratedSuGloriaBundle?.loans, fsLoans]
-  );
-  const loanInstallments = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.loanInstallments, fsLoanInstallments),
-    [mergeWithMigrated, migratedSuGloriaBundle?.loanInstallments, fsLoanInstallments]
-  );
-  const rawCollectionAccounts = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.collectionAccounts, fsCollectionAccounts),
-    [mergeWithMigrated, migratedSuGloriaBundle?.collectionAccounts, fsCollectionAccounts]
-  );
-  const paymentAgreements = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.paymentAgreements, fsPaymentAgreements),
-    [mergeWithMigrated, migratedSuGloriaBundle?.paymentAgreements, fsPaymentAgreements]
-  );
-  const payments = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.payments, fsPayments),
-    [mergeWithMigrated, migratedSuGloriaBundle?.payments, fsPayments]
-  );
-  const paymentAllocations = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.paymentAllocations, fsPaymentAllocations),
-    [mergeWithMigrated, migratedSuGloriaBundle?.paymentAllocations, fsPaymentAllocations]
-  );
-  const collectionReceipts = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.collectionReceipts, fsCollectionReceipts),
-    [mergeWithMigrated, migratedSuGloriaBundle?.collectionReceipts, fsCollectionReceipts]
-  );
-  const investors = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.investors, fsInvestors),
-    [mergeWithMigrated, migratedSuGloriaBundle?.investors, fsInvestors]
-  );
-  const investorTransactions = useMemo(
-    () => mergeWithMigrated(migratedSuGloriaBundle?.investorTransactions, fsInvestorTransactions),
-    [mergeWithMigrated, migratedSuGloriaBundle?.investorTransactions, fsInvestorTransactions]
-  );
 
   // Live-reconciled collectionAccounts: always reflects freshly applied payments,
   // paid installments, and zeroed balances immediately without waiting for manual sync.
@@ -3350,7 +3191,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         loans,
         installments: freshInsts,
         customers,
-        existingAccounts: fsCollectionAccounts,
+        existingAccounts: rawCollectionAccounts,
         promises: paymentPromises,
         payments,
         actions: collectionActions,
@@ -3368,7 +3209,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       loanInstallments,
       loans,
       customers,
-      fsCollectionAccounts,
+      rawCollectionAccounts,
       paymentPromises,
       payments,
       collectionActions,
@@ -3379,88 +3220,6 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       activeCollectionPolicy,
     ]
   );
-
-  const runAppSheetMigration = useCallback(
-    async (opts?: { forceRefresh?: boolean }) => {
-      if (!userProfile || userProfile.role === 'EXTERNAL_CLIENT') return;
-      const bundle = await executeAppSheetMigrationToFirestore({
-        user: userProfile,
-        forceRefresh: opts?.forceRefresh,
-        onProgress: (st) => setMigrationProgress(st),
-      });
-      setMigratedSuGloriaBundle(bundle);
-      setMigrationSummary(bundle.summary);
-    },
-    [userProfile]
-  );
-
-  // Automatic one-time AppSheet migration persistence check when authorized internal staff of Su Gloria Mano Amiga logs in
-  useEffect(() => {
-    if (
-      !authReady ||
-      !firebaseUser ||
-      !userProfile ||
-      biometricLocked ||
-      portalAccessError ||
-      userProfile.role === 'EXTERNAL_CLIENT' ||
-      dataLoading ||
-      !isSuGloriaWorkspace
-    ) {
-      return;
-    }
-
-    const canMigrate =
-      userProfile.role === 'ADMIN' ||
-      hasRolePermission(userProfile.role, 'EXECUTE_DISBURSEMENT') ||
-      hasRolePermission(userProfile.role, 'ORIGINATE_APPLICATION');
-    if (!canMigrate) return;
-
-    const orgId = userProfile.organizationId || DEFAULT_ORG_ID;
-    if (autoMigrationAttemptedRef.current.has(orgId)) return;
-    autoMigrationAttemptedRef.current.add(orgId);
-
-    let cancelled = false;
-    (async () => {
-      const check = await checkAppSheetMigrationCompleted(orgId);
-      if (cancelled) return;
-      if (check.summary) {
-        setMigrationSummary(check.summary);
-      }
-      if (check.migrated && fsCustomers.length >= 50) {
-        return;
-      }
-      try {
-        const bundle = await executeAppSheetMigrationToFirestore({
-          user: userProfile,
-          onProgress: (st) => {
-            if (!cancelled) setMigrationProgress(st);
-          },
-        });
-        if (!cancelled) {
-          setMigratedSuGloriaBundle(bundle);
-          setMigrationSummary(bundle.summary);
-          setTimeout(() => {
-            setMigrationProgress((prev) => (prev?.stage === 'COMPLETED' ? null : prev));
-          }, 5000);
-        }
-      } catch (err) {
-        console.error('Auto-migration error:', err);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    authReady,
-    firebaseUser,
-    userProfile,
-    biometricLocked,
-    portalAccessError,
-    dataLoading,
-    isSuGloriaWorkspace,
-    fsCustomers.length,
-  ]);
 
   const value: AxyCoreContextValue = {
     firebaseUser,
@@ -3637,57 +3396,11 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     switchOrganizationWorkspace,
     getSectionTenantAccess,
     tenantService,
-    migrationModalOpen,
-    setMigrationModalOpen,
-    migrationProgress,
-    migrationSummary,
-    runAppSheetMigration,
   };
 
   return (
     <AxyCoreContext.Provider value={value}>
       {children}
-      {migrationProgress &&
-        migrationProgress.stage !== 'IDLE' &&
-        !migrationModalOpen && (
-          <div className="fixed bottom-5 left-5 z-50 max-w-md rounded-2xl bg-[#0B1F3A] text-white border border-[#20C4E8]/40 shadow-2xl p-4 flex items-center gap-3.5">
-            <div className="w-9 h-9 rounded-xl bg-[#168BFF]/20 border border-[#20C4E8]/40 flex items-center justify-center shrink-0">
-              <span className="text-xs font-extrabold text-[#20C4E8]">
-                {migrationProgress.percent}%
-              </span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-bold text-white truncate">
-                  Migración AppSheet → AxyCore
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setMigrationModalOpen(true)}
-                  className="text-[11px] font-semibold text-[#20C4E8] hover:underline shrink-0"
-                >
-                  Ver detalle
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-300 truncate mt-0.5">
-                {migrationProgress.message}
-              </p>
-            </div>
-          </div>
-        )}
-      {userProfile && (
-        <AppSheetMigrationModal
-          open={migrationModalOpen}
-          onClose={() => setMigrationModalOpen(false)}
-          userProfile={userProfile}
-          initialProgress={migrationProgress}
-          lastSummary={migrationSummary}
-          onMigrationCompleted={(bundle) => {
-            setMigratedSuGloriaBundle(bundle);
-            setMigrationSummary(bundle.summary);
-          }}
-        />
-      )}
     </AxyCoreContext.Provider>
   );
 }

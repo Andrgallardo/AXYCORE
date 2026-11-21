@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeFinancialStatements } from '../engine/accountingEngine';
-import { reconcileLiveCollectionAccounts } from '../engine/collections/delinquencyEngine';
+import { evaluateLoanDelinquency, reconcileLiveCollectionAccounts } from '../engine/collections/delinquencyEngine';
 import { allocatePaymentAcrossInstallments } from '../engine/collections/paymentsAndReconciliationEngine';
 import { buildCobrosDelDiaQueue } from '../engine/collections/priorityAndTasksEngine';
 import { canRoleAccessSection } from '../engine/rbac';
@@ -12,6 +12,7 @@ import {
 import type {
   CollectionAccountRecord,
   CollectionReceiptRecord,
+  CustomerRecord,
   DisbursementRecord,
   LoanInstallmentRecord,
   LoanRecord,
@@ -379,4 +380,101 @@ describe('Cobros -> Contabilidad Pagos para Validación Flow', () => {
       buildCobrosDelDiaQueue({ accounts: liveAccountsAfterPartial, asOfDateIso: '2026-02-13' })
     ).toHaveLength(1);
   });
+
+  it('Preserves migrated PAGADO & VENCIDO loans and synthesizes CollectionAccountRecord when installments or collection_accounts are absent', () => {
+    const migratedCustomer: CustomerRecord = {
+      id: 'cust_migrated_1',
+      organizationId: 'org_axycore_main',
+      documentType: 'CEDULA',
+      documentNumber: '00112345678',
+      documentKey: 'CEDULA_00112345678',
+      firstName: 'Ana',
+      lastName: 'Polanco',
+      birthDate: '1988-05-10',
+      nationality: 'Dominicana',
+      maritalStatus: 'Soltera',
+      phone: '8095559988',
+      email: 'ana.polanco@example.com',
+      address: 'Av. Duarte #10',
+      municipality: 'Santo Domingo',
+      province: 'Distrito Nacional',
+      residenceMonths: 36,
+      housingType: 'ALQUILADA',
+      housingPayment: 12000,
+      socialMediaDeclared: 'NO_MEDIA',
+      createdBy: 'uid_admin',
+    };
+
+    const migratedActiveLoan: LoanRecord = {
+      ...baseLoan,
+      id: 'loan_mig_active',
+      organizationId: 'org_axycore_main',
+      loanNumber: 'LN-MIG-001',
+      customerId: migratedCustomer.id,
+      applicantDisplayName: 'Ana Polanco',
+      status: 'ACTIVO',
+      currentPrincipalBalance: 45000,
+      firstPaymentDate: '2026-03-01',
+    };
+
+    const migratedOverdueLoan: LoanRecord = {
+      ...baseLoan,
+      id: 'loan_mig_overdue',
+      organizationId: 'org_axycore_main',
+      loanNumber: 'LN-MIG-002',
+      customerId: migratedCustomer.id,
+      applicantDisplayName: 'Ana Polanco',
+      status: 'VENCIDO',
+      currentPrincipalBalance: 28000,
+      firstPaymentDate: '2026-02-01',
+    };
+
+    const migratedPaidLoan: LoanRecord = {
+      ...baseLoan,
+      id: 'loan_mig_paid',
+      organizationId: 'org_axycore_main',
+      loanNumber: 'LN-MIG-003',
+      customerId: migratedCustomer.id,
+      applicantDisplayName: 'Ana Polanco',
+      status: 'PAGADO',
+      currentPrincipalBalance: 0,
+      firstPaymentDate: '2025-10-01',
+    };
+
+    // evaluateLoanDelinquency must NEVER downgrade PAGADO or VENCIDO to ACTIVO when installments = []
+    const evalPaid = evaluateLoanDelinquency({
+      loan: migratedPaidLoan,
+      installments: [],
+      customer: migratedCustomer,
+      asOfDateIso: '2026-02-13',
+    });
+    expect(evalPaid.derivedLoanStatus).toBe('PAGADO');
+    expect(evalPaid.account.stage).toBe('CANCELADO');
+    expect(evalPaid.account.dpd).toBe(0);
+
+    const evalOverdue = evaluateLoanDelinquency({
+      loan: migratedOverdueLoan,
+      installments: [],
+      customer: migratedCustomer,
+      asOfDateIso: '2026-02-13',
+    });
+    expect(evalOverdue.derivedLoanStatus).toBe('VENCIDO');
+    expect(evalOverdue.account.dpd).toBe(12);
+    expect(evalOverdue.account.overdueTotalAmount).toBe(28000);
+
+    // reconcileLiveCollectionAccounts surfaces all 3 loans even with zero collection_accounts & zero installments
+    const accounts = reconcileLiveCollectionAccounts({
+      loans: [migratedActiveLoan, migratedOverdueLoan, migratedPaidLoan],
+      installments: [],
+      existingAccounts: [],
+      customers: [migratedCustomer],
+      asOfDateIso: '2026-02-13',
+    });
+
+    expect(accounts).toHaveLength(3);
+    expect(accounts.find((a) => a.loanId === 'loan_mig_active')?.customerPhone).toBe('8095559988');
+    expect(accounts.find((a) => a.loanId === 'loan_mig_overdue')?.dpd).toBe(12);
+    expect(accounts.find((a) => a.loanId === 'loan_mig_paid')?.stage).toBe('CANCELADO');
+  });
 });
+

@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Rocket, Sparkles } from 'lucide-react';
 import { AxyCoreProvider, useAxyCore } from './context/AxyCoreContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -8,6 +8,8 @@ import { ApplicationDetailDrawer } from './components/ApplicationDetailDrawer';
 import { ExecutiveDashboardView } from './views/ExecutiveDashboardView';
 import { CustomerLoan360Drawer } from './views/collections/CustomerLoan360Drawer';
 import { AXYCORE_MODULE_CATALOG } from './engine/multiTenantEngine';
+import { runPendingAutoPortfolioRemigrationIfNeeded } from './services/appsheetMigrationService';
+import { formatMoney } from './utils/formatters';
 import type { AxyCoreModuleCode, NavSectionId } from './types/axycore';
 import type { DgiiEcfDocumentRecord } from './types/dgiiEcf';
 import type { EcfAdjustmentPrefill } from './views/operations/dgii/DgiiEmitInvoiceView';
@@ -362,6 +364,60 @@ function AxyCoreRouter() {
 
   const [ecfAdjustmentPrefill, setEcfAdjustmentPrefill] =
     React.useState<EcfAdjustmentPrefill | null>(null);
+  const autoRemigrationAttemptedRef = useRef(false);
+  const [remigrationBusy, setRemigrationBusy] = useState(false);
+  const [remigrationStage, setRemigrationStage] = useState<string>('');
+  const [remigrationDoneBanner, setRemigrationDoneBanner] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      autoRemigrationAttemptedRef.current ||
+      !authReady ||
+      !firebaseUser ||
+      !firebaseUser.emailVerified ||
+      !userProfile ||
+      biometricLocked ||
+      biometricSetupPending ||
+      portalAccessError
+    ) {
+      return;
+    }
+    autoRemigrationAttemptedRef.current = true;
+
+    void (async () => {
+      try {
+        const res = await runPendingAutoPortfolioRemigrationIfNeeded({
+          firebaseUser,
+          actor: userProfile,
+          onProgress: (stage) => {
+            setRemigrationBusy(true);
+            setRemigrationStage(stage);
+          },
+        });
+        if (res.executed) {
+          setRemigrationDoneBanner(
+            `Cartera reemplazada y migrada exitosamente: ${res.deletedTotalDocs ?? 0} registros anteriores eliminados → ${res.writtenCustomers ?? 0} clientes únicos, ${res.writtenLoans ?? 0} préstamos (Cartera Total DOP: ${formatMoney(res.activePortfolioCapitalDop ?? 0, 'DOP')}), ${res.writtenInstallments ?? 0} cuotas y ${res.writtenPayments ?? 0} pagos.`
+          );
+        }
+      } catch (err) {
+        setRemigrationDoneBanner(
+          `Error en la re-migración automática de cartera: ${
+            err instanceof Error ? err.message : 'Intenta recargar la página.'
+          }`
+        );
+      } finally {
+        setRemigrationBusy(false);
+        setRemigrationStage('');
+      }
+    })();
+  }, [
+    authReady,
+    firebaseUser,
+    userProfile,
+    biometricLocked,
+    biometricSetupPending,
+    portalAccessError,
+  ]);
 
   const handleSelectReferenceForAdjustment = (
     referenceDoc: DgiiEcfDocumentRecord,
@@ -651,6 +707,34 @@ function AxyCoreRouter() {
 
   return (
     <AppShell>
+      {remigrationBusy && (
+        <div className="fixed inset-0 z-50 bg-[#030816]/90 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-2xl bg-[#08132B] border border-[#00B8FF]/35 p-6 text-center space-y-3 shadow-2xl">
+            <div className="mx-auto h-10 w-10 rounded-full border-2 border-[#00D1FF] border-t-transparent animate-spin" />
+            <h3 className="font-display text-base font-bold text-white">
+              Actualizando Cartera Completa
+            </h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {remigrationStage || 'Reemplazando cartera anterior y cargando todos los clientes, préstamos, cuotas y pagos...'}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              No cierres esta ventana; el proceso tarda solo unos segundos.
+            </p>
+          </div>
+        </div>
+      )}
+      {remigrationDoneBanner && (
+        <div className="mx-4 mt-3 px-4 py-3 rounded-xl bg-emerald-950/80 border border-emerald-500/45 text-emerald-100 text-xs flex items-center justify-between gap-3">
+          <span>{remigrationDoneBanner}</span>
+          <button
+            type="button"
+            onClick={() => setRemigrationDoneBanner(null)}
+            className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold shrink-0 cursor-pointer"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
       <Suspense fallback={<ViewLoadingSkeleton />}>{renderSection()}</Suspense>
       <ApplicationDetailDrawer
         applicationId={selectedApplicationId}

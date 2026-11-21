@@ -331,24 +331,42 @@ export function evaluateLoanDelinquency(params: {
   const overdueTotalCents =
     overduePrincipalCents + overdueInterestCents + overdueChargesCents + overdueLateFeeCents;
 
-  // Derived loan status respects CANCELADO & PAGADO (0 principal)
+  // Derived loan status respects CANCELADO, PAGADO (0 principal), and VENCIDO even when loan_installments is empty (e.g. migrated loans)
   let derivedLoanStatus: LoanRecord['status'] = loan.status;
   if (loan.status === 'CANCELADO') {
     derivedLoanStatus = 'CANCELADO';
     maxDpd = 0;
-  } else if (toCents(loan.currentPrincipalBalance) <= 0 && paidInstallmentsCount === updatedInstallments.length && updatedInstallments.length > 0) {
+  } else if (
+    toCents(loan.currentPrincipalBalance) <= 0 &&
+    (updatedInstallments.length > 0
+      ? paidInstallmentsCount === updatedInstallments.length
+      : loan.status === 'PAGADO')
+  ) {
     derivedLoanStatus = 'PAGADO';
     maxDpd = 0;
   } else if (maxDpd > 0) {
     derivedLoanStatus = 'VENCIDO';
+  } else if (updatedInstallments.length === 0 && loan.status === 'VENCIDO') {
+    derivedLoanStatus = 'VENCIDO';
+    const fallbackDpd =
+      loan.firstPaymentDate && loan.firstPaymentDate < asOfDateIso
+        ? diffCalendarDays(loan.firstPaymentDate, asOfDateIso)
+        : 0;
+    maxDpd = Math.max(existingAccount?.dpd ?? 0, fallbackDpd, 1);
   } else {
     derivedLoanStatus = 'ACTIVO';
   }
 
+  const resolvedNextDueDate =
+    nextDueDate ??
+    existingAccount?.nextDueDate ??
+    (derivedLoanStatus === 'ACTIVO' ? loan.firstPaymentDate ?? null : null);
+  const resolvedNextDueAmount = nextDueAmount > 0 ? nextDueAmount : existingAccount?.nextDueAmount ?? 0;
+
   const bucket = mapDpdToBucket(maxDpd);
   const stage = mapDpdToStage({
     dpd: maxDpd,
-    nextDueDate,
+    nextDueDate: resolvedNextDueDate,
     asOfDateIso,
     loanStatus: derivedLoanStatus,
     currentPrincipalBalance: loan.currentPrincipalBalance,
@@ -400,6 +418,34 @@ export function evaluateLoanDelinquency(params: {
 
   const maxHistoricalDpd = Math.max(existingAccount?.maxHistoricalDpd ?? 0, maxDpd);
 
+  const preserveFallbackOverdue =
+    updatedInstallments.length === 0 &&
+    derivedLoanStatus === 'VENCIDO' &&
+    overdueTotalCents === 0;
+
+  const resolvedOverduePrincipal = preserveFallbackOverdue
+    ? existingAccount?.overduePrincipal && existingAccount.overduePrincipal > 0
+      ? existingAccount.overduePrincipal
+      : fromCents(toCents(loan.currentPrincipalBalance))
+    : fromCents(overduePrincipalCents);
+  const resolvedOverdueInterest = preserveFallbackOverdue
+    ? existingAccount?.overdueInterest ?? 0
+    : fromCents(overdueInterestCents);
+  const resolvedOverdueLateFee = preserveFallbackOverdue
+    ? existingAccount?.overdueLateFee ?? 0
+    : fromCents(overdueLateFeeCents);
+  const resolvedOverdueCharges = preserveFallbackOverdue
+    ? existingAccount?.overdueCharges ?? 0
+    : fromCents(overdueChargesCents);
+  const resolvedOverdueTotal = preserveFallbackOverdue
+    ? existingAccount?.overdueTotalAmount && existingAccount.overdueTotalAmount > 0
+      ? existingAccount.overdueTotalAmount
+      : fromCents(toCents(loan.currentPrincipalBalance))
+    : fromCents(overdueTotalCents);
+  const resolvedOverdueInstallmentsCount = preserveFallbackOverdue
+    ? Math.max(existingAccount?.overdueInstallmentsCount ?? 0, 1)
+    : overdueInstallmentsCount;
+
   const account: CollectionAccountRecord = {
     id: loan.id,
     organizationId: loan.organizationId,
@@ -420,19 +466,19 @@ export function evaluateLoanDelinquency(params: {
     stage,
     bucket,
     priority: maxDpd >= 31 || brokenPromisesCount >= 2 ? 'CRITICA' : maxDpd >= 6 ? 'ALTA' : maxDpd >= 1 ? 'MEDIA' : 'BAJA',
-    priorityScore: Math.min(100, maxDpd + brokenPromisesCount * 15 + (overdueInstallmentsCount * 5)),
+    priorityScore: Math.min(100, maxDpd + brokenPromisesCount * 15 + (resolvedOverdueInstallmentsCount * 5)),
     priorityReasons: existingAccount?.priorityReasons ?? [],
-    overdueInstallmentsCount,
-    totalInstallmentsCount: updatedInstallments.length,
+    overdueInstallmentsCount: resolvedOverdueInstallmentsCount,
+    totalInstallmentsCount: updatedInstallments.length || existingAccount?.totalInstallmentsCount || 0,
     paidInstallmentsCount,
-    overduePrincipal: fromCents(overduePrincipalCents),
-    overdueInterest: fromCents(overdueInterestCents),
-    overdueLateFee: fromCents(overdueLateFeeCents),
-    overdueCharges: fromCents(overdueChargesCents),
-    overdueTotalAmount: fromCents(overdueTotalCents),
+    overduePrincipal: resolvedOverduePrincipal,
+    overdueInterest: resolvedOverdueInterest,
+    overdueLateFee: resolvedOverdueLateFee,
+    overdueCharges: resolvedOverdueCharges,
+    overdueTotalAmount: resolvedOverdueTotal,
     totalOutstandingPrincipal: fromCents(toCents(loan.currentPrincipalBalance)),
-    nextDueDate,
-    nextDueAmount,
+    nextDueDate: resolvedNextDueDate,
+    nextDueAmount: resolvedNextDueAmount,
     lastPaymentDate: appliedPayments[0]?.paymentDate ?? existingAccount?.lastPaymentDate ?? null,
     lastPaymentAmount: appliedPayments[0]?.amount ?? existingAccount?.lastPaymentAmount ?? 0,
     pendingVerificationAmount: fromCents(pendingVerificationCents),
@@ -466,7 +512,8 @@ export function evaluateLoanDelinquency(params: {
 /**
  * Reconciles persisted/migrated collection_accounts snapshots against the live state of
  * loans, installments, payments, promises, actions, and disputes so queues like
- * "Cobros del día" immediately reflect applied payments without waiting for a manual sync.
+ * "Cobros del día" immediately reflect applied payments without waiting for a manual sync,
+ * and every persisted/migrated loan appears in Collections even before installments sync.
  */
 export function reconcileLiveCollectionAccounts(params: {
   loans: LoanRecord[];
@@ -545,56 +592,91 @@ export function reconcileLiveCollectionAccounts(params: {
     seenLoanIds.add(loan.id);
     const existingAcc = existingByLoanId.get(loan.id) ?? null;
     const loanInsts = instsByLoanId.get(loan.id) ?? [];
+    const customer = customerById.get(loan.customerId) ?? null;
+    const loanPays = paymentsByLoanId.get(loan.id) ?? [];
+    const loanPromises = promisesByLoanId.get(loan.id) ?? [];
+    const loanActs = actionsByLoanId.get(loan.id) ?? [];
+    const loanDisputes = disputesByLoanId.get(loan.id) ?? [];
 
-    if (loanInsts.length > 0) {
+    if (loanInsts.length > 0 || !existingAcc) {
       const evaluated = evaluateLoanDelinquency({
         loan,
         installments: loanInsts,
-        customer: customerById.get(loan.customerId) ?? null,
+        customer,
         policy,
         asOfDateIso,
         existingAccount: existingAcc,
-        promises: promisesByLoanId.get(loan.id) ?? [],
-        payments: paymentsByLoanId.get(loan.id) ?? [],
-        actions: actionsByLoanId.get(loan.id) ?? [],
-        disputes: disputesByLoanId.get(loan.id) ?? [],
+        promises: loanPromises,
+        payments: loanPays,
+        actions: loanActs,
+        disputes: loanDisputes,
       });
       result.push(evaluated.account);
       continue;
     }
 
-    if (existingAcc) {
-      const isClosed =
-        loan.status === 'CANCELADO' ||
-        loan.status === 'PAGADO' ||
-        toCents(loan.currentPrincipalBalance) <= 0;
-      if (isClosed) {
-        result.push({
-          ...existingAcc,
-          dpd: 0,
-          stage: 'CANCELADO',
-          bucket: 'AL_DIA',
-          priority: 'BAJA',
-          overdueInstallmentsCount: 0,
-          overduePrincipal: 0,
-          overdueInterest: 0,
-          overdueLateFee: 0,
-          overdueCharges: 0,
-          overdueTotalAmount: 0,
-          totalOutstandingPrincipal: 0,
-          cutoffDate: asOfDateIso,
-        });
-      } else {
-        const loanPays = paymentsByLoanId.get(loan.id) ?? [];
-        const pendingVerificationCents = loanPays
-          .filter((p) => ['REPORTADO', 'RECIBIDO_PENDIENTE_VERIFICACION', 'VERIFICADO'].includes(p.status))
-          .reduce((acc, p) => acc + toCents(p.amount), 0);
-        result.push({
-          ...existingAcc,
-          totalOutstandingPrincipal: fromCents(toCents(loan.currentPrincipalBalance)),
-          pendingVerificationAmount: fromCents(pendingVerificationCents),
-        });
-      }
+    // existingAcc exists & loanInsts is empty: preserve snapshot DPD/overdue metrics while refreshing live balances, customer contact, and latest payments/actions/promises
+    const isClosed =
+      loan.status === 'CANCELADO' ||
+      loan.status === 'PAGADO' ||
+      toCents(loan.currentPrincipalBalance) <= 0;
+    const appliedPays = loanPays
+      .filter((p) => p.status === 'APLICADO')
+      .sort((a, b) => (b.paymentDate || '').localeCompare(a.paymentDate || ''));
+    const pendingVerificationCents = loanPays
+      .filter((p) => ['REPORTADO', 'RECIBIDO_PENDIENTE_VERIFICACION', 'VERIFICADO'].includes(p.status))
+      .reduce((acc, p) => acc + toCents(p.amount), 0);
+    const activePromise = loanPromises.find((p) =>
+      ['VIGENTE', 'PENDIENTE_VERIFICACION'].includes(p.status)
+    );
+    const sortedActs = [...loanActs].sort((a, b) =>
+      (b.actionTimeIso || '').localeCompare(a.actionTimeIso || '')
+    );
+
+    if (isClosed) {
+      result.push({
+        ...existingAcc,
+        customerPhone: customer?.phone || existingAcc.customerPhone || '',
+        customerEmail: customer?.email || existingAcc.customerEmail || '',
+        province: customer?.province || existingAcc.province || '',
+        municipality: customer?.municipality || existingAcc.municipality || '',
+        dpd: 0,
+        stage: 'CANCELADO',
+        bucket: 'AL_DIA',
+        priority: 'BAJA',
+        overdueInstallmentsCount: 0,
+        overduePrincipal: 0,
+        overdueInterest: 0,
+        overdueLateFee: 0,
+        overdueCharges: 0,
+        overdueTotalAmount: 0,
+        totalOutstandingPrincipal: 0,
+        lastPaymentDate: appliedPays[0]?.paymentDate ?? existingAcc.lastPaymentDate ?? null,
+        lastPaymentAmount: appliedPays[0]?.amount ?? existingAcc.lastPaymentAmount ?? 0,
+        lastActionAt: sortedActs[0]?.actionTimeIso ?? existingAcc.lastActionAt ?? null,
+        lastActionType: sortedActs[0]?.channel ?? existingAcc.lastActionType ?? null,
+        lastActionResult: sortedActs[0]?.contactResult ?? existingAcc.lastActionResult ?? null,
+        cutoffDate: asOfDateIso,
+      });
+    } else {
+      result.push({
+        ...existingAcc,
+        customerPhone: customer?.phone || existingAcc.customerPhone || '',
+        customerEmail: customer?.email || existingAcc.customerEmail || '',
+        province: customer?.province || existingAcc.province || '',
+        municipality: customer?.municipality || existingAcc.municipality || '',
+        totalOutstandingPrincipal: fromCents(toCents(loan.currentPrincipalBalance)),
+        pendingVerificationAmount: fromCents(pendingVerificationCents),
+        lastPaymentDate: appliedPays[0]?.paymentDate ?? existingAcc.lastPaymentDate ?? null,
+        lastPaymentAmount: appliedPays[0]?.amount ?? existingAcc.lastPaymentAmount ?? 0,
+        lastActionAt: sortedActs[0]?.actionTimeIso ?? existingAcc.lastActionAt ?? null,
+        lastActionType: sortedActs[0]?.channel ?? existingAcc.lastActionType ?? null,
+        lastActionResult: sortedActs[0]?.contactResult ?? existingAcc.lastActionResult ?? null,
+        nextFollowUpDate: sortedActs[0]?.nextActionDate ?? existingAcc.nextFollowUpDate ?? null,
+        activePromiseId: activePromise?.id ?? existingAcc.activePromiseId ?? null,
+        activePromiseDate: activePromise?.promisedDate ?? existingAcc.activePromiseDate ?? null,
+        activePromiseAmount: activePromise?.promisedAmount ?? existingAcc.activePromiseAmount ?? null,
+      });
     }
   }
 

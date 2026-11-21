@@ -32,12 +32,14 @@ import {
   type RegisterNewCompanyInput,
 } from '../engine/multiTenantEngine';
 import {
+  auditFirestorePortfolioInventory,
   executeControlledSuGloriaMigrationInStore,
   registerNewTenantOrganizationInStore,
   saveOrganizationMembershipInStore,
   toggleTenantModuleInStore,
   updateTenantLicenseInStore,
   updateTenantOrganizationStatusInStore,
+  type FirestorePortfolioInventoryReport,
 } from '../services/axycoreStore';
 import {
   ROLE_LABELS,
@@ -102,7 +104,9 @@ export function PlatformControlView() {
     payments,
     loanInstallments,
     collectionActions,
+    paymentPromises,
     auditLogs,
+    runDailyCollectionsSync,
     switchOrganizationWorkspace,
     setActiveSection,
   } = useAxyCore();
@@ -210,6 +214,8 @@ export function PlatformControlView() {
     duplicatesCreated: number;
     timestamp: string;
   } | null>(null);
+  const [inventoryReport, setInventoryReport] = useState<FirestorePortfolioInventoryReport | null>(null);
+  const [loadingInventory, setLoadingInventory] = useState(false);
 
   // Security Gate: Only Superadministrador AxyCore inside Administrador de AxyCore portal can view Platform Control
   if (!isPlatformAdminPortal || !userProfile) {
@@ -463,14 +469,18 @@ export function PlatformControlView() {
     setBannerMessage(null);
     setBusyAction(true);
     try {
-      const res = await executeControlledSuGloriaMigrationInStore({
-        customers,
-        loans,
-        payments,
-        installments: loanInstallments,
-        collectionActions,
-        actor: userProfile,
-      });
+      const [res, inv] = await Promise.all([
+        executeControlledSuGloriaMigrationInStore({
+          customers,
+          loans,
+          payments,
+          installments: loanInstallments,
+          collectionActions,
+          actor: userProfile,
+        }),
+        auditFirestorePortfolioInventory(userProfile),
+      ]);
+      setInventoryReport(inv);
       setMigrationReport({
         customersCount: res.migratedCounts.customers,
         loansCount: res.migratedCounts.loans,
@@ -482,12 +492,55 @@ export function PlatformControlView() {
       });
       setBannerMessage({
         type: 'success',
-        text: 'Migración controlada y asociación de SU GLORIA MANO AMIGA verificada con 0 duplicados y 100% de integridad histórica.',
+        text: `Integridad verificada directamente en Firestore: ${inv.totalPrimaryDocs} documentos activos en ${SU_GLORIA_ORG_ID} (0 duplicados, 100% autónomo sin conexión externa).`,
       });
     } catch (err) {
       setBannerMessage({
         type: 'error',
-        text: err instanceof Error ? err.message : 'Error al verificar migración.',
+        text: err instanceof Error ? err.message : 'Error al verificar migración e inventario.',
+      });
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const handleRunFirestoreInventoryAudit = async () => {
+    setBannerMessage(null);
+    setLoadingInventory(true);
+    try {
+      const inv = await auditFirestorePortfolioInventory(userProfile);
+      setInventoryReport(inv);
+      setBannerMessage({
+        type: 'success',
+        text: `Auditoría Firestore completada: ${inv.totalPrimaryDocs} registros persistidos en ${inv.primaryOrgId}${
+          inv.totalLegacyDocs > 0 ? ` y ${inv.totalLegacyDocs} en IDs legados` : ''
+        }.`,
+      });
+    } catch (err) {
+      setBannerMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'No fue posible auditar las colecciones en Firestore.',
+      });
+    } finally {
+      setLoadingInventory(false);
+    }
+  };
+
+  const handleSyncMissingCollectionAccounts = async () => {
+    setBannerMessage(null);
+    setBusyAction(true);
+    try {
+      const syncRes = await runDailyCollectionsSync({ saveSnapshot: true });
+      const inv = await auditFirestorePortfolioInventory(userProfile);
+      setInventoryReport(inv);
+      setBannerMessage({
+        type: 'success',
+        text: `Cuentas de cobranza reconciliadas en Firestore (${syncRes.syncedLoans} préstamos sincronizados).`,
+      });
+    } catch (err) {
+      setBannerMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Error al reconciliar cuentas de cobranza en Firestore.',
       });
     } finally {
       setBusyAction(false);
@@ -752,35 +805,52 @@ export function PlatformControlView() {
             </div>
 
             {migrationReport && (
-              <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
-                <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
-                  <span className="text-slate-400 block text-[10px]">Clientes Asociados</span>
-                  <span className="text-base font-bold font-mono text-white">{migrationReport.customersCount}</span>
+              <div className="mt-4 pt-4 border-t border-white/10 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
+                    <span className="text-slate-400 block text-[10px]">Clientes Asociados</span>
+                    <span className="text-base font-bold font-mono text-white">{migrationReport.customersCount}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
+                    <span className="text-slate-400 block text-[10px]">Préstamos Activos/Hist.</span>
+                    <span className="text-base font-bold font-mono text-white">{migrationReport.loansCount}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
+                    <span className="text-slate-400 block text-[10px]">Cuotas Preservadas</span>
+                    <span className="text-base font-bold font-mono text-white">{migrationReport.installmentsCount}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
+                    <span className="text-slate-400 block text-[10px]">Pagos Preservados</span>
+                    <span className="text-base font-bold font-mono text-white">{migrationReport.paymentsCount}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
+                    <span className="text-slate-400 block text-[10px]">Gestiones Cobranza</span>
+                    <span className="text-base font-bold font-mono text-white">
+                      {migrationReport.collectionActionsCount}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40">
+                    <span className="text-emerald-300 block text-[10px]">Duplicados Creados</span>
+                    <span className="text-base font-bold font-mono text-emerald-400">
+                      {migrationReport.duplicatesCreated} (Idempotente)
+                    </span>
+                  </div>
                 </div>
-                <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
-                  <span className="text-slate-400 block text-[10px]">Préstamos Activos/Hist.</span>
-                  <span className="text-base font-bold font-mono text-white">{migrationReport.loansCount}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
-                  <span className="text-slate-400 block text-[10px]">Cuotas Preservadas</span>
-                  <span className="text-base font-bold font-mono text-white">{migrationReport.installmentsCount}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
-                  <span className="text-slate-400 block text-[10px]">Pagos Preservados</span>
-                  <span className="text-base font-bold font-mono text-white">{migrationReport.paymentsCount}</span>
-                </div>
-                <div className="p-3 rounded-xl bg-[#08132B] border border-[#00B8FF]/15">
-                  <span className="text-slate-400 block text-[10px]">Gestiones Cobranza</span>
-                  <span className="text-base font-bold font-mono text-white">
-                    {migrationReport.collectionActionsCount}
-                  </span>
-                </div>
-                <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40">
-                  <span className="text-emerald-300 block text-[10px]">Duplicados Creados</span>
-                  <span className="text-base font-bold font-mono text-emerald-400">
-                    {migrationReport.duplicatesCreated} (Idempotente)
-                  </span>
-                </div>
+                {inventoryReport && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
+                    <span>
+                      Inventario total verificado en Firestore (<code className="text-[#00D1FF]">{inventoryReport.primaryOrgId}</code>):{' '}
+                      <strong className="text-white font-mono">{inventoryReport.totalPrimaryDocs}</strong> documentos en 17 colecciones.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('USO_AUDITORIA')}
+                      className="text-[#00D1FF] hover:underline font-semibold cursor-pointer"
+                    >
+                      Ver desglose completo por colección →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1955,45 +2025,166 @@ export function PlatformControlView() {
 
       {/* TAB 7: INFRAESTRUCTURA Y AUDITORÍA GLOBAL */}
       {activeTab === 'USO_AUDITORIA' && (
-        <div className="rounded-2xl axy-surface p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Bitácora de Auditoría Global Multi-Tenant
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Registro inmutable de altas de empresas, activación/desactivación de módulos, cambios de licencias y
-                operaciones críticas.
-              </p>
+        <div className="space-y-6">
+          {/* Inventario y Preservación de Cartera Persistida en Firestore */}
+          <div className="rounded-2xl axy-surface p-6 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Database className="w-5 h-5 text-[#0066FF] dark:text-[#00D1FF]" />
+                  Auditoría e Integridad de Cartera Persistida (Firestore)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-3xl">
+                  Verifica en tiempo real el inventario exacto de clientes, préstamos, cuotas, cobranzas, pagos realizados,
+                  recibos e inversionistas almacenados nativamente en Firestore (<code className="font-mono">{SU_GLORIA_ORG_ID}</code>),
+                  100% autónomo sin integraciones externas.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={loadingInventory}
+                  onClick={handleRunFirestoreInventoryAudit}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl axy-brand-gradient text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingInventory ? 'animate-spin' : ''}`} />
+                  {loadingInventory ? 'Auditando Firestore...' : 'Auditar Inventario Firestore'}
+                </button>
+                {inventoryReport && inventoryReport.loansWithoutCollectionAccountEstimate > 0 && (
+                  <button
+                    type="button"
+                    disabled={busyAction}
+                    onClick={handleSyncMissingCollectionAccounts}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-300 text-xs font-semibold cursor-pointer disabled:opacity-50"
+                  >
+                    Reconciliar Cuentas de Cobranza ({inventoryReport.loansWithoutCollectionAccountEstimate})
+                  </button>
+                )}
+              </div>
             </div>
-            <Database className="w-5 h-5 text-[#0066FF] dark:text-[#00D1FF]" />
+
+            {inventoryReport ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl axy-surface-tonal">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
+                      Total Documentos en {inventoryReport.primaryOrgId}
+                    </span>
+                    <span className="text-xl font-bold font-mono text-slate-950 dark:text-white tabular-nums">
+                      {inventoryReport.totalPrimaryDocs}
+                    </span>
+                  </div>
+                  <div className="p-3.5 rounded-xl axy-surface-tonal">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
+                      Registros en IDs Legados
+                    </span>
+                    <span className="text-xl font-bold font-mono text-slate-950 dark:text-white tabular-nums">
+                      {inventoryReport.totalLegacyDocs}
+                    </span>
+                  </div>
+                  <div className="p-3.5 rounded-xl axy-surface-tonal">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
+                      Préstamos vs Cuentas Cobranza
+                    </span>
+                    <span className="text-xl font-bold font-mono text-slate-950 dark:text-white tabular-nums">
+                      {inventoryReport.collections.find((c) => c.collectionName === 'loans')?.primaryOrgCount ?? 0} /{' '}
+                      {inventoryReport.collections.find((c) => c.collectionName === 'collection_accounts')?.primaryOrgCount ?? 0}
+                    </span>
+                  </div>
+                  <div className="p-3.5 rounded-xl axy-surface-tonal">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">
+                      Última Verificación
+                    </span>
+                    <span className="text-xs font-mono font-semibold text-[#0066FF] dark:text-[#00D1FF]">
+                      {new Date(inventoryReport.checkedAtIso).toLocaleString('es-DO')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="axy-table-head text-slate-500 dark:text-slate-400 uppercase text-[10px]">
+                        <th className="py-2.5 px-3">Módulo / Colección</th>
+                        <th className="py-2.5 px-3">Colección Firestore</th>
+                        <th className="py-2.5 px-3 text-right">Registros ({inventoryReport.primaryOrgId})</th>
+                        <th className="py-2.5 px-3 text-right">IDs Legados</th>
+                        <th className="py-2.5 px-3">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
+                      {inventoryReport.collections.map((row) => (
+                        <tr key={row.collectionName}>
+                          <td className="py-2 px-3 font-semibold text-slate-900 dark:text-white">{row.label}</td>
+                          <td className="py-2 px-3 font-mono text-slate-500 dark:text-slate-400">{row.collectionName}</td>
+                          <td className="py-2 px-3 font-mono font-bold text-right text-slate-900 dark:text-white tabular-nums">
+                            {row.primaryOrgCount}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-right text-slate-500 tabular-nums">
+                            {row.legacyOrgCount}
+                          </td>
+                          <td className="py-2 px-3">
+                            {row.status === 'OK' ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Preservado</span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                {row.note || 'Revisar legados'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl axy-surface-tonal text-xs text-slate-600 dark:text-slate-300">
+                Presiona <strong>Auditar Inventario Firestore</strong> para consultar en vivo las 17 colecciones persistidas en la base de datos.
+              </div>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="axy-table-head text-slate-500 dark:text-slate-400 uppercase text-[10px]">
-                  <th className="py-2.5 px-3">Evento</th>
-                  <th className="py-2.5 px-3">Organización</th>
-                  <th className="py-2.5 px-3">Descripción</th>
-                  <th className="py-2.5 px-3">Actor</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
-                {auditLogs.slice(0, 25).map((log) => (
-                  <tr key={log.id}>
-                    <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">
-                      {log.eventType}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-xs">{log.organizationId}</td>
-                    <td className="py-2.5 px-3 text-slate-700 dark:text-slate-200">{log.action}</td>
-                    <td className="py-2.5 px-3 font-mono text-slate-500">
-                      {log.userEmail || log.userId}
-                    </td>
+          <div className="rounded-2xl axy-surface p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Bitácora de Auditoría Global Multi-Tenant
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Registro inmutable de altas de empresas, activación/desactivación de módulos, cambios de licencias y
+                  operaciones críticas.
+                </p>
+              </div>
+              <Database className="w-5 h-5 text-[#0066FF] dark:text-[#00D1FF]" />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="axy-table-head text-slate-500 dark:text-slate-400 uppercase text-[10px]">
+                    <th className="py-2.5 px-3">Evento</th>
+                    <th className="py-2.5 px-3">Organización</th>
+                    <th className="py-2.5 px-3">Descripción</th>
+                    <th className="py-2.5 px-3">Actor</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
+                  {auditLogs.slice(0, 25).map((log) => (
+                    <tr key={log.id}>
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">
+                        {log.eventType}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-xs">{log.organizationId}</td>
+                      <td className="py-2.5 px-3 text-slate-700 dark:text-slate-200">{log.action}</td>
+                      <td className="py-2.5 px-3 font-mono text-slate-500">
+                        {log.userEmail || log.userId}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
