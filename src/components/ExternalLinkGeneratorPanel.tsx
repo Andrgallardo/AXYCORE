@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
-  Building2,
   Check,
   CheckCircle2,
   Copy,
@@ -14,6 +13,7 @@ import {
   Save,
   Search,
   Share2,
+  ShieldCheck,
   Sparkles,
   UserCheck,
   X,
@@ -25,14 +25,18 @@ import {
   generateUniquePortalCodeForOrg,
   normalizePortalCode,
 } from '../engine/externalPortalEngine';
+import { InstitutionalLogoBadge } from './InstitutionalLogoBadge';
 import { PublicCreditApplicationForm } from './PublicCreditApplicationForm';
 import {
   fetchAllPublicPortalsForOrgs,
   syncPublicInstitutionPortal,
   updateInstitutionPortalCodeAndSync,
+  validatePublishedInstitutionPortal,
+  type ExternalPortalValidationReport,
 } from '../services/externalPortalService';
 import type { OrganizationRecord, PublicInstitutionPortalRecord } from '../types/axycore';
 import { formatUserFacingError } from '../utils/formatters';
+import { isValidInstitutionalLogoUrl } from '../utils/institutionalLogo';
 
 interface ExternalLinkGeneratorPanelProps {
   /** All registered institutions (Superadmin passes allOrganizations; Institution Admin passes [organization]) */
@@ -74,6 +78,10 @@ export function ExternalLinkGeneratorPanel({
 
   const [saving, setSaving] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [validatingLink, setValidatingLink] = useState(false);
+  const [validationReport, setValidationReport] = useState<ExternalPortalValidationReport | null>(
+    null
+  );
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -107,7 +115,11 @@ export function ExternalLinkGeneratorPanel({
   useEffect(() => {
     void refreshPublishedStatuses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [institutions.map((o) => `${o.id}:${o.accessCode || ''}`).join('|')]);
+  }, [
+    institutions
+      .map((o) => `${o.id}:${o.accessCode || ''}:${(o.logoUrl || '').length}:${o.phone || ''}`)
+      .join('|'),
+  ]);
 
   // Populate editor fields when selectedOrg or its published record changes
   useEffect(() => {
@@ -128,6 +140,7 @@ export function ExternalLinkGeneratorPanel({
         'Completa tu solicitud de crédito en línea sin crear cuenta, o inicia sesión para consultar tus préstamos, cuotas y saldos.'
     );
     setFeedback(null);
+    setValidationReport(null);
   }, [selectedOrg, publishedMap]);
 
   const filteredInstitutions = useMemo(() => {
@@ -272,6 +285,76 @@ export function ExternalLinkGeneratorPanel({
     }
   };
 
+  const handleValidateSelectedLink = async () => {
+    if (!selectedOrg) return;
+    setValidatingLink(true);
+    setFeedback(null);
+    try {
+      const report = await validatePublishedInstitutionPortal(selectedOrg, portalCodeDraft);
+      setValidationReport(report);
+      if (report.publishedRecord) {
+        setPublishedMap((prev) => ({ ...prev, [selectedOrg.id]: report.publishedRecord }));
+      }
+      if (report.isActive && report.tenantIsolated && report.logoSyncedInPortal && report.phoneSyncedInPortal) {
+        setFeedback({
+          type: 'ok',
+          msg: `Validación exitosa: el enlace ${report.portalCode} está activo en Firestore, aislado para ${selectedOrg.tradeName || selectedOrg.name}${
+            report.logoConfiguredOnOrg ? ' y sincronizado con el logo institucional.' : '.'
+          }`,
+        });
+      } else if (!report.existsInFirestore) {
+        setFeedback({
+          type: 'err',
+          msg: `El código ${report.portalCode} aún no está publicado en Firestore. Presiona "Guardar y Publicar Enlace" para activarlo.`,
+        });
+      } else if (!report.logoSyncedInPortal || !report.phoneSyncedInPortal) {
+        setFeedback({
+          type: 'err',
+          msg: `El enlace ${report.portalCode} está publicado, pero su logo o teléfono institucional aún no están sincronizados. Presiona "Sincronizar Identidad" o "Guardar y Publicar Enlace".`,
+        });
+      }
+    } catch (err) {
+      setFeedback({
+        type: 'err',
+        msg: formatUserFacingError(err, 'No se pudo validar el enlace externo en Firestore.'),
+      });
+    } finally {
+      setValidatingLink(false);
+    }
+  };
+
+  const handleQuickResyncBranding = async () => {
+    if (!selectedOrg || !canEdit) return;
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const cleanCode =
+        normalizePortalCode(portalCodeDraft) ||
+        normalizePortalCode(selectedOrg.accessCode || selectedOrg.tenantId || selectedOrg.id);
+      const published = await updateInstitutionPortalCodeAndSync({
+        org: selectedOrg,
+        newPortalCode: cleanCode,
+        portalEnabled: portalEnabledDraft,
+        welcomeHeadline: headlineDraft,
+        welcomeSubtitle: subtitleDraft,
+      });
+      setPublishedMap((prev) => ({ ...prev, [selectedOrg.id]: published }));
+      const report = await validatePublishedInstitutionPortal(selectedOrg, published.portalCode);
+      setValidationReport(report);
+      setFeedback({
+        type: 'ok',
+        msg: `Logo e identidad institucional sincronizados en el enlace externo ${published.portalCode}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: 'err',
+        msg: formatUserFacingError(err, 'No se pudo sincronizar la identidad institucional.'),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleOpenLiveInTab = (url: string) => {
     if (typeof window === 'undefined') return;
     // Safe navigation in same browsing context (no window.open)
@@ -307,7 +390,7 @@ export function ExternalLinkGeneratorPanel({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isMultiInstitution && canEdit && (
             <button
               type="button"
@@ -319,6 +402,15 @@ export function ExternalLinkGeneratorPanel({
               <span>{syncingAll ? 'Sincronizando...' : `Publicar Todas (${institutions.length})`}</span>
             </button>
           )}
+          <button
+            type="button"
+            disabled={validatingLink}
+            onClick={handleValidateSelectedLink}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 hover:bg-emerald-500/15 text-xs font-semibold text-emerald-700 dark:text-emerald-300 cursor-pointer transition-colors disabled:opacity-50 whitespace-nowrap"
+          >
+            <ShieldCheck className={`w-3.5 h-3.5 ${validatingLink ? 'animate-pulse' : ''}`} />
+            <span>{validatingLink ? 'Validando...' : 'Validar Enlace'}</span>
+          </button>
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
@@ -389,6 +481,7 @@ export function ExternalLinkGeneratorPanel({
                   normalizePortalCode(org.accessCode || org.tenantId || org.id);
                 const selected = org.id === selectedOrg.id;
                 const activePortal = Boolean(pub && pub.portalEnabled && pub.status === 'ACTIVA');
+                const hasOrgLogo = isValidInstitutionalLogoUrl(org.logoUrl);
                 return (
                   <button
                     key={org.id}
@@ -400,16 +493,26 @@ export function ExternalLinkGeneratorPanel({
                         : 'hover:bg-slate-50 dark:hover:bg-white/[0.03]'
                     }`}
                   >
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                        {org.tradeName || org.name}
-                      </p>
-                      <p className="text-[11px] font-mono text-[#0052CC] dark:text-[#00D1FF]">
-                        {code}
-                      </p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                        {org.currency || 'DOP'} · {org.city || org.country || 'República Dominicana'}
-                      </p>
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <InstitutionalLogoBadge
+                        logoUrl={org.logoUrl || pub?.logoUrl}
+                        name={org.tradeName || org.name}
+                        primaryColor={org.primaryColor}
+                        accentColor={org.accentColor}
+                        size="xs"
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {org.tradeName || org.name}
+                        </p>
+                        <p className="text-[11px] font-mono text-[#0052CC] dark:text-[#00D1FF]">
+                          {code}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {org.currency || 'DOP'} · {hasOrgLogo ? 'Logo cargado' : 'Monograma'}
+                        </p>
+                      </div>
                     </div>
                     <span
                       className={`text-[11px] font-semibold shrink-0 ${
@@ -440,20 +543,36 @@ export function ExternalLinkGeneratorPanel({
           <div className="axy-surface rounded-2xl border border-slate-200/80 dark:border-[#00B8FF]/18 p-5 space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-[#00B8FF]/15">
               <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="h-10 w-10 rounded-xl flex items-center justify-center text-white font-display font-bold text-sm shrink-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})`,
-                  }}
-                >
-                  {(selectedOrg.tradeName || selectedOrg.name).slice(0, 2).toUpperCase()}
-                </div>
+                <InstitutionalLogoBadge
+                  logoUrl={selectedOrg.logoUrl || publishedRecord?.logoUrl}
+                  name={selectedOrg.tradeName || selectedOrg.name}
+                  primaryColor={instPrimary}
+                  accentColor={instAccent}
+                  size="md"
+                />
                 <div className="min-w-0">
                   <h4 className="font-display text-sm font-bold text-slate-900 dark:text-white truncate">
                     {selectedOrg.tradeName || selectedOrg.name}
                   </h4>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
                     ID Aislado: {selectedOrg.id} · Moneda: {selectedOrg.currency || 'DOP'}
+                    {selectedOrg.phone ? ` · Tel. ${selectedOrg.phone}` : ''}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Identidad visual en enlace externo:{' '}
+                    <span
+                      className={
+                        isValidInstitutionalLogoUrl(selectedOrg.logoUrl)
+                          ? 'font-semibold text-emerald-600 dark:text-emerald-400'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }
+                    >
+                      {isValidInstitutionalLogoUrl(selectedOrg.logoUrl)
+                        ? publishedRecord?.logoUrl === selectedOrg.logoUrl?.trim()
+                          ? 'Logo institucional sincronizado'
+                          : 'Logo cargado (pendiente de sincronizar)'
+                        : 'Sin logo cargado (se usa monograma institucional)'}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -480,6 +599,84 @@ export function ExternalLinkGeneratorPanel({
                 </span>
               </div>
             </div>
+
+            {validationReport && (
+              <div className="p-4 rounded-xl border border-slate-200/85 dark:border-[#00B8FF]/20 bg-slate-50/90 dark:bg-[#040C1E]/85 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                    <span>Diagnóstico en vivo del enlace ({validationReport.portalCode})</span>
+                  </p>
+                  {canEdit &&
+                    (!validationReport.existsInFirestore ||
+                      !validationReport.logoSyncedInPortal ||
+                      !validationReport.phoneSyncedInPortal) && (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={handleQuickResyncBranding}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0066FF] hover:bg-[#0052CC] text-white text-[11px] font-semibold cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${saving ? 'animate-spin' : ''}`} />
+                        <span>Sincronizar Identidad</span>
+                      </button>
+                    )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-[11px]">
+                  {[
+                    {
+                      label: 'Publicado en Firestore',
+                      ok: validationReport.existsInFirestore && validationReport.isActive,
+                      detail: validationReport.existsInFirestore
+                        ? validationReport.isActive
+                          ? 'Activo y accesible'
+                          : 'Pausado / inactivo'
+                        : 'No encontrado',
+                    },
+                    {
+                      label: 'Aislamiento Tenant',
+                      ok: validationReport.tenantIsolated,
+                      detail: validationReport.tenantIsolated
+                        ? 'Vinculado exclusivamente'
+                        : 'Requiere sincronización',
+                    },
+                    {
+                      label: 'Logo Institucional',
+                      ok: validationReport.logoSyncedInPortal,
+                      detail: validationReport.logoConfiguredOnOrg
+                        ? validationReport.logoSyncedInPortal
+                          ? 'Aplicado al enlace'
+                          : 'Desactualizado en portal'
+                        : 'Sin logo (usa monograma)',
+                    },
+                    {
+                      label: 'Teléfono Institucional',
+                      ok: validationReport.phoneSyncedInPortal,
+                      detail: validationReport.phoneSyncedInPortal
+                        ? validationReport.publishedRecord?.phone || 'Sin teléfono configurado'
+                        : 'Desactualizado en portal',
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="p-2.5 rounded-lg border border-slate-200/75 dark:border-white/10 bg-white dark:bg-[#07122B]"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
+                        {item.ok ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        )}
+                        <span className="truncate">{item.label}</span>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                        {item.detail}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Generated Unique Links Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -700,14 +897,13 @@ export function ExternalLinkGeneratorPanel({
             />
             <div className="p-5 border-b border-white/10 flex items-center justify-between gap-4 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-display font-bold text-xs shrink-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})`,
-                  }}
-                >
-                  {(selectedOrg.tradeName || selectedOrg.name).slice(0, 2).toUpperCase()}
-                </div>
+                <InstitutionalLogoBadge
+                  logoUrl={selectedOrg.logoUrl || publishedRecord?.logoUrl}
+                  name={selectedOrg.tradeName || selectedOrg.name}
+                  primaryColor={instPrimary}
+                  accentColor={instAccent}
+                  size="sm"
+                />
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-white truncate">
                     Vista Previa: {selectedOrg.tradeName || selectedOrg.name}
@@ -774,14 +970,25 @@ export function ExternalLinkGeneratorPanel({
               {previewMode === 'solicitud' ? (
                 <div className="p-4 sm:p-5 rounded-xl border border-white/10 bg-[#07122B]/80">
                   <PublicCreditApplicationForm
-                    portal={
-                      publishedRecord ??
-                      buildPublicPortalRecordFromOrg(selectedOrg, {
-                        portalEnabled: portalEnabledDraft,
-                        welcomeHeadline: headlineDraft,
-                        welcomeSubtitle: subtitleDraft,
-                      })
-                    }
+                    portal={{
+                      ...(publishedRecord ??
+                        buildPublicPortalRecordFromOrg(selectedOrg, {
+                          portalEnabled: portalEnabledDraft,
+                          welcomeHeadline: headlineDraft,
+                          welcomeSubtitle: subtitleDraft,
+                        })),
+                      portalCode: generatedLinks.portalCode,
+                      name: selectedOrg.name,
+                      tradeName: selectedOrg.tradeName || selectedOrg.name,
+                      logoUrl: isValidInstitutionalLogoUrl(selectedOrg.logoUrl)
+                        ? selectedOrg.logoUrl!.trim()
+                        : publishedRecord?.logoUrl,
+                      phone: selectedOrg.phone || publishedRecord?.phone,
+                      primaryColor: instPrimary,
+                      accentColor: instAccent,
+                      welcomeHeadline: headlineDraft || publishedRecord?.welcomeHeadline,
+                      welcomeSubtitle: subtitleDraft || publishedRecord?.welcomeSubtitle,
+                    }}
                     previewOnly
                     onSwitchToClientAuth={() => setPreviewMode('login')}
                   />

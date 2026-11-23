@@ -80,6 +80,57 @@ export const SCORING_STATUS_LABELS: Record<ScoringStatus, string> = {
   ERROR_CALCULO: 'Error de cálculo',
 };
 
+export const LOAN_STATUS_LABELS: Record<
+  'ACTIVO' | 'PAGADO' | 'VENCIDO' | 'CANCELADO' | 'CANCELADO_POR_RENOVACION',
+  string
+> = {
+  ACTIVO: 'Activo',
+  PAGADO: 'Pagado',
+  VENCIDO: 'Vencido',
+  CANCELADO: 'Cancelado',
+  CANCELADO_POR_RENOVACION: 'Cancelado por Renovación',
+};
+
+export const RENEWAL_MODALITY_LABELS: Record<'MISMAS_CONDICIONES' | 'AUMENTO_O_MODIFICACION', string> = {
+  MISMAS_CONDICIONES: 'Mismas Condiciones (Directo a Comité)',
+  AUMENTO_O_MODIFICACION: 'Aumento / Modificación (Vía Evaluación)',
+};
+
+export const RENEWAL_STATUS_LABELS: Record<
+  | 'RENOVACION_INICIADA'
+  | 'PENDIENTE_EVALUACION'
+  | 'EN_EVALUACION'
+  | 'PENDIENTE_COMITE'
+  | 'EN_COMITE'
+  | 'APROBADA'
+  | 'RECHAZADA'
+  | 'DEVUELTA_CORRECCION'
+  | 'PENDIENTE_FORMALIZACION'
+  | 'PENDIENTE_DESEMBOLSO'
+  | 'DESEMBOLSADA'
+  | 'CANCELADA_USUARIO'
+  | 'ERROR_EJECUCION',
+  string
+> = {
+  RENOVACION_INICIADA: 'Renovación iniciada',
+  PENDIENTE_EVALUACION: 'Pendiente de evaluación',
+  EN_EVALUACION: 'En evaluación',
+  PENDIENTE_COMITE: 'Pendiente de Comité',
+  EN_COMITE: 'En Comité',
+  APROBADA: 'Aprobada',
+  RECHAZADA: 'Rechazada',
+  DEVUELTA_CORRECCION: 'Devuelta para corrección',
+  PENDIENTE_FORMALIZACION: 'Pendiente de formalización',
+  PENDIENTE_DESEMBOLSO: 'Pendiente de desembolso',
+  DESEMBOLSADA: 'Desembolsada',
+  CANCELADA_USUARIO: 'Cancelada por el usuario',
+  ERROR_EJECUCION: 'Error de ejecución',
+};
+
+export function isClosedLoanStatus(status?: string | null): boolean {
+  return status === 'CANCELADO' || status === 'CANCELADO_POR_RENOVACION' || status === 'PAGADO';
+}
+
 export function maskAccountNumber(raw: string): string {
   const clean = raw.replace(/\s+/g, '');
   if (clean.length <= 4) return '****';

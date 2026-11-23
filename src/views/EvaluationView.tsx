@@ -29,11 +29,18 @@ import {
   updateDocumentReviewStatus,
 } from '../services/axycoreStore';
 import {
+  calculateRenewalNetDisbursement,
+  computeRenewalPayoffBreakdown,
+} from '../engine/renewalEngine';
+import {
   APPLICATION_STATUS_LABELS,
+  PRODUCT_LABELS,
+  RENEWAL_MODALITY_LABELS,
   SCORING_STATUS_LABELS,
   formatMoney,
   formatRatePct,
   formatUserFacingError,
+  toIsoDateOnly,
 } from '../utils/formatters';
 import type {
   ApplicationDocumentRecord,
@@ -46,10 +53,16 @@ export function EvaluationView() {
     applications,
     customers,
     businesses,
+    loans,
+    loanInstallments,
+    payments,
+    collectionAccounts,
+    creditRenewals,
     scoringExecutions,
     evaluations,
     documents,
     activeOrTestPolicy,
+    activeCollectionPolicy,
     userProfile,
     selectedApplicationId,
     setSelectedApplicationId,
@@ -116,6 +129,48 @@ export function EvaluationView() {
     () => (activeApp ? documents.filter((d) => d.applicationId === activeApp.id) : []),
     [activeApp, documents]
   );
+
+  const renewalContext = useMemo(() => {
+    if (!activeApp?.isRenewal) return null;
+    const renewal =
+      creditRenewals.find(
+        (r) => r.id === activeApp.renewalId || r.applicationId === activeApp.id
+      ) ?? null;
+    const originLoan =
+      loans.find((l) => l.id === (activeApp.originLoanId || renewal?.originLoanId)) ?? null;
+    const customerLoans = loans.filter((l) => l.customerId === activeApp.customerId);
+    const priorAppsCount = applications.filter(
+      (a) => a.customerId === activeApp.customerId && a.id !== activeApp.id
+    ).length;
+    const livePayoff = originLoan
+      ? computeRenewalPayoffBreakdown({
+          loan: originLoan,
+          installments: loanInstallments.filter((i) => i.loanId === originLoan.id),
+          payments: payments.filter((p) => p.loanId === originLoan.id),
+          customer,
+          account: collectionAccounts.find((a) => a.loanId === originLoan.id) ?? null,
+          policy: activeCollectionPolicy,
+          asOfDateIso: toIsoDateOnly(),
+        }).breakdown
+      : activeApp.originPayoffSnapshot ?? renewal?.payoffSnapshot ?? null;
+    return {
+      renewal,
+      originLoan,
+      customerLoansCount: customerLoans.length,
+      priorAppsCount,
+      livePayoff,
+    };
+  }, [
+    activeApp,
+    creditRenewals,
+    loans,
+    applications,
+    loanInstallments,
+    payments,
+    customer,
+    collectionAccounts,
+    activeCollectionPolicy,
+  ]);
 
   // Policy-driven editable loan conditions
   const [conditionDraft, setConditionDraft] = useState<LoanConditionDraft>({
@@ -607,6 +662,109 @@ export function EvaluationView() {
                 </div>
               </div>
             </div>
+
+            {/* Expediente Integral de Renovación */}
+            {activeApp.isRenewal && renewalContext && (() => {
+              const payoffAmt = renewalContext.livePayoff?.totalPayoffAmount ?? 0;
+              const evalNet = calculateRenewalNetDisbursement({
+                grossApprovedAmount: conditionDraft.requestedAmount || activeApp.requestedAmount,
+                payoffAmount: payoffAmt,
+                otherAuthorizedDiscounts: 0,
+              });
+              return (
+                <div className="axy-surface p-4 sm:p-5 rounded-2xl border border-emerald-500/35 bg-emerald-500/[0.04] space-y-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <h4 className="font-display text-sm font-bold text-slate-950 dark:text-white">
+                        Expediente de Renovación · {renewalContext.renewal?.renewalNumber || activeApp.applicationNumber}
+                      </h4>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px]">
+                      {activeApp.renewalModality
+                        ? RENEWAL_MODALITY_LABELS[activeApp.renewalModality]
+                        : 'Renovación de Crédito'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono tabular-nums">
+                    <div className="axy-surface-tonal p-2.5 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Préstamo Anterior</span>
+                      <strong className="text-slate-900 dark:text-white">
+                        {renewalContext.originLoan?.loanNumber || activeApp.originLoanNumber || '—'}
+                      </strong>
+                      <span className="block font-sans text-[10px] text-slate-500">
+                        {renewalContext.originLoan
+                          ? `${PRODUCT_LABELS[renewalContext.originLoan.productCode]} · ${formatMoney(renewalContext.originLoan.approvedPrincipal, renewalContext.originLoan.currency)}`
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="axy-surface-tonal p-2.5 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Saldo Cancelación (Hoy)</span>
+                      <strong className="text-amber-600 dark:text-amber-400">
+                        {formatMoney(payoffAmt, activeApp.currency)}
+                      </strong>
+                      {renewalContext.livePayoff && (
+                        <span className="block font-sans text-[10px] text-slate-500">
+                          Cap {formatMoney(renewalContext.livePayoff.remainingPrincipal, activeApp.currency)} · DPD {renewalContext.livePayoff.dpd}d
+                        </span>
+                      )}
+                    </div>
+                    <div className="axy-surface-tonal p-2.5 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Historial Cliente</span>
+                      <strong className="text-slate-900 dark:text-white">
+                        {renewalContext.customerLoansCount} créd. · {renewalContext.priorAppsCount} sol.
+                      </strong>
+                      <span className="block font-sans text-[10px] text-slate-500">
+                        {renewalContext.livePayoff?.paymentsCount ?? 0} pago(s) en préstamo ant.
+                      </span>
+                    </div>
+                    <div
+                      className={`p-2.5 rounded-xl border ${
+                        evalNet.valid
+                          ? 'bg-emerald-500/10 border-emerald-500/30'
+                          : 'bg-rose-500/10 border-rose-500/35'
+                      }`}
+                    >
+                      <span className="block font-sans text-[10px] text-slate-600 dark:text-slate-300">
+                        Desembolso Neto Proy.
+                      </span>
+                      <strong
+                        className={
+                          evalNet.valid
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-rose-700 dark:text-rose-300'
+                        }
+                      >
+                        {formatMoney(evalNet.netDisbursementAmount, activeApp.currency)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                    <div>
+                      <strong>Comportamiento:</strong>{' '}
+                      {renewalContext.renewal?.paymentBehaviorSummary ||
+                        renewalContext.renewal?.originPaymentBehavior?.behaviorSummary ||
+                        'Ver historial de cuotas'}
+                    </div>
+                    <div>
+                      <strong>Garantías / Codeudores:</strong>{' '}
+                      {activeApp.proposedCollateral || renewalContext.renewal?.collateralSummary || 'Sin garantía'}
+                      {renewalContext.renewal?.coDebtorsSummary
+                        ? ` · Ref: ${renewalContext.renewal.coDebtorsSummary}`
+                        : ''}
+                    </div>
+                  </div>
+
+                  {!evalNet.valid && (
+                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/35 text-rose-700 dark:text-rose-300 font-semibold text-[11px]">
+                      {evalNet.reason}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {feedback && (
               <div

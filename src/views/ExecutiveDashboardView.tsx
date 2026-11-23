@@ -2228,7 +2228,9 @@ function IndicatorDetailDrawer({
     const activeOnly = allCurrencyLoans.filter((l) => l.status === 'ACTIVO');
     const overdueOnly = allCurrencyLoans.filter((l) => l.status === 'VENCIDO');
     const paidOnly = allCurrencyLoans.filter((l) => l.status === 'PAGADO');
-    const cancelledOnly = allCurrencyLoans.filter((l) => l.status === 'CANCELADO');
+    const cancelledOnly = allCurrencyLoans.filter(
+      (l) => l.status === 'CANCELADO' || l.status === 'CANCELADO_POR_RENOVACION'
+    );
     const activePrincipal = activeOnly.reduce(
       (s, l) => s + toDisplayAmount(Number(l.currentPrincipalBalance || 0), l.currency),
       0

@@ -554,7 +554,10 @@ function buildNormalizedEvents(params: {
     }
 
     // Authoritative expected principal recovered from loan balance
-    const isClosedLoan = loan.status === 'PAGADO' || loan.status === 'CANCELADO';
+    const isClosedLoan =
+      loan.status === 'PAGADO' ||
+      loan.status === 'CANCELADO' ||
+      loan.status === 'CANCELADO_POR_RENOVACION';
     const currentBalance = isClosedLoan
       ? 0
       : Math.max(0, round2(Number(loan.currentPrincipalBalance || 0)));
@@ -1336,6 +1339,13 @@ export function buildConsolidatedJournalEntries(params: {
   };
 
   const operationalEntries: JournalEntryRecord[] = [];
+  const persistedDisbKeys = new Set<string>();
+  for (const pe of params.persistedJournalEntries) {
+    if (pe.status === 'CONTABILIZADO' && pe.sourceType === 'DESEMBOLSO') {
+      if (pe.sourceId) persistedDisbKeys.add(pe.sourceId);
+      if (pe.referenceDoc) persistedDisbKeys.add(pe.referenceDoc);
+    }
+  }
   let seq = 0;
 
   for (const cur of ['DOP', 'USD'] as const) {
@@ -1355,6 +1365,12 @@ export function buildConsolidatedJournalEntries(params: {
 
     for (const ev of events) {
       if (ev.kind === 'LOAN_DISBURSEMENT' && ev.loansDisbursed > 0) {
+        if (
+          (ev.referenceDoc && persistedDisbKeys.has(ev.referenceDoc)) ||
+          persistedDisbKeys.has(ev.id)
+        ) {
+          continue;
+        }
         seq++;
         const amt = round2(ev.loansDisbursed);
         operationalEntries.push({

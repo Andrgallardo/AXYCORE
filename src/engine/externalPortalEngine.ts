@@ -13,6 +13,7 @@ import type {
   PublicInstitutionPortalRecord,
   ReferenceItem,
 } from '../types/axycore';
+import { isValidInstitutionalLogoUrl } from '../utils/institutionalLogo';
 
 export interface ParsedExternalPortalLink {
   isExternalInstitutionLink: boolean;
@@ -266,7 +267,9 @@ export function buildPublicPortalRecordFromOrg(
     organizationId: org.id,
     name,
     tradeName,
-    ...(org.logoUrl && org.logoUrl.length <= 350000 ? { logoUrl: org.logoUrl } : {}),
+    ...(isValidInstitutionalLogoUrl(org.logoUrl) && org.logoUrl!.trim().length <= 350000
+      ? { logoUrl: org.logoUrl!.trim() }
+      : {}),
     primaryColor: (org.primaryColor || '#0B1220').slice(0, 32),
     accentColor: (org.accentColor || '#0066FF').slice(0, 32),
     currency: org.currency === 'USD' ? 'USD' : 'DOP',

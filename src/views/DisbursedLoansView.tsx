@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRight, Calculator, CalendarDays, Download, Landmark, Layers, Search, UserRoundCheck } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Calculator, CalendarDays, Download, Landmark, Layers, RefreshCw, Search, UserRoundCheck } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { fetchInstallmentsByLoan, runBackendAmortization } from '../services/axycoreStore';
 import { correctSingleLoanCurrency } from '../services/loanCurrencyCorrectionService';
 import {
   formatMoney,
   formatRatePct,
+  LOAN_STATUS_LABELS,
   PRODUCT_LABELS,
+  RENEWAL_MODALITY_LABELS,
   toIsoDateOnly,
 } from '../utils/formatters';
 import type { AmortizationScheduleResult } from '../engine/amortizationEngine';
@@ -28,7 +30,14 @@ interface SimulatedScheduleRow {
   remainingPrincipalBalance: number;
 }
 
-type LoanStatusFilter = 'TODOS' | 'VIGENTES' | 'ACTIVO' | 'VENCIDO' | 'PAGADO' | 'CANCELADO';
+type LoanStatusFilter =
+  | 'TODOS'
+  | 'VIGENTES'
+  | 'ACTIVO'
+  | 'VENCIDO'
+  | 'PAGADO'
+  | 'CANCELADO'
+  | 'CANCELADO_POR_RENOVACION';
 
 function getLoanStatusBadgeClass(status: LoanRecord['status']): string {
   switch (status) {
@@ -38,6 +47,8 @@ function getLoanStatusBadgeClass(status: LoanRecord['status']): string {
       return 'text-amber-700 dark:text-amber-400';
     case 'PAGADO':
       return 'text-[#0066FF] dark:text-[#00D1FF]';
+    case 'CANCELADO_POR_RENOVACION':
+      return 'text-indigo-700 dark:text-indigo-300';
     case 'CANCELADO':
       return 'text-rose-700 dark:text-rose-400';
     default:
@@ -99,15 +110,34 @@ export function DisbursedLoansView() {
     return map;
   }, [customers]);
 
+  const loanById = useMemo(() => {
+    const map = new Map<string, LoanRecord>();
+    for (const l of loans) map.set(l.id, l);
+    return map;
+  }, [loans]);
+
+  const jumpToLinkedLoan = (targetLoanId?: string | null) => {
+    if (!targetLoanId) return;
+    const target = loanById.get(targetLoanId);
+    if (!target) return;
+    if (statusFilter !== 'TODOS' && target.status !== statusFilter) {
+      setStatusFilter('TODOS');
+    }
+    setSearch('');
+    setSelectedLoan(target);
+  };
+
   const statusCounts = useMemo(() => {
     let activos = 0;
     let vencidos = 0;
     let pagados = 0;
     let cancelados = 0;
+    let canceladosPorRenovacion = 0;
     for (const l of loans) {
       if (l.status === 'ACTIVO') activos++;
       else if (l.status === 'VENCIDO') vencidos++;
       else if (l.status === 'PAGADO') pagados++;
+      else if (l.status === 'CANCELADO_POR_RENOVACION') canceladosPorRenovacion++;
       else if (l.status === 'CANCELADO') cancelados++;
     }
     return {
@@ -117,6 +147,7 @@ export function DisbursedLoansView() {
       vencidos,
       pagados,
       cancelados,
+      canceladosPorRenovacion,
     };
   }, [loans]);
 
@@ -339,6 +370,9 @@ export function DisbursedLoansView() {
                 <option value="ACTIVO">Activos ({statusCounts.activos})</option>
                 <option value="VENCIDO">Vencidos ({statusCounts.vencidos})</option>
                 <option value="PAGADO">Pagados ({statusCounts.pagados})</option>
+                <option value="CANCELADO_POR_RENOVACION">
+                  Cancelados por Renovación ({statusCounts.canceladosPorRenovacion})
+                </option>
                 <option value="CANCELADO">Cancelados ({statusCounts.cancelados})</option>
               </select>
             </div>
@@ -366,8 +400,8 @@ export function DisbursedLoansView() {
                         <span className="font-mono font-semibold text-[#0066FF] dark:text-[#00D1FF]">
                           {loan.loanNumber}
                         </span>
-                        <span className={`font-semibold ${getLoanStatusBadgeClass(loan.status)}`}>
-                          {loan.status}
+                        <span className={`font-semibold text-[11px] ${getLoanStatusBadgeClass(loan.status)}`}>
+                          {LOAN_STATUS_LABELS[loan.status] || loan.status}
                         </span>
                       </div>
                       <p className="font-semibold text-sm text-slate-900 dark:text-white mt-1">
@@ -379,6 +413,22 @@ export function DisbursedLoansView() {
                           {formatMoney(loan.totalFinancedPrincipal, loan.currency)}
                         </span>
                       </div>
+                      {(loan.isRenewal && loan.originLoanNumber) || loan.renewedToLoanNumber ? (
+                        <div className="mt-2 pt-2 border-t border-slate-200/70 dark:border-white/10 flex flex-wrap items-center gap-2 text-[11px]">
+                          {loan.isRenewal && loan.originLoanNumber && (
+                            <span className="inline-flex items-center gap-1 font-medium text-[#0066FF] dark:text-[#00D1FF]">
+                              <RefreshCw className="w-3 h-3" />
+                              Renovado desde {loan.originLoanNumber}
+                            </span>
+                          )}
+                          {loan.renewedToLoanNumber && (
+                            <span className="inline-flex items-center gap-1 font-medium text-indigo-700 dark:text-indigo-300">
+                              <ArrowRight className="w-3 h-3" />
+                              Renovado hacia {loan.renewedToLoanNumber}
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
                     </button>
                   );
                 })}
@@ -464,7 +514,9 @@ export function DisbursedLoansView() {
                       )}
                       <div className="text-right">
                         <p className="text-slate-500 dark:text-slate-400">Estado Operativo</p>
-                        <p className="font-semibold text-emerald-700 dark:text-emerald-400">{selectedLoan.status}</p>
+                        <p className={`font-semibold ${getLoanStatusBadgeClass(selectedLoan.status)}`}>
+                          {LOAN_STATUS_LABELS[selectedLoan.status] || selectedLoan.status}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -586,6 +638,109 @@ export function DisbursedLoansView() {
                     <p>Primer vencimiento: <strong className="font-mono">{selectedLoan.firstPaymentDate}</strong></p>
                     <p>Vencimiento final: <strong className="font-mono">{selectedLoan.maturityDate}</strong></p>
                   </div>
+
+                  {(selectedLoan.isRenewal ||
+                    selectedLoan.originLoanId ||
+                    selectedLoan.renewedToLoanId ||
+                    selectedLoan.status === 'CANCELADO_POR_RENOVACION') && (
+                    <div className="p-4 rounded-xl border border-indigo-200/80 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-950/25 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-semibold">
+                          <RefreshCw className="w-4 h-4" />
+                          <span>
+                            {selectedLoan.status === 'CANCELADO_POR_RENOVACION'
+                              ? 'Préstamo Liquidado y Cancelado por Renovación'
+                              : 'Préstamo Originado por Renovación / Reenganche'}
+                          </span>
+                        </div>
+                        {selectedLoan.renewalModality && (
+                          <span className="font-mono text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                            {RENEWAL_MODALITY_LABELS[selectedLoan.renewalModality] || selectedLoan.renewalModality}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {selectedLoan.originLoanId && (
+                          <button
+                            type="button"
+                            onClick={() => jumpToLinkedLoan(selectedLoan.originLoanId)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#08132B] border border-indigo-300/80 dark:border-indigo-500/40 text-xs font-semibold text-[#0066FF] dark:text-[#00D1FF] hover:bg-indigo-50 dark:hover:bg-white/[0.06] cursor-pointer transition-colors"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Renovado desde {selectedLoan.originLoanNumber || selectedLoan.originLoanId}
+                          </button>
+                        )}
+                        {selectedLoan.renewedToLoanId && (
+                          <button
+                            type="button"
+                            onClick={() => jumpToLinkedLoan(selectedLoan.renewedToLoanId)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#08132B] border border-indigo-300/80 dark:border-indigo-500/40 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-white/[0.06] cursor-pointer transition-colors"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                            Liquidado y renovado hacia {selectedLoan.renewedToLoanNumber || selectedLoan.renewedToLoanId}
+                          </button>
+                        )}
+                      </div>
+
+                      {selectedLoan.isRenewal && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 font-mono text-[11px]">
+                          <div className="p-2.5 rounded-lg bg-white/85 dark:bg-[#040C1E]/70 border border-indigo-200/60 dark:border-indigo-500/20">
+                            <p className="font-sans text-slate-500 dark:text-slate-400">Monto Bruto Nuevo</p>
+                            <p className="font-bold text-slate-900 dark:text-white mt-0.5 tabular-nums">
+                              {formatMoney(selectedLoan.approvedPrincipal, selectedLoan.currency)}
+                            </p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-white/85 dark:bg-[#040C1E]/70 border border-indigo-200/60 dark:border-indigo-500/20">
+                            <p className="font-sans text-slate-500 dark:text-slate-400">Saldo Liquidado Ant.</p>
+                            <p className="font-bold text-amber-700 dark:text-amber-300 mt-0.5 tabular-nums">
+                              -{formatMoney(selectedLoan.payoffSettledAmount ?? 0, selectedLoan.currency)}
+                            </p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-white/85 dark:bg-[#040C1E]/70 border border-indigo-200/60 dark:border-indigo-500/20">
+                            <p className="font-sans text-slate-500 dark:text-slate-400">Otros Descuentos</p>
+                            <p className="font-bold text-slate-700 dark:text-slate-200 mt-0.5 tabular-nums">
+                              -{formatMoney(selectedLoan.additionalDeductionsAmount ?? 0, selectedLoan.currency)}
+                            </p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/30 border border-emerald-300/70 dark:border-emerald-500/30">
+                            <p className="font-sans text-emerald-700 dark:text-emerald-300">Dinero Neto Entregado</p>
+                            <p className="font-bold text-emerald-800 dark:text-emerald-200 mt-0.5 tabular-nums">
+                              {formatMoney(
+                                selectedLoan.netDisbursementDelivered ??
+                                  Math.max(
+                                    0,
+                                    selectedLoan.approvedPrincipal -
+                                      (selectedLoan.payoffSettledAmount ?? 0) -
+                                      (selectedLoan.additionalDeductionsAmount ?? 0)
+                                  ),
+                                selectedLoan.currency
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedLoan.status === 'CANCELADO_POR_RENOVACION' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-indigo-900/90 dark:text-indigo-200/90">
+                          <p>
+                            Saldo liquidado:{' '}
+                            <strong className="font-mono">
+                              {formatMoney(selectedLoan.renewalPayoffAmount ?? 0, selectedLoan.currency)}
+                            </strong>
+                          </p>
+                          <p>
+                            Fecha liquidación:{' '}
+                            <strong className="font-mono">{selectedLoan.renewalLiquidationDate || '—'}</strong>
+                          </p>
+                          <p>
+                            Cert. cierre:{' '}
+                            <strong className="font-mono">{selectedLoan.closureCertificateNumber || '—'}</strong>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {selectedDisbursement && (
                     <div className="axy-surface-tonal p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3">

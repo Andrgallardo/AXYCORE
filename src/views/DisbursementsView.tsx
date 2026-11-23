@@ -1,8 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, FileUp, Lock, Send, Trash2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  FileUp,
+  Lock,
+  Printer,
+  RefreshCw,
+  Send,
+  ShieldAlert,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { executeIdempotentDisbursement, generateId } from '../services/axycoreStore';
 import { canExecuteDisbursement } from '../engine/workflowGuards';
+import {
+  calculateRenewalNetDisbursement,
+  computeRenewalPayoffBreakdown,
+} from '../engine/renewalEngine';
 import { formatMoney, toIsoDateOnly } from '../utils/formatters';
 import type { DisbursementRecord } from '../types/axycore';
 
@@ -16,6 +30,15 @@ interface VoucherUploadFile {
 export function DisbursementsView() {
   const {
     applications,
+    customers,
+    loans,
+    loanInstallments,
+    payments,
+    collectionAccounts,
+    creditRenewals,
+    accountingAccounts,
+    activeCollectionPolicy,
+    organization,
     committeeDecisions,
     formalizations,
     disbursements,
@@ -85,9 +108,58 @@ export function DisbursementsView() {
     movedToActive?: boolean;
   } | null>(null);
 
+  const [printVoucherDisb, setPrintVoucherDisb] = useState<DisbursementRecord | null>(null);
+
   useEffect(() => {
     setIdempotencyKey(generateId('idem'));
   }, [activeApp?.id]);
+
+  const renewalDisbSummary = useMemo(() => {
+    if (!activeApp?.isRenewal || !formalization) return null;
+    const renewal =
+      creditRenewals.find(
+        (r) => r.id === activeApp.renewalId || r.applicationId === activeApp.id
+      ) ?? null;
+    const originLoan =
+      loans.find(
+        (l) =>
+          l.id ===
+          (activeApp.originLoanId || formalization.originLoanId || renewal?.originLoanId)
+      ) ?? null;
+    const customer = customers.find((c) => c.id === activeApp.customerId) ?? null;
+    const breakdown = originLoan
+      ? computeRenewalPayoffBreakdown({
+          loan: originLoan,
+          installments: loanInstallments.filter((i) => i.loanId === originLoan.id),
+          payments: payments.filter((p) => p.loanId === originLoan.id),
+          customer,
+          account: collectionAccounts.find((a) => a.loanId === originLoan.id) ?? null,
+          policy: activeCollectionPolicy,
+          asOfDateIso: disbursementDate || toIsoDateOnly(),
+        }).breakdown
+      : formalization.renewalPayoffBreakdown ??
+        activeApp.originPayoffSnapshot ??
+        renewal?.payoffSnapshot ??
+        null;
+    const payoffAmt = breakdown?.totalPayoffAmount ?? formalization.renewalPayoffAmount ?? 0;
+    const netCalc = calculateRenewalNetDisbursement({
+      grossApprovedAmount: formalization.approvedCapital,
+      payoffAmount: payoffAmt,
+      otherAuthorizedDiscounts: formalization.deductedExpenses,
+    });
+    return { renewal, originLoan, breakdown, payoffAmt, netCalc };
+  }, [
+    activeApp,
+    formalization,
+    creditRenewals,
+    loans,
+    customers,
+    loanInstallments,
+    payments,
+    collectionAccounts,
+    activeCollectionPolicy,
+    disbursementDate,
+  ]);
 
   const preCheck = useMemo(() => {
     if (!activeApp || !userProfile) return null;
@@ -97,8 +169,9 @@ export function DisbursementsView() {
       decision,
       formalization,
       existingDisbursementId: existingDisb?.id ?? null,
+      liveRenewalPayoffAmount: renewalDisbSummary?.payoffAmt,
     });
-  }, [activeApp, userProfile, decision, formalization, existingDisb]);
+  }, [activeApp, userProfile, decision, formalization, existingDisb, renewalDisbSummary?.payoffAmt]);
 
   const handleVoucherFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setVoucherError(null);
@@ -163,6 +236,8 @@ export function DisbursementsView() {
         authorizerUserName: authorizerName.trim() || userProfile.displayName,
         idempotencyKey,
         voucherFile,
+        accountingAccounts,
+        collectionPolicy: activeCollectionPolicy,
         user: userProfile,
       });
       setVoucherFile(null);
@@ -170,10 +245,15 @@ export function DisbursementsView() {
       setReferenceNumber('');
       setReceiptNotes('');
       setIdempotencyKey(generateId('idem'));
+      if (res.disbursement.isRenewal) {
+        setPrintVoucherDisb(res.disbursement);
+      }
       setFeedback({
         type: 'ok',
         movedToActive: true,
-        msg: `Desembolso ${res.disbursement.disbursementNumber} confirmado. El préstamo ${res.loan.loanNumber} pasó oficialmente a la cartera de Activos y se envió un correo al cliente informándole que su préstamo ya se encuentra en su cuenta de banco.`,
+        msg: res.disbursement.isRenewal
+          ? `Renovación desembolsada (${res.disbursement.disbursementNumber}). Préstamo anterior ${res.disbursement.originLoanNumber} liquidado atómicamente (CANCELADO_POR_RENOVACION), nuevo préstamo ${res.loan.loanNumber} activado y asiento contable contabilizado.`
+          : `Desembolso ${res.disbursement.disbursementNumber} confirmado. El préstamo ${res.loan.loanNumber} pasó oficialmente a la cartera de Activos y se envió un correo al cliente informándole que su préstamo ya se encuentra en su cuenta de banco.`,
       });
     } catch (err) {
       setFeedback({
@@ -313,6 +393,92 @@ export function DisbursementsView() {
                 </div>
               )}
 
+              {/* Mandatory Renewal Liquidation & Net Disbursement Summary */}
+              {activeApp.isRenewal && renewalDisbSummary && (
+                <div
+                  className={`p-5 rounded-2xl border space-y-3 ${
+                    renewalDisbSummary.netCalc.valid
+                      ? 'border-emerald-500/40 bg-emerald-500/[0.06]'
+                      : 'border-rose-500/50 bg-rose-500/10'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-display font-bold text-sm text-slate-950 dark:text-white flex items-center gap-2">
+                      <RefreshCw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>
+                        Liquidación Coordinada por Renovación · Préstamo Anterior {activeApp.originLoanNumber}
+                      </span>
+                    </h3>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      Cálculo al {disbursementDate}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 font-mono tabular-nums">
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Monto Nuevo Aprobado</span>
+                      <strong className="text-sm text-slate-950 dark:text-white">
+                        {formatMoney(formalization.approvedCapital, activeApp.currency)}
+                      </strong>
+                    </div>
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Capital Anterior</span>
+                      <strong className="text-sm text-amber-700 dark:text-amber-300">
+                        -{formatMoney(renewalDisbSummary.breakdown?.remainingPrincipal ?? 0, activeApp.currency)}
+                      </strong>
+                    </div>
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Interés / Mora / Cargos</span>
+                      <strong className="text-sm text-amber-700 dark:text-amber-300">
+                        -{formatMoney(
+                          (renewalDisbSummary.breakdown?.remainingInterest ?? 0) +
+                            (renewalDisbSummary.breakdown?.remainingLateFee ?? 0) +
+                            (renewalDisbSummary.breakdown?.remainingCharges ?? 0),
+                          activeApp.currency
+                        )}
+                      </strong>
+                    </div>
+                    <div className="axy-surface-tonal p-3 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Otros Descuentos</span>
+                      <strong className="text-sm text-slate-700 dark:text-slate-200">
+                        -{formatMoney(formalization.deductedExpenses, activeApp.currency)}
+                      </strong>
+                    </div>
+                    <div
+                      className={`p-3 rounded-xl border ${
+                        renewalDisbSummary.netCalc.valid
+                          ? 'bg-emerald-600/15 border-emerald-500/40'
+                          : 'bg-rose-600/15 border-rose-500/45'
+                      }`}
+                    >
+                      <span className="block font-sans text-[10px] font-bold uppercase text-emerald-800 dark:text-emerald-200">
+                        Desembolso Neto a Entregar
+                      </span>
+                      <strong
+                        className={`text-base ${
+                          renewalDisbSummary.netCalc.valid
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-rose-700 dark:text-rose-300'
+                        }`}
+                      >
+                        {formatMoney(renewalDisbSummary.netCalc.netDisbursementAmount, activeApp.currency)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {!renewalDisbSummary.netCalc.valid ? (
+                    <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-800 dark:text-rose-200 font-semibold flex items-start gap-2">
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{renewalDisbSummary.netCalc.reason}</span>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                      Al confirmar <strong>Desembolsado</strong>, AxyCore ejecutará en una sola transacción atómica: (1) cancelación total de {activeApp.originLoanNumber} (<strong>CANCELADO_POR_RENOVACION</strong>, saldo 0.00), (2) activación del nuevo crédito, (3) asiento contable balanceado de liquidación + neto, y (4) comprobante de desembolso por renovación. Si ocurre un error, el préstamo anterior permanecerá intacto.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="axy-surface p-5 rounded-2xl space-y-4">
                 <div className="axy-surface-tonal grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl font-mono">
                   <div>
@@ -324,12 +490,28 @@ export function DisbursementsView() {
                     <p className="font-bold text-sm tabular-nums">{formatMoney(formalization.totalFinanced, activeApp.currency)}</p>
                   </div>
                   <div>
-                    <p className="font-sans text-slate-500">Gastos Totales</p>
-                    <p className="font-bold text-sm tabular-nums">{formatMoney(formalization.financedExpenses + formalization.deductedExpenses, activeApp.currency)}</p>
+                    <p className="font-sans text-slate-500">
+                      {renewalDisbSummary ? 'Liquidación + Gastos' : 'Gastos Totales'}
+                    </p>
+                    <p className="font-bold text-sm tabular-nums">
+                      {formatMoney(
+                        (renewalDisbSummary?.payoffAmt ?? 0) +
+                          formalization.financedExpenses +
+                          formalization.deductedExpenses,
+                        activeApp.currency
+                      )}
+                    </p>
                   </div>
                   <div>
                     <p className="font-sans text-[#0066FF] dark:text-[#00D1FF] font-semibold">Neto a Entregar</p>
-                    <p className="font-bold text-sm tabular-nums">{formatMoney(formalization.netDisbursementAmount, activeApp.currency)}</p>
+                    <p className="font-bold text-sm tabular-nums">
+                      {formatMoney(
+                        renewalDisbSummary
+                          ? renewalDisbSummary.netCalc.netDisbursementAmount
+                          : formalization.netDisbursementAmount,
+                        activeApp.currency
+                      )}
+                    </p>
                   </div>
                 </div>
 
@@ -498,19 +680,44 @@ export function DisbursementsView() {
                   <th className="py-2.5 px-3 font-semibold">Comprobante</th>
                   <th className="py-2.5 px-3 font-semibold text-right">Neto Entregado</th>
                   <th className="py-2.5 px-3 font-semibold">Estado</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Recibo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80 dark:divide-[#00B8FF]/12 font-mono">
                 {disbursements.map((d) => (
                   <tr key={d.id} className="axy-table-row">
-                    <td className="py-2 px-3 font-semibold">{d.disbursementNumber}</td>
+                    <td className="py-2 px-3 font-semibold">
+                      <div>{d.disbursementNumber}</div>
+                      {d.isRenewal && (
+                        <div className="font-sans text-[10px] text-emerald-600 dark:text-emerald-400">
+                          Renovación de {d.originLoanNumber}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-2 px-3">{d.disbursementDate}</td>
                     <td className="py-2 px-3 font-sans">{d.paymentMethod} · {d.financialEntity}</td>
                     <td className="py-2 px-3">{d.destinationAccountMasked}</td>
                     <td className="py-2 px-3">{d.referenceNumber}</td>
                     <td className="py-2 px-3 font-sans">{d.voucherFileName || '—'}</td>
-                    <td className="py-2 px-3 text-right tabular-nums">{d.netDeliveredAmount.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">
+                      <div>{d.netDeliveredAmount.toLocaleString()}</div>
+                      {d.isRenewal && d.renewalPayoffAmount ? (
+                        <div className="text-[10px] text-amber-600 dark:text-amber-400">
+                          Liq: -{d.renewalPayoffAmount.toLocaleString()}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="py-2 px-3 font-sans text-emerald-700 dark:text-emerald-400 font-semibold">{d.status}</td>
+                    <td className="py-2 px-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setPrintVoucherDisb(d)}
+                        className="font-sans inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0066FF]/12 hover:bg-[#0066FF]/22 text-[#0052CC] dark:text-[#00D1FF] text-[11px] font-semibold cursor-pointer"
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>Comprobante</span>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -518,6 +725,166 @@ export function DisbursementsView() {
           </div>
         </div>
       )}
+
+      {/* Printable Disbursement / Renewal Liquidation Voucher Modal */}
+      {printVoucherDisb && (() => {
+        const linkedLoan = loans.find((l) => l.disbursementId === printVoucherDisb.id) ?? null;
+        const linkedApp = applications.find((a) => a.id === printVoucherDisb.applicationId) ?? null;
+        const curr = linkedLoan?.currency || linkedApp?.currency || 'DOP';
+        const handlePrintIframe = () => {
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'fixed';
+          iframe.style.right = '0';
+          iframe.style.bottom = '0';
+          iframe.style.width = '0';
+          iframe.style.height = '0';
+          iframe.style.border = '0';
+          document.body.appendChild(iframe);
+          const docRef = iframe.contentWindow?.document;
+          if (!docRef) {
+            document.body.removeChild(iframe);
+            return;
+          }
+          const logoHtml = organization.logoUrl
+            ? `<img src="${organization.logoUrl}" alt="Logo" style="height:48px;object-fit:contain;" />`
+            : '';
+          docRef.open();
+          docRef.write(`<!DOCTYPE html><html><head><title>Comprobante ${printVoucherDisb.disbursementNumber}</title>
+            <style>body{font-family:Arial,sans-serif;padding:28px;color:#0f172a;font-size:12px;}
+            .hdr{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f3d91;padding-bottom:12px;margin-bottom:16px;}
+            table{width:100%;border-collapse:collapse;margin-top:12px;}td,th{padding:8px;border:1px solid #cbd5e1;text-align:left;}
+            .r{text-align:right;font-family:monospace;}.tot{background:#ecfdf5;font-weight:bold;font-size:14px;}</style></head><body>
+            <div class="hdr"><div>${logoHtml}<h2 style="margin:4px 0 0;">${organization.tradeName || organization.name}</h2>
+            <div>RNC: ${organization.rnc || '—'} · Tel: ${organization.phone || '—'}</div></div>
+            <div style="text-align:right;"><h3 style="margin:0;color:#0f3d91;">${printVoucherDisb.isRenewal ? 'COMPROBANTE DE DESEMBOLSO POR RENOVACIÓN' : 'COMPROBANTE DE DESEMBOLSO'}</h3>
+            <div>N° ${printVoucherDisb.disbursementNumber} · Fecha: ${printVoucherDisb.disbursementDate}</div></div></div>
+            <p><strong>Cliente:</strong> ${linkedApp?.applicantDisplayName || '—'} · <strong>Préstamo Nuevo:</strong> ${linkedLoan?.loanNumber || '—'}${printVoucherDisb.originLoanNumber ? ` · <strong>Préstamo Anterior Liquidado:</strong> ${printVoucherDisb.originLoanNumber}` : ''}</p>
+            <p><strong>Medio de Pago:</strong> ${printVoucherDisb.paymentMethod} · <strong>Entidad:</strong> ${printVoucherDisb.financialEntity} · <strong>Cuenta:</strong> ${printVoucherDisb.destinationAccountMasked} · <strong>Ref.:</strong> ${printVoucherDisb.referenceNumber}</p>
+            <table><thead><tr><th>Concepto</th><th class="r">Monto (${curr})</th></tr></thead><tbody>
+            <tr><td>Monto Nuevo Aprobado</td><td class="r">${formatMoney(printVoucherDisb.approvedAmount, curr)}</td></tr>
+            ${printVoucherDisb.isRenewal ? `<tr><td>(-) Saldo Liquidado Préstamo Anterior (${printVoucherDisb.originLoanNumber || ''})</td><td class="r">-${formatMoney(printVoucherDisb.renewalPayoffAmount || 0, curr)}</td></tr>` : ''}
+            <tr><td>(-) Otros Descuentos / Gastos Descontados</td><td class="r">-${formatMoney(printVoucherDisb.otherDiscountsAmount ?? Math.max(0, printVoucherDisb.approvedAmount - (printVoucherDisb.renewalPayoffAmount || 0) - printVoucherDisb.netDeliveredAmount), curr)}</td></tr>
+            <tr class="tot"><td>DESEMBOLSO NETO ENTREGADO AL CLIENTE</td><td class="r">${formatMoney(printVoucherDisb.netDeliveredAmount, curr)}</td></tr>
+            </tbody></table>
+            <p style="margin-top:24px;">Autorizado por: <strong>${printVoucherDisb.authorizerUserName}</strong> · Confirmado por: <strong>${printVoucherDisb.responsibleUserName}</strong></p>
+            </body></html>`);
+          docRef.close();
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          setTimeout(() => {
+            if (iframe.parentNode) document.body.removeChild(iframe);
+          }, 1500);
+        };
+        return (
+          <div className="fixed inset-0 z-50 bg-[#030816]/75 backdrop-blur-[2px] flex items-center justify-center p-4">
+            <div className="axy-panel-in axy-surface w-full max-w-xl rounded-2xl border border-[var(--axy-border-strong)] shadow-2xl overflow-hidden text-xs">
+              <div className="axy-infinity-line" />
+              <div className="px-5 py-4 border-b border-[var(--axy-border)] flex items-center justify-between gap-3 bg-[var(--axy-surface-tonal)]">
+                <div>
+                  <h4 className="font-display font-bold text-sm text-slate-950 dark:text-white">
+                    {printVoucherDisb.isRenewal
+                      ? 'Comprobante de Desembolso por Renovación'
+                      : 'Comprobante de Desembolso'}
+                  </h4>
+                  <p className="font-mono text-[11px] text-slate-500">
+                    {printVoucherDisb.disbursementNumber} · {printVoucherDisb.disbursementDate}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPrintVoucherDisb(null)}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-5 space-y-3">
+                <div className="flex items-center justify-between gap-2 pb-3 border-b border-[var(--axy-border)]">
+                  <div className="flex items-center gap-2.5">
+                    {organization.logoUrl && (
+                      <img src={organization.logoUrl} alt="Logo" className="h-9 w-auto object-contain" />
+                    )}
+                    <div>
+                      <p className="font-bold text-slate-950 dark:text-white">
+                        {organization.tradeName || organization.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        RNC: {organization.rnc || '—'} · Tel: {organization.phone || '—'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-500">Cliente:</span>{' '}
+                    <strong>{linkedApp?.applicantDisplayName || '—'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Préstamo Nuevo:</span>{' '}
+                    <strong className="font-mono">{linkedLoan?.loanNumber || '—'}</strong>
+                  </div>
+                  {printVoucherDisb.originLoanNumber && (
+                    <div className="col-span-2 text-amber-700 dark:text-amber-300">
+                      <span>Préstamo Anterior Liquidado:</span>{' '}
+                      <strong className="font-mono">{printVoucherDisb.originLoanNumber}</strong>{' '}
+                      (CANCELADO_POR_RENOVACION)
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-xl border border-[var(--axy-border)] divide-y divide-[var(--axy-border)] font-mono tabular-nums">
+                  <div className="p-2.5 flex justify-between">
+                    <span className="font-sans text-slate-600 dark:text-slate-300">Monto Nuevo Aprobado</span>
+                    <strong>{formatMoney(printVoucherDisb.approvedAmount, curr)}</strong>
+                  </div>
+                  {printVoucherDisb.isRenewal && (
+                    <div className="p-2.5 flex justify-between text-amber-700 dark:text-amber-300">
+                      <span className="font-sans">(-) Liquidación Préstamo Anterior</span>
+                      <strong>-{formatMoney(printVoucherDisb.renewalPayoffAmount || 0, curr)}</strong>
+                    </div>
+                  )}
+                  <div className="p-2.5 flex justify-between">
+                    <span className="font-sans text-slate-600 dark:text-slate-300">(-) Otros Descuentos</span>
+                    <strong>
+                      -
+                      {formatMoney(
+                        printVoucherDisb.otherDiscountsAmount ??
+                          Math.max(
+                            0,
+                            printVoucherDisb.approvedAmount -
+                              (printVoucherDisb.renewalPayoffAmount || 0) -
+                              printVoucherDisb.netDeliveredAmount
+                          ),
+                        curr
+                      )}
+                    </strong>
+                  </div>
+                  <div className="p-3 flex justify-between bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-sm">
+                    <span className="font-sans font-bold">DESEMBOLSO NETO ENTREGADO</span>
+                    <strong>{formatMoney(printVoucherDisb.netDeliveredAmount, curr)}</strong>
+                  </div>
+                </div>
+              </div>
+              <div className="px-5 py-3.5 border-t border-[var(--axy-border)] flex justify-end gap-2 bg-[var(--axy-surface-tonal)]">
+                <button
+                  type="button"
+                  onClick={() => setPrintVoucherDisb(null)}
+                  className="axy-btn-secondary px-4 py-2 cursor-pointer"
+                >
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintIframe}
+                  className="axy-btn-primary px-4 py-2 inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir Comprobante</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

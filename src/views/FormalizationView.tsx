@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, FileSignature, Mail, Send } from 'lucide-react';
+import { CheckCircle2, Download, FileSignature, Mail, RefreshCw, Send, ShieldAlert } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import {
   buildDefaultFormalizationContent,
@@ -14,12 +14,22 @@ import {
   AmortizationScheduleResult,
   generateAmortizationSchedule,
 } from '../engine/amortizationEngine';
+import {
+  calculateRenewalNetDisbursement,
+  computeRenewalPayoffBreakdown,
+} from '../engine/renewalEngine';
 import { formatMoney, formatRatePct, normalizeMonthlyRateDecimal, toIsoDateOnly } from '../utils/formatters';
 
 export function FormalizationView() {
   const {
     applications,
     customers,
+    loans,
+    loanInstallments,
+    payments,
+    collectionAccounts,
+    creditRenewals,
+    activeCollectionPolicy,
     committeeDecisions,
     formalizations,
     financialAnalyses,
@@ -146,7 +156,54 @@ export function FormalizationView() {
     12;
   const effFinancedExpenses = allowFinancedExpenses ? financedExpenses : 0;
   const totalFinanced = approvedCapital + effFinancedExpenses;
-  const netToDeliver = Math.max(0, approvedCapital - deductedExpenses);
+
+  const renewalFormalizationInfo = useMemo(() => {
+    if (!activeApp?.isRenewal) return null;
+    const renewal =
+      creditRenewals.find(
+        (r) => r.id === activeApp.renewalId || r.applicationId === activeApp.id
+      ) ?? null;
+    const originLoan =
+      loans.find((l) => l.id === (activeApp.originLoanId || renewal?.originLoanId)) ?? null;
+    const breakdown = originLoan
+      ? computeRenewalPayoffBreakdown({
+          loan: originLoan,
+          installments: loanInstallments.filter((i) => i.loanId === originLoan.id),
+          payments: payments.filter((p) => p.loanId === originLoan.id),
+          customer,
+          account: collectionAccounts.find((a) => a.loanId === originLoan.id) ?? null,
+          policy: activeCollectionPolicy,
+          asOfDateIso: disbursementTargetDate || toIsoDateOnly(),
+        }).breakdown
+      : existingForm?.renewalPayoffBreakdown ??
+        activeApp.originPayoffSnapshot ??
+        renewal?.payoffSnapshot ??
+        null;
+    const payoffAmt = breakdown?.totalPayoffAmount ?? existingForm?.renewalPayoffAmount ?? 0;
+    const netCalc = calculateRenewalNetDisbursement({
+      grossApprovedAmount: approvedCapital,
+      payoffAmount: payoffAmt,
+      otherAuthorizedDiscounts: deductedExpenses,
+    });
+    return { renewal, originLoan, breakdown, payoffAmt, netCalc };
+  }, [
+    activeApp,
+    creditRenewals,
+    loans,
+    loanInstallments,
+    payments,
+    customer,
+    collectionAccounts,
+    activeCollectionPolicy,
+    disbursementTargetDate,
+    existingForm,
+    approvedCapital,
+    deductedExpenses,
+  ]);
+
+  const netToDeliver = renewalFormalizationInfo
+    ? renewalFormalizationInfo.netCalc.netDisbursementAmount
+    : Math.max(0, approvedCapital - deductedExpenses);
   const legalReviewConfirmed = promissoryNoteConfirmed && contractConfirmed;
 
   useEffect(() => {
@@ -377,6 +434,15 @@ export function FormalizationView() {
       });
       return;
     }
+    if (renewalFormalizationInfo && !renewalFormalizationInfo.netCalc.valid) {
+      setFeedback({
+        type: 'err',
+        msg:
+          renewalFormalizationInfo.netCalc.reason ||
+          'El desembolso neto de esta renovación es menor o igual a cero. No se puede enviar a Desembolso.',
+      });
+      return;
+    }
     const effectiveSchedule =
       schedule ??
       generateAmortizationSchedule({
@@ -431,6 +497,17 @@ export function FormalizationView() {
           status: ready ? 'LISTA_PARA_DESEMBOLSO' : 'PENDIENTE',
           approvedFinancialAnalysisId:
             existingForm?.approvedFinancialAnalysisId ?? linkedAnalysis?.id ?? null,
+          ...(activeApp.isRenewal
+            ? {
+                isRenewal: true,
+                renewalId: activeApp.renewalId ?? renewalFormalizationInfo?.renewal?.id ?? null,
+                originLoanId: activeApp.originLoanId ?? renewalFormalizationInfo?.originLoan?.id ?? null,
+                originLoanNumber:
+                  activeApp.originLoanNumber ?? renewalFormalizationInfo?.originLoan?.loanNumber ?? null,
+                renewalPayoffAmount: renewalFormalizationInfo?.payoffAmt ?? 0,
+                renewalPayoffBreakdown: renewalFormalizationInfo?.breakdown ?? null,
+              }
+            : {}),
           formalizedBy: userProfile.uid,
           formalizedByName: userProfile.displayName || userProfile.email || 'Formalización',
         },
@@ -583,6 +660,45 @@ export function FormalizationView() {
               </button>
             </div>
 
+            {renewalFormalizationInfo && (
+              <div
+                className={`p-4 rounded-xl border space-y-2 ${
+                  renewalFormalizationInfo.netCalc.valid
+                    ? 'border-emerald-500/35 bg-emerald-500/[0.06]'
+                    : 'border-rose-500/45 bg-rose-500/10'
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-display font-bold text-slate-950 dark:text-white flex items-center gap-1.5">
+                    <RefreshCw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>
+                      Liquidación de Préstamo Anterior ({activeApp.originLoanNumber}) Incluida en Contrato
+                    </span>
+                  </p>
+                  <span className="font-mono text-[11px] text-amber-700 dark:text-amber-300 font-bold">
+                    Saldo Cancelación: -{formatMoney(renewalFormalizationInfo.payoffAmt, activeApp.currency)}
+                  </span>
+                </div>
+                {renewalFormalizationInfo.breakdown && (
+                  <p className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                    Capital: {formatMoney(renewalFormalizationInfo.breakdown.remainingPrincipal, activeApp.currency)} · Intereses:{' '}
+                    {formatMoney(renewalFormalizationInfo.breakdown.remainingInterest, activeApp.currency)} · Mora/Cargos:{' '}
+                    {formatMoney(
+                      renewalFormalizationInfo.breakdown.remainingLateFee +
+                        renewalFormalizationInfo.breakdown.remainingCharges,
+                      activeApp.currency
+                    )}
+                  </p>
+                )}
+                {!renewalFormalizationInfo.netCalc.valid && (
+                  <p className="text-[11px] font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span>{renewalFormalizationInfo.netCalc.reason}</span>
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="axy-surface-tonal p-3 rounded-xl">
                 <p className="text-slate-500">Capital Aprobado</p>
@@ -597,8 +713,15 @@ export function FormalizationView() {
                 <p className="font-mono font-bold text-sm tabular-nums mt-0.5">{formatMoney(totalFinanced, activeApp.currency)}</p>
               </div>
               <div className="axy-surface-tonal p-3 rounded-xl">
-                <p className="text-slate-500">Gastos Descontados</p>
-                <p className="font-mono font-bold text-sm tabular-nums mt-0.5">{formatMoney(deductedExpenses, activeApp.currency)}</p>
+                <p className="text-slate-500">
+                  {renewalFormalizationInfo ? 'Liquidación + Desc.' : 'Gastos Descontados'}
+                </p>
+                <p className="font-mono font-bold text-sm tabular-nums mt-0.5">
+                  {formatMoney(
+                    (renewalFormalizationInfo?.payoffAmt ?? 0) + deductedExpenses,
+                    activeApp.currency
+                  )}
+                </p>
               </div>
               <div className="p-3 rounded-xl bg-[#0066FF]/8 dark:bg-[#0066FF]/16 border border-[#0066FF]/20 dark:border-[#00B8FF]/25">
                 <p className="text-[#0052CC] dark:text-[#00D1FF] font-medium">Neto a Entregar</p>

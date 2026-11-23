@@ -111,15 +111,32 @@ export function canUserApproveCommittee(params: {
 
 export function canExecuteDisbursement(params: {
   userRole: UserRole;
-  application: Pick<ApplicationRecord, 'status'>;
+  application: Pick<ApplicationRecord, 'status' | 'isRenewal'>;
   decision: Pick<CommitteeDecisionRecord, 'decision' | 'approvedAmount' | 'conditionsFulfilled'> | null;
-  formalization: Pick<
-    FormalizationRecord,
-    'status' | 'approvedCapital' | 'legalReviewConfirmed' | 'conditionsFulfilled' | 'requiredDocsChecklist'
-  > | null;
+  formalization:
+    | (Pick<
+        FormalizationRecord,
+        | 'status'
+        | 'approvedCapital'
+        | 'legalReviewConfirmed'
+        | 'conditionsFulfilled'
+        | 'requiredDocsChecklist'
+        | 'isRenewal'
+        | 'renewalPayoffAmount'
+      > &
+        Partial<Pick<FormalizationRecord, 'deductedExpenses' | 'netDisbursementAmount'>>)
+    | null;
   existingDisbursementId: string | null;
+  liveRenewalPayoffAmount?: number;
 }): PermissionCheckResult {
-  const { userRole, application, decision, formalization, existingDisbursementId } = params;
+  const {
+    userRole,
+    application,
+    decision,
+    formalization,
+    existingDisbursementId,
+    liveRenewalPayoffAmount,
+  } = params;
 
   if (!['ADMIN', 'OPERATIONS', 'FINANCE'].includes(userRole)) {
     return {
@@ -173,6 +190,25 @@ export function canExecuteDisbursement(params: {
       allowed: false,
       reason: 'El capital formalizado no coincide con el monto aprobado por el Comité.',
     };
+  }
+
+  if (application.isRenewal || formalization.isRenewal) {
+    const payoff = Math.max(
+      0,
+      Number(liveRenewalPayoffAmount ?? formalization.renewalPayoffAmount ?? 0)
+    );
+    const deducted = Math.max(0, Number(formalization.deductedExpenses ?? 0));
+    const computedNet = Number((formalization.approvedCapital - payoff - deducted).toFixed(2));
+    if (
+      computedNet <= 0 ||
+      (formalization.netDisbursementAmount !== undefined && formalization.netDisbursementAmount <= 0)
+    ) {
+      return {
+        allowed: false,
+        reason:
+          'Bloqueo de renovación: el monto aprobado no cubre el saldo de cancelación del préstamo anterior más los descuentos autorizados (desembolso neto <= 0).',
+      };
+    }
   }
 
   return { allowed: true };

@@ -1,12 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { BarChart3, Download, FileSpreadsheet, FileText, Printer, Search } from 'lucide-react';
+import { BarChart3, Download, FileSpreadsheet, FileText, Printer, RefreshCw, Search } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
+import { computeRenewalExecutiveMetrics } from '../engine/renewalEngine';
 import {
   APPLICATION_STATUS_LABELS,
   formatMoney,
   formatRatePct,
   formatTimestamp,
   PRODUCT_LABELS,
+  RENEWAL_MODALITY_LABELS,
+  RENEWAL_STATUS_LABELS,
   SCORING_STATUS_LABELS,
 } from '../utils/formatters';
 import {
@@ -27,7 +30,8 @@ type ReportId =
   | 'R07_TASAS_MONTOS'
   | 'R08_USUARIOS_PRODUCTIVIDAD'
   | 'R09_AUDITORIA'
-  | 'R10_INDICADORES_V2';
+  | 'R10_INDICADORES_V2'
+  | 'R11_RENOVACIONES';
 
 const REPORT_LIST: Array<{ id: ReportId; title: string; subtitle: string }> = [
   {
@@ -45,6 +49,11 @@ const REPORT_LIST: Array<{ id: ReportId; title: string; subtitle: string }> = [
   { id: 'R08_USUARIOS_PRODUCTIVIDAD', title: '8. Usuarios y Productividad', subtitle: 'Volumen operativo por originador, analista y comité' },
   { id: 'R09_AUDITORIA', title: '9. Auditoría Operativa', subtitle: 'Bitácora consolidada de eventos críticos' },
   { id: 'R10_INDICADORES_V2', title: '10. Análisis de 22 Indicadores V2', subtitle: 'Promedio de puntos obtenidos por indicador en ejecuciones' },
+  {
+    id: 'R11_RENOVACIONES',
+    title: '11. Renovaciones y Reenganches',
+    subtitle: 'Monto bruto renovado, saldo liquidado anterior, descuentos y dinero neto nuevo entregado',
+  },
 ];
 
 const APPROVED_STATUSES = new Set([
@@ -85,6 +94,7 @@ export function ReportsView() {
     formalizations,
     disbursements,
     loans,
+    creditRenewals,
     auditLogs,
     organization,
     activeOrTestPolicy,
@@ -134,6 +144,32 @@ export function ReportsView() {
       return true;
     });
   }, [loans, filterCurrency, filterProduct, dateFrom, dateTo]);
+
+  const filteredRenewals = useMemo(() => {
+    return creditRenewals.filter((r) => {
+      if (filterCurrency !== 'ALL' && r.originCurrency !== filterCurrency) return false;
+      if (filterProduct !== 'ALL' && r.originProductCode !== filterProduct) return false;
+      const refDate = r.disbursedAt?.slice(0, 10) || r.liquidationDate || extractIsoDate(r.createdAt);
+      if (dateFrom && refDate && refDate < dateFrom) return false;
+      if (dateTo && refDate && refDate > dateTo) return false;
+      return true;
+    });
+  }, [creditRenewals, filterCurrency, filterProduct, dateFrom, dateTo]);
+
+  const renewalMetrics = useMemo(
+    () =>
+      computeRenewalExecutiveMetrics({
+        renewals: creditRenewals,
+        disbursements,
+        currency: filterCurrency,
+        productFilter: filterProduct,
+        dateFrom,
+        dateTo,
+      }),
+    [creditRenewals, disbursements, filterCurrency, filterProduct, dateFrom, dateTo]
+  );
+
+  const renewalMoneyCurrency = filterCurrency === 'USD' ? 'USD' : 'DOP';
 
   const financialSummary = useMemo<FinancialPerformanceSummary>(() => {
     const submitted = filteredApps.filter((a) => a.status !== 'BORRADOR');
@@ -561,11 +597,62 @@ export function ReportsView() {
             }),
         };
       }
+
+      case 'R11_RENOVACIONES': {
+        return {
+          columns: [
+            'N.º Renovación',
+            'Cliente',
+            'Modalidad',
+            'Producto',
+            'Moneda',
+            'Préstamo Anterior',
+            'Préstamo Nuevo',
+            'Estado',
+            'Monto Bruto Renovado',
+            'Saldo Liquidado Anterior',
+            'Otros Descuentos',
+            'Dinero Neto Entregado',
+            'Oficial',
+            'Fecha',
+          ],
+          rows: filteredRenewals.map((r) => {
+            const isDisbursed = r.status === 'DESEMBOLSADA';
+            const grossAmt = isDisbursed
+              ? r.approvedAmount ?? r.requestedAmount
+              : r.approvedAmount ?? r.requestedAmount;
+            const payoffAmt = isDisbursed
+              ? r.settledPayoffAmount ?? r.payoffSnapshot.totalPayoffAmount
+              : r.payoffSnapshot.totalPayoffAmount;
+            const otherDisc = isDisbursed ? r.otherDeductionsAmount ?? 0 : 0;
+            const netAmt = isDisbursed
+              ? r.netDisbursementAmount ?? Math.max(0, grossAmt - payoffAmt - otherDisc)
+              : Math.max(0, grossAmt - payoffAmt - otherDisc);
+            return [
+              r.renewalNumber,
+              r.customerName,
+              RENEWAL_MODALITY_LABELS[r.modality] || r.modality,
+              PRODUCT_LABELS[r.originProductCode] || r.originProductCode,
+              r.originCurrency,
+              r.originLoanNumber,
+              r.targetLoanNumber || 'Pendiente',
+              RENEWAL_STATUS_LABELS[r.status] || r.status,
+              grossAmt,
+              payoffAmt,
+              otherDisc,
+              netAmt,
+              r.initiatedByName || r.initiatedBy,
+              r.disbursedAt?.slice(0, 10) || r.liquidationDate || formatTimestamp(r.createdAt),
+            ];
+          }),
+        };
+      }
     }
   }, [
     reportId,
     filteredApps,
     filteredLoans,
+    filteredRenewals,
     scoringExecutions,
     evaluations,
     committeeDecisions,
@@ -921,6 +1008,260 @@ export function ReportsView() {
               </select>
             </div>
           </div>
+
+          {reportId === 'R11_RENOVACIONES' && (
+            <div className="space-y-4">
+              {/* Explicit Financial Separation (Never mixing Gross vs Payoff vs Net New Cash) */}
+              <div className="p-4 rounded-2xl bg-white dark:bg-[#08132B] border border-indigo-200/80 dark:border-indigo-500/25 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-[#0066FF] dark:text-[#00D1FF]" />
+                    <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white">
+                      Indicadores Gerenciales de Renovaciones (Separación Contable Obligatoria)
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                    {filterCurrency === 'ALL'
+                      ? 'Consolidado nominal (filtre por DOP o USD para totales por divisa)'
+                      : `Moneda: ${filterCurrency}`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/10">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Monto Bruto Renovado
+                    </p>
+                    <p className="font-display text-lg font-bold font-mono tabular-nums text-slate-950 dark:text-white mt-1">
+                      {formatMoney(renewalMetrics.grossRenewedAmount, renewalMoneyCurrency)}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Capital bruto desembolsado en renovaciones
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-500/25">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                      Saldo Liquidado Anterior
+                    </p>
+                    <p className="font-display text-lg font-bold font-mono tabular-nums text-amber-900 dark:text-amber-200 mt-1">
+                      -{formatMoney(renewalMetrics.totalPriorPayoffSettled, renewalMoneyCurrency)}
+                    </p>
+                    <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5">
+                      Cancelación automática de préstamos previos
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/10">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Otros Descuentos Autorizados
+                    </p>
+                    <p className="font-display text-lg font-bold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-1">
+                      -{formatMoney(renewalMetrics.totalOtherDiscounts, renewalMoneyCurrency)}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Gastos de cierre y deducciones descontadas
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/25 border border-emerald-300/80 dark:border-emerald-500/30">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                      Dinero Neto Nuevo Entregado
+                    </p>
+                    <p className="font-display text-lg font-bold font-mono tabular-nums text-emerald-700 dark:text-emerald-300 mt-1">
+                      {formatMoney(renewalMetrics.totalNetNewCashDelivered, renewalMoneyCurrency)}
+                    </p>
+                    <p className="text-[11px] font-mono text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
+                      Prom. neto: {formatMoney(renewalMetrics.averageNetDisbursement, renewalMoneyCurrency)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pipeline Counts (All 7 Status KPIs) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
+                  {[
+                    { label: 'Iniciadas', value: renewalMetrics.totalInitiated, tone: 'text-slate-900 dark:text-white' },
+                    { label: 'En Evaluación', value: renewalMetrics.totalInEvaluation, tone: 'text-sky-700 dark:text-sky-300' },
+                    { label: 'Pend. Comité', value: renewalMetrics.totalPendingCommittee, tone: 'text-amber-700 dark:text-amber-300' },
+                    { label: 'Aprobadas', value: renewalMetrics.totalApproved, tone: 'text-[#0066FF] dark:text-[#00D1FF]' },
+                    { label: 'Pend. Desembolso', value: renewalMetrics.totalPendingDisbursement, tone: 'text-indigo-700 dark:text-indigo-300' },
+                    { label: 'Desembolsadas', value: renewalMetrics.totalDisbursed, tone: 'text-emerald-700 dark:text-emerald-400' },
+                    { label: 'Rechazadas', value: renewalMetrics.totalRejected, tone: 'text-rose-700 dark:text-rose-400' },
+                  ].map((kpi) => (
+                    <div
+                      key={kpi.label}
+                      className="p-2.5 rounded-xl bg-slate-50/90 dark:bg-[#040C1E] border border-slate-200/75 dark:border-white/10 text-center"
+                    >
+                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{kpi.label}</p>
+                      <p className={`font-display text-base font-bold font-mono tabular-nums mt-0.5 ${kpi.tone}`}>
+                        {kpi.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Modality Comparison */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/10 space-y-1">
+                    <p className="font-semibold text-slate-900 dark:text-white">
+                      Modalidad A — Mismas Condiciones (Directo a Comité)
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300 font-mono tabular-nums">
+                      Iniciadas: <strong>{renewalMetrics.modalityBreakdown.mismasCondicionesCount}</strong> · Desembolsadas:{' '}
+                      <strong>{renewalMetrics.modalityBreakdown.mismasCondicionesDisbursed}</strong>
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300 font-mono tabular-nums">
+                      Bruto: <strong>{formatMoney(renewalMetrics.modalityBreakdown.mismasCondicionesGross, renewalMoneyCurrency)}</strong> · Neto:{' '}
+                      <strong className="text-emerald-700 dark:text-emerald-400">
+                        {formatMoney(renewalMetrics.modalityBreakdown.mismasCondicionesNet, renewalMoneyCurrency)}
+                      </strong>
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/10 space-y-1">
+                    <p className="font-semibold text-slate-900 dark:text-white">
+                      Modalidad B — Aumento o Modificación (Con Evaluación)
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300 font-mono tabular-nums">
+                      Iniciadas: <strong>{renewalMetrics.modalityBreakdown.aumentoCount}</strong> · Desembolsadas:{' '}
+                      <strong>{renewalMetrics.modalityBreakdown.aumentoDisbursed}</strong>
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300 font-mono tabular-nums">
+                      Bruto: <strong>{formatMoney(renewalMetrics.modalityBreakdown.aumentoGross, renewalMoneyCurrency)}</strong> · Neto:{' '}
+                      <strong className="text-emerald-700 dark:text-emerald-400">
+                        {formatMoney(renewalMetrics.modalityBreakdown.aumentoNet, renewalMoneyCurrency)}
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Breakdown Tables: By Product, Officer, and Period */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 text-xs">
+                <div className="bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-200/80 dark:border-white/10 font-semibold text-slate-900 dark:text-white">
+                    Por Producto
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-50 dark:bg-[#040C1E] text-slate-500 dark:text-slate-400">
+                        <tr>
+                          <th className="py-2 px-3">Producto</th>
+                          <th className="py-2 px-2 text-right">Des.</th>
+                          <th className="py-2 px-2 text-right">Bruto</th>
+                          <th className="py-2 px-3 text-right">Neto</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-mono tabular-nums">
+                        {renewalMetrics.byProduct.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-4 text-center font-sans text-slate-500">
+                              Sin registros
+                            </td>
+                          </tr>
+                        ) : (
+                          renewalMetrics.byProduct.map((g) => (
+                            <tr key={g.key}>
+                              <td className="py-2 px-3 font-sans font-medium text-slate-800 dark:text-slate-200">
+                                {PRODUCT_LABELS[g.key as ProductCode] || g.label}
+                              </td>
+                              <td className="py-2 px-2 text-right">
+                                {g.disbursedCount}/{g.count}
+                              </td>
+                              <td className="py-2 px-2 text-right">{g.grossRenewed.toLocaleString('en-US')}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                                {g.netNewCash.toLocaleString('en-US')}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-200/80 dark:border-white/10 font-semibold text-slate-900 dark:text-white">
+                    Por Oficial de Negocios
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-50 dark:bg-[#040C1E] text-slate-500 dark:text-slate-400">
+                        <tr>
+                          <th className="py-2 px-3">Oficial</th>
+                          <th className="py-2 px-2 text-right">Des.</th>
+                          <th className="py-2 px-2 text-right">Bruto</th>
+                          <th className="py-2 px-3 text-right">Neto</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-mono tabular-nums">
+                        {renewalMetrics.byOfficer.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-4 text-center font-sans text-slate-500">
+                              Sin registros
+                            </td>
+                          </tr>
+                        ) : (
+                          renewalMetrics.byOfficer.map((g) => (
+                            <tr key={g.key}>
+                              <td className="py-2 px-3 font-sans font-medium text-slate-800 dark:text-slate-200 truncate max-w-[140px]">
+                                {g.label}
+                              </td>
+                              <td className="py-2 px-2 text-right">
+                                {g.disbursedCount}/{g.count}
+                              </td>
+                              <td className="py-2 px-2 text-right">{g.grossRenewed.toLocaleString('en-US')}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                                {g.netNewCash.toLocaleString('en-US')}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-200/80 dark:border-white/10 font-semibold text-slate-900 dark:text-white">
+                    Por Período (YYYY-MM)
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-slate-50 dark:bg-[#040C1E] text-slate-500 dark:text-slate-400">
+                        <tr>
+                          <th className="py-2 px-3">Período</th>
+                          <th className="py-2 px-2 text-right">Bruto</th>
+                          <th className="py-2 px-2 text-right">Liquidado</th>
+                          <th className="py-2 px-3 text-right">Neto</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-mono tabular-nums">
+                        {renewalMetrics.byPeriod.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="py-4 text-center font-sans text-slate-500">
+                              Sin registros
+                            </td>
+                          </tr>
+                        ) : (
+                          renewalMetrics.byPeriod.map((p) => (
+                            <tr key={p.period}>
+                              <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-200">
+                                {p.period}
+                              </td>
+                              <td className="py-2 px-2 text-right">{p.grossRenewed.toLocaleString('en-US')}</td>
+                              <td className="py-2 px-2 text-right text-amber-700 dark:text-amber-300">
+                                {p.payoffSettled.toLocaleString('en-US')}
+                              </td>
+                              <td className="py-2 px-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                                {p.netNewCash.toLocaleString('en-US')}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/18 rounded-2xl overflow-hidden">
             <div className="overflow-x-auto max-h-[580px] overflow-y-auto">

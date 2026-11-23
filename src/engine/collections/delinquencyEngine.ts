@@ -162,7 +162,11 @@ export function mapDpdToStage(params: {
   currentPrincipalBalance: number;
   stagesConfig: CollectionStageDefinition[];
 }): CollectionStage {
-  if (params.loanStatus === 'CANCELADO' || (params.loanStatus === 'PAGADO' && toCents(params.currentPrincipalBalance) <= 0)) {
+  if (
+    params.loanStatus === 'CANCELADO' ||
+    params.loanStatus === 'CANCELADO_POR_RENOVACION' ||
+    (params.loanStatus === 'PAGADO' && toCents(params.currentPrincipalBalance) <= 0)
+  ) {
     return 'CANCELADO';
   }
   if (params.dpd <= 0) {
@@ -301,7 +305,12 @@ export function evaluateLoanDelinquency(params: {
         toCents(inst.paidLateFee ?? 0) >
       0;
 
-    if (inst.dueDate < asOfDateIso && loan.status !== 'CANCELADO' && loan.status !== 'PAGADO') {
+    if (
+      inst.dueDate < asOfDateIso &&
+      loan.status !== 'CANCELADO' &&
+      loan.status !== 'CANCELADO_POR_RENOVACION' &&
+      loan.status !== 'PAGADO'
+    ) {
       const instDpd = Math.max(0, diffCalendarDays(inst.dueDate, asOfDateIso));
       if (instDpd > maxDpd) maxDpd = instDpd;
       overdueInstallmentsCount += 1;
@@ -350,8 +359,8 @@ export function evaluateLoanDelinquency(params: {
 
   // Derived loan status respects CANCELADO, PAGADO (0 principal), and VENCIDO even when loan_installments is empty (e.g. migrated loans)
   let derivedLoanStatus: LoanRecord['status'] = loan.status;
-  if (loan.status === 'CANCELADO') {
-    derivedLoanStatus = 'CANCELADO';
+  if (loan.status === 'CANCELADO' || loan.status === 'CANCELADO_POR_RENOVACION') {
+    derivedLoanStatus = loan.status;
     maxDpd = 0;
   } else if (
     toCents(loan.currentPrincipalBalance) <= 0 &&
@@ -647,6 +656,7 @@ export function reconcileLiveCollectionAccounts(params: {
     // existingAcc exists & loanInsts is empty: preserve snapshot DPD/overdue metrics while refreshing live balances, customer contact, and latest payments/actions/promises
     const isClosed =
       loan.status === 'CANCELADO' ||
+      loan.status === 'CANCELADO_POR_RENOVACION' ||
       loan.status === 'PAGADO' ||
       toCents(loan.currentPrincipalBalance) <= 0;
     const appliedPays = loanPays

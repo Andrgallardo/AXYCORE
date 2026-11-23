@@ -15,6 +15,7 @@ import {
   BiometricIdentityVerifier,
   type PendingIdentityFileItem,
 } from './BiometricIdentityVerifier';
+import { InstitutionalLogoBadge } from './InstitutionalLogoBadge';
 import { BIOMETRIC_VERDICT_LABELS } from '../engine/biometricVerification';
 import {
   computeIndicativePublicInstallment,
@@ -530,19 +531,35 @@ export function PublicCreditApplicationForm({
   if (submittedRecord) {
     return (
       <div className="space-y-5">
-        <div className="p-5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 space-y-3">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <h3 className="font-display text-lg font-bold text-white">
-                Solicitud recibida correctamente
-              </h3>
-              <p className="text-xs text-emerald-100/90 leading-relaxed">
-                Tu expediente completo fue enviado de forma privada y exclusiva a{' '}
-                <strong className="text-white">{instName}</strong>. Nuestro equipo de crédito
-                procesará tu solicitud con el Motor de Decisiones y te contactará pronto.
-              </p>
+        <div className="p-5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 space-y-3.5">
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-emerald-500/20">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <InstitutionalLogoBadge
+                logoUrl={portal.logoUrl}
+                name={instName}
+                primaryColor={instPrimary}
+                accentColor={instAccent}
+                size="sm"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-white truncate">{instName}</p>
+                <p className="text-[11px] text-emerald-200/80 font-mono truncate">
+                  Portal {portal.portalCode}
+                  {portal.phone ? ` · Tel. ${portal.phone}` : ''}
+                </p>
+              </div>
             </div>
+            <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-display text-lg font-bold text-white">
+              Solicitud recibida correctamente
+            </h3>
+            <p className="text-xs text-emerald-100/90 leading-relaxed">
+              Tu expediente completo fue enviado de forma privada y exclusiva a{' '}
+              <strong className="text-white">{instName}</strong>. Nuestro equipo de crédito
+              procesará tu solicitud con el Motor de Decisiones y te contactará pronto.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-emerald-500/20 text-xs">
@@ -618,6 +635,30 @@ export function PublicCreditApplicationForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div ref={topAnchorRef} />
+
+      {/* Institutional Identity Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-white/10">
+        <div className="flex items-center gap-3 min-w-0">
+          <InstitutionalLogoBadge
+            logoUrl={portal.logoUrl}
+            name={instName}
+            primaryColor={instPrimary}
+            accentColor={instAccent}
+            size="md"
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-white truncate">{instName}</p>
+            <p className="text-[11px] text-slate-400 truncate">
+              Solicitud Oficial de Crédito · Código {portal.portalCode}
+              {portal.phone ? ` · Tel. ${portal.phone}` : ''}
+            </p>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-300 shrink-0">
+          <Lock className="w-3.5 h-3.5" />
+          <span>Envío privado y encriptado</span>
+        </span>
+      </div>
 
       {/* 5-Step Stepper — exact same 5 stages as main platform NewApplicationView */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">

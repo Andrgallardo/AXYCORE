@@ -24,7 +24,7 @@ import {
 } from '../../engine/collections/loanPayoffEngine';
 import { fromCents, getSantoDomingoTodayIso, toCents } from '../../engine/collections/delinquencyEngine';
 import type { CurrencyCode, PaymentChannelMethod } from '../../types/axycore';
-import { formatMoney } from '../../utils/formatters';
+import { formatMoney, isClosedLoanStatus } from '../../utils/formatters';
 
 const PAYOFF_SETTLE_ROLES = new Set([
   'ADMIN',
@@ -144,7 +144,7 @@ export function CollectionsPayoffView() {
     if (!selectedItem || !selectedItem.hasLoan || toCents(selectedItem.totalOwed) <= 0) {
       return { plan: null, error: null as string | null };
     }
-    if (selectedItem.status === 'PAGADO' || selectedItem.status === 'CANCELADO') {
+    if (isClosedLoanStatus(selectedItem.status)) {
       return { plan: null, error: null as string | null };
     }
     try {
@@ -340,8 +340,7 @@ export function CollectionsPayoffView() {
     const hasActiveBalance =
       selectedItem.hasLoan &&
       toCents(selectedItem.totalOwed) > 0 &&
-      selectedItem.status !== 'PAGADO' &&
-      selectedItem.status !== 'CANCELADO';
+      !isClosedLoanStatus(selectedItem.status);
 
     return (
       <div className="space-y-5">

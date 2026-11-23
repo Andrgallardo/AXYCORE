@@ -28,6 +28,7 @@ import {
   getServiceRequestCatalogItem,
 } from '../engine/externalPortalEngine';
 import { createClientServiceRequest } from '../services/externalPortalService';
+import { InstitutionalLogoBadge } from '../components/InstitutionalLogoBadge';
 import { PaymentEvidencePreviewModal } from '../components/PaymentEvidencePreviewModal';
 import { PaymentReceiptModal } from '../components/PaymentReceiptModal';
 import {
@@ -707,16 +708,27 @@ export function ClientPortalView() {
       <section className="relative overflow-hidden rounded-2xl bg-[#040C1E] border border-[#00B8FF]/25 p-6 text-white shadow-xl">
         <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-infinity-line" />
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#00D1FF]">
-              Portal de Clientes · {organization.tradeName || organization.name}
-            </p>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Bienvenido, {userProfile?.displayName}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-              Consulta el estado de tus préstamos y calendario de cuotas, registra comprobantes de pago y solicita renovaciones o nuevos financiamientos.
-            </p>
+          <div className="flex items-start gap-4 min-w-0">
+            <InstitutionalLogoBadge
+              logoUrl={organization.logoUrl}
+              name={organization.tradeName || organization.name}
+              primaryColor={organization.primaryColor}
+              accentColor={organization.accentColor}
+              size="lg"
+              className="mt-0.5"
+            />
+            <div className="space-y-1.5 min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#00D1FF]">
+                Portal de Clientes · {organization.tradeName || organization.name}
+                {organization.phone ? ` · Tel. ${organization.phone}` : ''}
+              </p>
+              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                Bienvenido, {userProfile?.displayName}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
+                Consulta el estado de tus préstamos y calendario de cuotas, registra comprobantes de pago y solicita renovaciones o nuevos financiamientos.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">

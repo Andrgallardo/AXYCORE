@@ -122,7 +122,7 @@ export function listLoansWithPendingLateFee(params: {
   const items: LoanWithPendingLateFee[] = [];
 
   for (const loan of loans) {
-    if (loan.status === 'CANCELADO' || loan.status === 'PAGADO') continue;
+    if (loan.status === 'CANCELADO' || loan.status === 'CANCELADO_POR_RENOVACION' || loan.status === 'PAGADO') continue;
     if (loan.lateFeeExempt) continue;
 
     const existingAcc = accountByLoanId.get(loan.id) ?? null;
@@ -236,7 +236,7 @@ export function computeLateFeeDiscountPlan(params: {
     asOfDateIso = getSantoDomingoTodayIso(),
   } = params;
 
-  if (loan.status === 'CANCELADO' || loan.status === 'PAGADO') {
+  if (loan.status === 'CANCELADO' || loan.status === 'CANCELADO_POR_RENOVACION' || loan.status === 'PAGADO') {
     throw new Error('No se pueden aplicar descuentos de mora a un préstamo cerrado o cancelado.');
   }
 

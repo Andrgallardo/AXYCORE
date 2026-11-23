@@ -27,7 +27,7 @@ import type {
   PaymentChannelMethod,
   PaymentRecord,
 } from '../../types/axycore';
-import { formatMoney } from '../../utils/formatters';
+import { formatMoney, isClosedLoanStatus } from '../../utils/formatters';
 import {
   formatEvidenceFileSize,
   getPaymentValidationStatusLabel,
@@ -89,7 +89,7 @@ export function RegisterPaymentsView() {
   );
 
   const clientsList = useMemo<SelectableClient[]>(() => {
-    const activeLoans = loans.filter((l) => l.status !== 'CANCELADO');
+    const activeLoans = loans.filter((l) => !isClosedLoanStatus(l.status));
     const items: SelectableClient[] = [];
 
     for (const c of customers) {

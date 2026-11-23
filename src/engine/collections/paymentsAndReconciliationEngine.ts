@@ -47,8 +47,8 @@ export function allocatePaymentAcrossInstallments(params: {
     asOfDateIso = payment.paymentDate,
   } = params;
 
-  if (loan.status === 'CANCELADO') {
-    throw new Error('No se pueden aplicar pagos a un préstamo CANCELADO.');
+  if (loan.status === 'CANCELADO' || loan.status === 'CANCELADO_POR_RENOVACION') {
+    throw new Error('No se pueden aplicar pagos a un préstamo CANCELADO o liquidado por renovación.');
   }
   if (payment.currency !== loan.currency) {
     throw new Error(

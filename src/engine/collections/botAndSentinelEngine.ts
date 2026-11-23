@@ -1013,7 +1013,7 @@ export function buildAnticipateProjections(params: {
       if (inst.status === 'PAGADA') continue;
       if (inst.dueDate < asOfDateIso || inst.dueDate > endIso) continue;
       const loan = loanMap.get(inst.loanId);
-      if (!loan || loan.status === 'CANCELADO') continue;
+      if (!loan || loan.status === 'CANCELADO' || loan.status === 'CANCELADO_POR_RENOVACION') continue;
 
       const remCents = Math.max(
         0,
@@ -1056,7 +1056,7 @@ export function validateLoanCancellationEligibility(params: {
   const { loan, installments, payments, disputes, exceptions } = params;
   const reasons: string[] = [];
 
-  if (loan.status === 'CANCELADO') {
+  if (loan.status === 'CANCELADO' || loan.status === 'CANCELADO_POR_RENOVACION') {
     reasons.push('El préstamo ya fue cancelado formalmente.');
   }
   if (toCents(loan.currentPrincipalBalance) > 0) {

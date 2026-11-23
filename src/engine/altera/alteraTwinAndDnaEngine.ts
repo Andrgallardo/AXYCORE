@@ -286,7 +286,11 @@ export function buildCreditDigitalTwin(params: {
     (acc.dpd === 0 && behavioralShiftDeltaDays >= alteraConfig.earlyDeteriorationDelayThresholdDays ? 8 : 0);
 
   const calibrationOffset = alteraConfig.calibrationFactorPct ?? 0;
-  const isClosed = loan.status === 'PAGADO' || loan.status === 'CANCELADO' || acc.totalOutstandingPrincipal <= 0;
+  const isClosed =
+    loan.status === 'PAGADO' ||
+    loan.status === 'CANCELADO' ||
+    loan.status === 'CANCELADO_POR_RENOVACION' ||
+    acc.totalOutstandingPrincipal <= 0;
   const deteriorationScore = isClosed
     ? 0
     : Math.round(clamp(baseDeterioration + extraPenalty + calibrationOffset * 0.25, 4, 98));
@@ -595,7 +599,9 @@ export function buildClientFinancialDna(params: {
 
   const fullName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.id;
   const activeLoansCount = custLoans.filter((l) => l.status === 'ACTIVO' || l.status === 'VENCIDO').length;
-  const closedLoansCount = custLoans.filter((l) => l.status === 'PAGADO' || l.status === 'CANCELADO').length;
+  const closedLoansCount = custLoans.filter(
+    (l) => l.status === 'PAGADO' || l.status === 'CANCELADO' || l.status === 'CANCELADO_POR_RENOVACION'
+  ).length;
 
   const interpretativeProfile =
     custLoans.length === 0

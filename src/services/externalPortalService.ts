@@ -72,8 +72,43 @@ export async function syncPublicInstitutionPortal(
     welcomeSubtitle?: string;
   }
 ): Promise<PublicInstitutionPortalRecord> {
-  const base = buildPublicPortalRecordFromOrg(org, overrides);
-  const portalRef = doc(db, 'public_portals', base.portalCode);
+  const prelim = buildPublicPortalRecordFromOrg(org, overrides);
+  const portalRef = doc(db, 'public_portals', prelim.portalCode);
+
+  let mergedOverrides = overrides;
+  if (
+    !overrides ||
+    overrides.portalEnabled === undefined ||
+    overrides.welcomeHeadline === undefined ||
+    overrides.welcomeSubtitle === undefined
+  ) {
+    try {
+      const existingSnap = await getDoc(portalRef);
+      if (existingSnap.exists()) {
+        const existingData = existingSnap.data() as PublicInstitutionPortalRecord;
+        if (existingData.organizationId === org.id) {
+          mergedOverrides = {
+            portalEnabled:
+              overrides?.portalEnabled !== undefined
+                ? overrides.portalEnabled
+                : existingData.portalEnabled,
+            welcomeHeadline:
+              overrides?.welcomeHeadline !== undefined
+                ? overrides.welcomeHeadline
+                : existingData.welcomeHeadline,
+            welcomeSubtitle:
+              overrides?.welcomeSubtitle !== undefined
+                ? overrides.welcomeSubtitle
+                : existingData.welcomeSubtitle,
+          };
+        }
+      }
+    } catch {
+      // Proceed with defaults if existing doc is unreadable
+    }
+  }
+
+  const base = buildPublicPortalRecordFromOrg(org, mergedOverrides);
 
   const payload = stripUndefined({
     ...base,
@@ -114,6 +149,56 @@ export async function fetchPublicInstitutionPortal(
   }
 
   return null;
+}
+
+export interface ExternalPortalValidationReport {
+  portalCode: string;
+  existsInFirestore: boolean;
+  isActive: boolean;
+  tenantIsolated: boolean;
+  logoConfiguredOnOrg: boolean;
+  logoSyncedInPortal: boolean;
+  phoneSyncedInPortal: boolean;
+  publishedRecord: PublicInstitutionPortalRecord | null;
+}
+
+/**
+ * Live Firestore verification of an institution's external portal document and branding sync.
+ */
+export async function validatePublishedInstitutionPortal(
+  org: OrganizationRecord,
+  overridePortalCode?: string
+): Promise<ExternalPortalValidationReport> {
+  const portalCode =
+    normalizePortalCode(overridePortalCode || org.accessCode || org.tenantId || org.id) ||
+    'SGMA-001';
+  let publishedRecord: PublicInstitutionPortalRecord | null = null;
+  try {
+    const snap = await getDoc(doc(db, 'public_portals', portalCode));
+    if (snap.exists()) {
+      publishedRecord = snap.data() as PublicInstitutionPortalRecord;
+    }
+  } catch {
+    publishedRecord = null;
+  }
+
+  const orgLogo = (org.logoUrl || '').trim();
+  const portalLogo = (publishedRecord?.logoUrl || '').trim();
+  const orgPhone = (org.phone || '').trim();
+  const portalPhone = (publishedRecord?.phone || '').trim();
+
+  return {
+    portalCode,
+    existsInFirestore: Boolean(publishedRecord),
+    isActive: Boolean(
+      publishedRecord && publishedRecord.portalEnabled && publishedRecord.status === 'ACTIVA'
+    ),
+    tenantIsolated: Boolean(publishedRecord && publishedRecord.organizationId === org.id),
+    logoConfiguredOnOrg: Boolean(orgLogo),
+    logoSyncedInPortal: orgLogo ? portalLogo === orgLogo : !portalLogo,
+    phoneSyncedInPortal: orgPhone ? portalPhone === orgPhone : true,
+    publishedRecord,
+  };
 }
 
 /**

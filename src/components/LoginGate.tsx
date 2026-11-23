@@ -24,6 +24,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
+import { InstitutionalLogoBadge } from './InstitutionalLogoBadge';
 import { PublicCreditApplicationForm } from './PublicCreditApplicationForm';
 import { authenticateWithBiometricCredential } from '../services/biometricAuth';
 import type { ExternalPortalActionIntent, PortalAccessMode } from '../types/axycore';
@@ -573,22 +574,20 @@ export function LoginGate() {
       <header className="relative z-10 w-full max-w-6xl mx-auto flex items-center justify-between gap-4 py-1">
         {isExternalInstitutionMode && externalInstitutionPortal ? (
           <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-display font-bold text-sm shrink-0 border border-white/15"
-              style={{
-                background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})`,
-              }}
-            >
-              {(externalInstitutionPortal.tradeName || externalInstitutionPortal.name)
-                .slice(0, 2)
-                .toUpperCase()}
-            </div>
+            <InstitutionalLogoBadge
+              logoUrl={externalInstitutionPortal.logoUrl}
+              name={externalInstitutionPortal.tradeName || externalInstitutionPortal.name}
+              primaryColor={instPrimary}
+              accentColor={instAccent}
+              size="sm"
+            />
             <div className="min-w-0">
               <span className="font-display text-base font-bold tracking-tight text-white block leading-tight truncate">
                 {externalInstitutionPortal.tradeName || externalInstitutionPortal.name}
               </span>
               <span className="text-[11px] text-slate-400 block truncate">
                 Portal Oficial de Clientes · Código {externalInstitutionPortal.portalCode}
+                {externalInstitutionPortal.phone ? ` · Tel. ${externalInstitutionPortal.phone}` : ''}
               </span>
             </div>
           </div>
@@ -621,7 +620,11 @@ export function LoginGate() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/12 bg-white/[0.03] hover:bg-white/[0.07] text-[11px] font-medium text-slate-300 hover:text-white transition-colors cursor-pointer whitespace-nowrap"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Acceso general</span>
+              <span>
+                {firebaseUser && userProfile && userProfile.role !== 'EXTERNAL_CLIENT'
+                  ? 'Volver a mi panel interno'
+                  : 'Acceso general'}
+              </span>
             </button>
           ) : (
             portalMode !== null &&
@@ -692,13 +695,33 @@ export function LoginGate() {
                     : 'lg:col-span-5'
                 }`}
               >
-                <div className="space-y-3">
-                  <p
-                    className="text-xs font-semibold uppercase tracking-[0.14em]"
-                    style={{ color: instAccent }}
-                  >
-                    Portal Exclusivo de Clientes · {externalInstitutionPortal.portalCode}
-                  </p>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3.5">
+                    <InstitutionalLogoBadge
+                      logoUrl={externalInstitutionPortal.logoUrl}
+                      name={externalInstitutionPortal.tradeName || externalInstitutionPortal.name}
+                      primaryColor={instPrimary}
+                      accentColor={instAccent}
+                      size="lg"
+                    />
+                    <div className="min-w-0 space-y-0.5">
+                      <p
+                        className="text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={{ color: instAccent }}
+                      >
+                        Portal Exclusivo de Clientes · {externalInstitutionPortal.portalCode}
+                      </p>
+                      <p className="text-xs text-slate-300 font-medium truncate">
+                        {externalInstitutionPortal.tradeName || externalInstitutionPortal.name}
+                      </p>
+                      {externalInstitutionPortal.phone && (
+                        <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                          <Phone className="w-3 h-3 shrink-0" />
+                          <span>{externalInstitutionPortal.phone}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-[1.12]">
                     {externalInstitutionPortal.welcomeHeadline ||
                       `Bienvenido a ${externalInstitutionPortal.tradeName || externalInstitutionPortal.name}`}

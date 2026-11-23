@@ -25,7 +25,11 @@ export function isLoanCanceledOrPaidOff(
   loan: Pick<LoanRecord, 'status' | 'currentPrincipalBalance'>,
   collectionAccount?: Pick<CollectionAccountRecord, 'stage'>
 ): boolean {
-  if (loan.status === 'CANCELADO' || loan.status === 'PAGADO') {
+  if (
+    loan.status === 'CANCELADO' ||
+    loan.status === 'CANCELADO_POR_RENOVACION' ||
+    loan.status === 'PAGADO'
+  ) {
     return true;
   }
   if (collectionAccount?.stage === 'CANCELADO') {

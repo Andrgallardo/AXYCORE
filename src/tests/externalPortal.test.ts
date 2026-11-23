@@ -91,12 +91,46 @@ describe('External Institution Portal Engine', () => {
     expect(pub.organizationId).toBe('org_horizonte_01');
     expect(pub.tradeName).toBe('Financiera Horizonte');
     expect(pub.currency).toBe('DOP');
+    expect(pub.phone).toBe('809-555-0199');
     expect(pub.corporateEmail).toBe('servicio@horizonte.do');
     expect(pub.portalEnabled).toBe(true);
     expect(pub.welcomeHeadline).toBe('Bienvenido a Horizonte');
     expect((pub as unknown as Record<string, unknown>).primaryAdminEmail).toBeUndefined();
     expect((pub as unknown as Record<string, unknown>).taxId).toBeUndefined();
     expect((pub as unknown as Record<string, unknown>).notes).toBeUndefined();
+  });
+
+  it('propagates valid institutional logos per organization and strips invalid or unsafe logo URLs', () => {
+    const sampleDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const withDataUri = buildPublicPortalRecordFromOrg({
+      ...MOCK_ORG,
+      logoUrl: `  ${sampleDataUri}  `,
+    });
+    expect(withDataUri.logoUrl).toBe(sampleDataUri);
+
+    const withHttps = buildPublicPortalRecordFromOrg({
+      ...MOCK_ORG,
+      id: 'org_coop_02',
+      organizationId: 'org_coop_02',
+      accessCode: 'COOP-002',
+      logoUrl: 'https://cdn.coop.do/assets/logo.png',
+    });
+    expect(withHttps.logoUrl).toBe('https://cdn.coop.do/assets/logo.png');
+    expect(withHttps.portalCode).toBe('COOP-002');
+    expect(withHttps.organizationId).toBe('org_coop_02');
+
+    const withUnsafeLogo = buildPublicPortalRecordFromOrg({
+      ...MOCK_ORG,
+      logoUrl: 'javascript:alert(1)',
+    });
+    expect(withUnsafeLogo.logoUrl).toBeUndefined();
+
+    const parsedLogin = parseExternalPortalLinkFromLocation('?portal=COOP-002&action=ingresar', '/');
+    expect(parsedLogin).toEqual({
+      portalCode: 'COOP-002',
+      actionIntent: 'ingresar',
+      isExternalInstitutionLink: true,
+    });
   });
 
   it('normalizes Dominican cédula keys and phone format candidates consistently for Zero-Trust linking', () => {

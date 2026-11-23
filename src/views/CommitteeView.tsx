@@ -1,23 +1,36 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Gavel, ShieldAlert, UserCheck, Users } from 'lucide-react';
+import { CheckCircle2, Gavel, RefreshCw, ShieldAlert, UserCheck, Users } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { generateId, submitCommitteeDecision } from '../services/axycoreStore';
 import { evaluateCollegialCommitteeVotes, type CollegialVoteEntry } from '../engine/workflowGuards';
 import {
+  calculateRenewalNetDisbursement,
+  computeRenewalPayoffBreakdown,
+} from '../engine/renewalEngine';
+import {
   APPLICATION_STATUS_LABELS,
   PRODUCT_LABELS,
+  RENEWAL_MODALITY_LABELS,
   formatMoney,
   formatRatePct,
   normalizeMonthlyRateDecimal,
+  toIsoDateOnly,
 } from '../utils/formatters';
 import { ROLE_LABELS, type CommitteeDecisionRecord } from '../types/axycore';
 
 export function CommitteeView() {
   const {
     applications,
+    customers,
+    loans,
+    loanInstallments,
+    payments,
+    collectionAccounts,
+    creditRenewals,
     evaluations,
     committeeDecisions,
     activeOrTestPolicy,
+    activeCollectionPolicy,
     userProfile,
     usersList,
     organizationMemberships,
@@ -152,6 +165,52 @@ export function CommitteeView() {
       proposedAmount: Number(approvedAmount) || activeApp.requestedAmount,
     }).canDecideCommittee;
   }, [activeApp, activeEval, userProfile, approvedAmount, rbac]);
+
+  const renewalCommitteeInfo = useMemo(() => {
+    if (!activeApp?.isRenewal) return null;
+    const renewal =
+      creditRenewals.find(
+        (r) => r.id === activeApp.renewalId || r.applicationId === activeApp.id
+      ) ?? null;
+    const originLoan =
+      loans.find((l) => l.id === (activeApp.originLoanId || renewal?.originLoanId)) ?? null;
+    const customer = customers.find((c) => c.id === activeApp.customerId) ?? null;
+    const livePayoff = originLoan
+      ? computeRenewalPayoffBreakdown({
+          loan: originLoan,
+          installments: loanInstallments.filter((i) => i.loanId === originLoan.id),
+          payments: payments.filter((p) => p.loanId === originLoan.id),
+          customer,
+          account: collectionAccounts.find((a) => a.loanId === originLoan.id) ?? null,
+          policy: activeCollectionPolicy,
+          asOfDateIso: toIsoDateOnly(),
+        }).breakdown
+      : activeApp.originPayoffSnapshot ?? renewal?.payoffSnapshot ?? null;
+    const parsedAmt = Number(approvedAmount) || activeApp.recommendedAmount || activeApp.requestedAmount;
+    const netCheck = calculateRenewalNetDisbursement({
+      grossApprovedAmount: parsedAmt,
+      payoffAmount: livePayoff?.totalPayoffAmount ?? 0,
+      otherAuthorizedDiscounts: 0,
+    });
+    return { renewal, originLoan, livePayoff, netCheck };
+  }, [
+    activeApp,
+    creditRenewals,
+    loans,
+    customers,
+    loanInstallments,
+    payments,
+    collectionAccounts,
+    activeCollectionPolicy,
+    approvedAmount,
+  ]);
+
+  const renewalApprovalBlocked = Boolean(
+    activeApp?.isRenewal &&
+      ['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision) &&
+      renewalCommitteeInfo &&
+      !renewalCommitteeInfo.netCheck.valid
+  );
 
   const handleSubmitDecision = async () => {
     if (!activeApp || !userProfile) return;
@@ -297,6 +356,14 @@ export function CommitteeView() {
                   <span>Score {app.latestScore ?? '—'}</span>
                 </div>
                 <p className="font-semibold text-sm text-slate-950 dark:text-white mt-1 truncate">{app.applicantDisplayName}</p>
+                {app.isRenewal && (
+                  <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3" />
+                    <span>
+                      Renovación ({app.renewalModality === 'MISMAS_CONDICIONES' ? 'Mismas Cond. · Directo' : 'Aumento/Modif.'})
+                    </span>
+                  </p>
+                )}
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
                   <span>{PRODUCT_LABELS[app.productCode]}</span>
                   <span>{APPLICATION_STATUS_LABELS[app.status]}</span>
@@ -307,6 +374,65 @@ export function CommitteeView() {
 
           {activeApp && (
             <div className="lg:col-span-8 space-y-5">
+              {activeApp.isRenewal && renewalCommitteeInfo && (
+                <div className="axy-surface p-4 rounded-2xl border border-emerald-500/35 bg-emerald-500/[0.05] space-y-2.5 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 font-display font-bold text-sm text-slate-950 dark:text-white">
+                      <RefreshCw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>
+                        Renovación {renewalCommitteeInfo.renewal?.renewalNumber || activeApp.applicationNumber} · Préstamo Origen {activeApp.originLoanNumber}
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold text-[11px]">
+                      {activeApp.renewalModality
+                        ? RENEWAL_MODALITY_LABELS[activeApp.renewalModality]
+                        : 'Renovación'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 font-mono tabular-nums">
+                    <div className="axy-surface-tonal p-2.5 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Monto Nuevo Propuesto</span>
+                      <strong className="text-slate-950 dark:text-white">
+                        {formatMoney(renewalCommitteeInfo.netCheck.grossApprovedAmount, activeApp.currency)}
+                      </strong>
+                    </div>
+                    <div className="axy-surface-tonal p-2.5 rounded-xl">
+                      <span className="block font-sans text-[10px] text-slate-500">Saldo Liquidación Vigente</span>
+                      <strong className="text-amber-600 dark:text-amber-400">
+                        -{formatMoney(renewalCommitteeInfo.netCheck.payoffAmount, activeApp.currency)}
+                      </strong>
+                    </div>
+                    <div
+                      className={`p-2.5 rounded-xl border ${
+                        renewalCommitteeInfo.netCheck.valid
+                          ? 'bg-emerald-500/10 border-emerald-500/30'
+                          : 'bg-rose-500/10 border-rose-500/40'
+                      }`}
+                    >
+                      <span className="block font-sans text-[10px] text-slate-600 dark:text-slate-300">
+                        Desembolso Neto Proyectado
+                      </span>
+                      <strong
+                        className={
+                          renewalCommitteeInfo.netCheck.valid
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-rose-700 dark:text-rose-300'
+                        }
+                      >
+                        {formatMoney(renewalCommitteeInfo.netCheck.netDisbursementAmount, activeApp.currency)}
+                      </strong>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                    <strong>Regla crítica:</strong> Aprobar esta renovación en Comité <strong>NO cancela</strong> el préstamo anterior ({activeApp.originLoanNumber}). La liquidación total y cierre del crédito previo se ejecutan atómicamente solo al confirmar el desembolso.
+                  </p>
+                  {renewalApprovalBlocked && (
+                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/40 text-rose-700 dark:text-rose-300 font-semibold">
+                      {renewalCommitteeInfo.netCheck.reason}
+                    </div>
+                  )}
+                </div>
+              )}
               {feedback && (
                 <div
                   className={`p-3.5 rounded-xl border text-xs flex flex-wrap items-center justify-between gap-2 overflow-hidden ${
@@ -633,12 +759,14 @@ export function CommitteeView() {
                   </span>
                   <button
                     type="button"
-                    disabled={submitting || userAlreadyVoted || !authorityCheck?.allowed}
+                    disabled={submitting || userAlreadyVoted || !authorityCheck?.allowed || renewalApprovalBlocked}
                     onClick={handleSubmitDecision}
                     className="axy-btn-primary px-4 py-2 cursor-pointer disabled:opacity-50"
                   >
                     {submitting
                       ? 'Registrando voto...'
+                      : renewalApprovalBlocked
+                      ? 'Bloqueado: Monto ≤ Liquidación'
                       : userAlreadyVoted
                       ? 'Voto ya emitido por este usuario'
                       : `Emitir Voto (${voteEval.totalVotes + 1}/3)`}

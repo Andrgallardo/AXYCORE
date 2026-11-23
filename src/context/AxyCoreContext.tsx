@@ -115,6 +115,7 @@ import {
   type ParsedInvitationLinkParams,
 } from '../engine/invitationFlow';
 import {
+  normalizePortalCode,
   parseExternalPortalLinkFromLocation,
   type ParsedExternalPortalLink,
 } from '../engine/externalPortalEngine';
@@ -209,6 +210,7 @@ import type {
   CreditEvaluationRecord,
   CreditPermission,
   CreditPolicyRecord,
+  CreditRenewalRecord,
   CustomerDisputeRecord,
   CustomerRecord,
   DirectorAnalysisResponse,
@@ -430,6 +432,7 @@ interface AxyCoreContextValue {
   formalizations: FormalizationRecord[];
   disbursements: DisbursementRecord[];
   loans: LoanRecord[];
+  creditRenewals: CreditRenewalRecord[];
   loanInstallments: LoanInstallmentRecord[];
   collectionAccounts: CollectionAccountRecord[];
   collectionAssignments: CollectionAssignmentRecord[];
@@ -766,26 +769,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     return params.get('channel') === 'external';
   });
 
-  const exitExternalInstitutionLink = useCallback(() => {
-    setParsedExternalPortalLink({
-      portalCode: null,
-      actionIntent: 'portal',
-      isExternalInstitutionLink: false,
-    });
-    setExternalInstitutionPortal(null);
-    externalInstitutionPortalRef.current = null;
-    setExternalPortalError(null);
-    setExternalPortalLoading(false);
-    setExternalPortalMode(false);
-    setPortalMode(null);
-    if (typeof window !== 'undefined') {
-      try {
-        window.history.replaceState({}, document.title, '/');
-      } catch {
-        // ignore
-      }
-    }
-  }, [setPortalMode]);
+  // exitExternalInstitutionLink defined below after organization/allOrganizations state
 
   const [intendedSection, setIntendedSection] = useState<NavSectionId | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -834,6 +818,38 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   const [allOrganizations, setAllOrganizations] = useState<OrganizationRecord[]>([
     SU_GLORIA_MANO_AMIGA_ORG,
   ]);
+
+  const exitExternalInstitutionLink = useCallback(() => {
+    setParsedExternalPortalLink({
+      portalCode: null,
+      actionIntent: 'portal',
+      isExternalInstitutionLink: false,
+    });
+    setExternalInstitutionPortal(null);
+    externalInstitutionPortalRef.current = null;
+    setExternalPortalError(null);
+    setExternalPortalLoading(false);
+    setExternalPortalMode(false);
+
+    if (firebaseUser && userProfile && userProfile.role !== 'EXTERNAL_CLIENT') {
+      const superUser = isSuperAdminUser(userProfile, Boolean(firebaseUser.emailVerified));
+      setPortalMode(superUser ? 'axycore_admin' : 'corporate');
+      const staffOrg = allOrganizations.find((o) => o.id === userProfile.organizationId);
+      if (staffOrg) {
+        setOrganization(staffOrg);
+      }
+    } else {
+      setPortalMode(null);
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.history.replaceState({}, document.title, '/');
+      } catch {
+        // ignore
+      }
+    }
+  }, [allOrganizations, firebaseUser, setPortalMode, userProfile]);
   const [organizationMemberships, setOrganizationMemberships] = useState<OrganizationMembershipRecord[]>([]);
   const [tenantLicenses, setTenantLicenses] = useState<TenantLicenseRecord[]>([]);
   const [tenantSubscriptions, setTenantSubscriptions] = useState<TenantSubscriptionRecord[]>([]);
@@ -852,6 +868,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   const [formalizations, setFormalizations] = useState<FormalizationRecord[]>([]);
   const [disbursements, setDisbursements] = useState<DisbursementRecord[]>([]);
   const [loans, setLoans] = useState<LoanRecord[]>([]);
+  const [creditRenewals, setCreditRenewals] = useState<CreditRenewalRecord[]>([]);
   const [loanInstallments, setLoanInstallments] = useState<LoanInstallmentRecord[]>([]);
   const [rawCollectionAccounts, setCollectionAccounts] = useState<CollectionAccountRecord[]>([]);
   const [collectionAssignments, setCollectionAssignments] = useState<CollectionAssignmentRecord[]>([]);
@@ -1029,6 +1046,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             accessCode: portal.portalCode,
             name: portal.name,
             tradeName: portal.tradeName,
+            logoUrl: portal.logoUrl || '',
             primaryColor: portal.primaryColor || prev.primaryColor,
             accentColor: portal.accentColor || prev.accentColor,
             currency: portal.currency || prev.currency,
@@ -1164,7 +1182,11 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         const activePortal = portalModeRef.current;
         const targetCorp = resolvedCorporateOrgRef.current;
         const superUser = isSuperAdminUser(profile, fbUser.emailVerified);
-        const isOnExternalInstLink = Boolean(preferredExternalOrgId);
+        const isOnExternalInstLink =
+          Boolean(preferredExternalOrgId) ||
+          (typeof window !== 'undefined' &&
+            parseExternalPortalLinkFromLocation(window.location.search, window.location.pathname)
+              .isExternalInstitutionLink);
 
         // Enforce selected entry portal mode rules cleanly
         if (activePortal === 'axycore_admin' && !isOnExternalInstLink) {
@@ -1220,6 +1242,10 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
               return;
             }
           }
+          setExternalPortalMode(false);
+          setActiveSection('dashboard');
+        } else if (isOnExternalInstLink && profile.role !== 'EXTERNAL_CLIENT') {
+          setPortalMode(superUser ? 'axycore_admin' : 'corporate');
           setExternalPortalMode(false);
           setActiveSection('dashboard');
         } else if (activePortal === 'client' || isOnExternalInstLink) {
@@ -1495,12 +1521,28 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
                 })),
               }),
             }).catch(() => {});
+            const buildPortalSyncKey = (o: OrganizationRecord) => {
+              const code = normalizePortalCode(o.accessCode || o.tenantId || o.id);
+              const logo = (o.logoUrl || '').trim();
+              const logoSig = logo ? `${logo.length}:${logo.slice(0, 24)}:${logo.slice(-24)}` : 'nologo';
+              return [
+                o.id,
+                code,
+                o.name || '',
+                o.tradeName || '',
+                o.phone || '',
+                o.primaryColor || '',
+                o.accentColor || '',
+                o.status || '',
+                logoSig,
+              ].join('|');
+            };
             const activeOrg = orgs.find((o) => o.id === orgId);
             if (activeOrg) {
               setOrganization(activeOrg);
               tenantService.setContext({ organization: activeOrg, user: userProfile });
-              if ((isAdmin || superAdmin) && activeOrg.accessCode) {
-                const syncKey = `${activeOrg.id}:${activeOrg.accessCode}`;
+              if (isAdmin || superAdmin) {
+                const syncKey = buildPortalSyncKey(activeOrg);
                 if (!syncedPublicPortalsRef.current.has(syncKey)) {
                   syncedPublicPortalsRef.current.add(syncKey);
                   void syncPublicInstitutionPortal(activeOrg).catch(() => {});
@@ -1509,8 +1551,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             }
             if (superAdmin) {
               orgs.forEach((o) => {
-                if (!o.accessCode) return;
-                const syncKey = `${o.id}:${o.accessCode}`;
+                const syncKey = buildPortalSyncKey(o);
                 if (!syncedPublicPortalsRef.current.has(syncKey)) {
                   syncedPublicPortalsRef.current.add(syncKey);
                   void syncPublicInstitutionPortal(o).catch(() => {});
@@ -1898,6 +1939,13 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           query(collection(db, 'disbursements'), where('organizationId', '==', orgId)),
           (snap) => setDisbursements(snap.docs.map((d) => d.data() as DisbursementRecord)),
           (err) => handleFirestoreError(err, OperationType.LIST, 'disbursements')
+        )
+      );
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'credit_renewals'), where('organizationId', '==', orgId)),
+          (snap) => setCreditRenewals(snap.docs.map((d) => d.data() as CreditRenewalRecord)),
+          (err) => handleFirestoreError(err, OperationType.LIST, 'credit_renewals')
         )
       );
       unsubs.push(
@@ -4051,6 +4099,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     formalizations,
     disbursements,
     loans,
+    creditRenewals,
     loanInstallments,
     collectionAccounts,
     collectionAssignments,

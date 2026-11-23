@@ -281,7 +281,9 @@ function computeCustomerProfile(params: {
   const customerName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Cliente';
   const customerLoans = loans.filter((l) => l.customerId === customer.id);
   const activeLoans = customerLoans.filter((l) => l.status === 'ACTIVO' || l.status === 'VENCIDO');
-  const closedLoans = customerLoans.filter((l) => l.status === 'PAGADO' || l.status === 'CANCELADO');
+  const closedLoans = customerLoans.filter(
+    (l) => l.status === 'PAGADO' || l.status === 'CANCELADO' || l.status === 'CANCELADO_POR_RENOVACION'
+  );
   const customerApps = [...(applicationsByCustomer.get(customer.id) || [])].sort((a, b) =>
     String(b.id).localeCompare(String(a.id))
   );

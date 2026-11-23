@@ -33,7 +33,7 @@ import type {
   PaymentChannelMethod,
   PaymentRecord,
 } from '../../types/axycore';
-import { formatMoney } from '../../utils/formatters';
+import { formatMoney, isClosedLoanStatus } from '../../utils/formatters';
 import {
   formatEvidenceFileSize,
   getPaymentValidationStatusLabel,
@@ -105,7 +105,7 @@ export function PaymentsAndReconciliationView({
   const [resolveNoteByExc, setResolveNoteByExc] = useState<Record<string, string>>({});
 
   const activeLoans = useMemo(
-    () => loans.filter((l) => l.status !== 'CANCELADO'),
+    () => loans.filter((l) => !isClosedLoanStatus(l.status)),
     [loans]
   );
 

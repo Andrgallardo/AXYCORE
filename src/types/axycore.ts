@@ -213,6 +213,41 @@ export type ApplicationStatus =
   | 'FORMALIZADA'
   | 'DESEMBOLSADA';
 
+export type RenewalModality = 'MISMAS_CONDICIONES' | 'AUMENTO_O_MODIFICACION';
+
+export type RenewalProcessStatus =
+  | 'RENOVACION_INICIADA'
+  | 'PENDIENTE_EVALUACION'
+  | 'EN_EVALUACION'
+  | 'PENDIENTE_COMITE'
+  | 'EN_COMITE'
+  | 'APROBADA'
+  | 'RECHAZADA'
+  | 'DEVUELTA_CORRECCION'
+  | 'PENDIENTE_FORMALIZACION'
+  | 'PENDIENTE_DESEMBOLSO'
+  | 'DESEMBOLSADA'
+  | 'CANCELADA_USUARIO'
+  | 'ERROR_EJECUCION';
+
+export interface RenewalPayoffBreakdown {
+  asOfDateIso: string;
+  remainingPrincipal: number;
+  remainingInterest: number;
+  remainingCharges: number;
+  remainingLateFee: number;
+  adjustmentsAmount: number;
+  totalPayoffAmount: number;
+  unpaidInstallmentsCount: number;
+  overdueInstallmentsCount: number;
+  totalInstallmentsCount: number;
+  dpd: number;
+  paidPrincipalTotal: number;
+  paidInterestTotal: number;
+  paidLateFeeTotal: number;
+  paymentsCount: number;
+}
+
 export type ScoringStatus =
   | 'PREOFERTA'
   | 'SIN_OFERTA'
@@ -732,6 +767,12 @@ export interface ApplicationRecord {
   legalFeeMode?: LegalFeeApplicationMode;
   interestOnlyPeriods?: number;
   installmentCount?: number;
+  isRenewal?: boolean;
+  renewalId?: string | null;
+  renewalModality?: RenewalModality | null;
+  originLoanId?: string | null;
+  originLoanNumber?: string | null;
+  originPayoffSnapshot?: RenewalPayoffBreakdown | null;
   movementHistory?: MovementHistoryEntry[];
   createdBy: string;
   createdByName?: string;
@@ -1229,6 +1270,12 @@ export interface FormalizationRecord {
   legalReviewConfirmed: boolean;
   promissoryNoteConfirmed?: boolean;
   contractConfirmed?: boolean;
+  isRenewal?: boolean;
+  renewalId?: string | null;
+  originLoanId?: string | null;
+  originLoanNumber?: string | null;
+  renewalPayoffAmount?: number;
+  renewalPayoffBreakdown?: RenewalPayoffBreakdown | null;
   status: 'PENDIENTE' | 'LISTA_PARA_DESEMBOLSO' | 'DESEMBOLSADA';
   formalizedBy: string;
   formalizedByName?: string;
@@ -1261,6 +1308,14 @@ export interface DisbursementRecord {
   responsibleUserName?: string;
   authorizerUserId: string;
   authorizerUserName?: string;
+  isRenewal?: boolean;
+  renewalId?: string | null;
+  originLoanId?: string | null;
+  originLoanNumber?: string | null;
+  renewalPayoffAmount?: number;
+  renewalPayoffBreakdown?: RenewalPayoffBreakdown | null;
+  otherDiscountsAmount?: number;
+  accountingEntryId?: string | null;
   status: 'CONFIRMADO';
   createdAt?: unknown;
 }
@@ -1290,7 +1345,7 @@ export interface LoanRecord {
   maturityDate: string;
   totalContractualInterest: number;
   totalContractualPayable: number;
-  status: 'ACTIVO' | 'PAGADO' | 'VENCIDO' | 'CANCELADO';
+  status: 'ACTIVO' | 'PAGADO' | 'VENCIDO' | 'CANCELADO' | 'CANCELADO_POR_RENOVACION';
   paidPrincipalTotal?: number;
   paidInterestTotal?: number;
   paidLateFeeTotal?: number;
@@ -1301,7 +1356,125 @@ export interface LoanRecord {
   lateFeeExemptAt?: string | null;
   closedAt?: string | null;
   closureCertificateNumber?: string | null;
+  isRenewal?: boolean;
+  renewalId?: string | null;
+  renewalModality?: RenewalModality | null;
+  originLoanId?: string | null;
+  originLoanNumber?: string | null;
+  payoffSettledAmount?: number;
+  additionalDeductionsAmount?: number;
+  netDisbursementDelivered?: number;
+  renewedToLoanId?: string | null;
+  renewedToLoanNumber?: string | null;
+  renewalPayoffAmount?: number;
+  renewalLiquidationDate?: string | null;
   createdBy: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface CreditRenewalRecord {
+  id: string;
+  organizationId: string;
+  renewalNumber: string;
+  customerId: string;
+  customerName: string;
+  originLoanId: string;
+  originLoanNumber: string;
+  originProductCode: ProductCode;
+  originCurrency: CurrencyCode;
+  originAmount: number;
+  originRateMonthly: number;
+  originTermMonths: number;
+  originFrequency: PaymentFrequency;
+  originAmortizationMethod: AmortizationMethod;
+  modality: RenewalModality;
+  applicationId: string;
+  applicationNumber: string;
+  formalizationId?: string | null;
+  targetLoanId?: string | null;
+  targetLoanNumber?: string | null;
+  disbursementId?: string | null;
+  accountingEntryId?: string | null;
+  currency?: CurrencyCode;
+  productCode?: ProductCode;
+  requestedAmount: number;
+  recommendedAmount?: number | null;
+  approvedAmount?: number | null;
+  grossApprovedAmount?: number | null;
+  requestedRateMonthly?: number | null;
+  requestedTermMonths: number;
+  requestedFrequency: PaymentFrequency;
+  requestedAmortizationMethod: AmortizationMethod;
+  originConditions?: {
+    principal: number;
+    rateMonthly: number;
+    termMonths: number;
+    frequency: PaymentFrequency;
+    amortizationMethod: AmortizationMethod;
+    installmentAmount: number;
+    productCode: ProductCode;
+  };
+  requestedConditions?: {
+    amount: number;
+    rateMonthly: number;
+    termMonths: number;
+    frequency: PaymentFrequency;
+    amortizationMethod: AmortizationMethod;
+    installmentAmount: number;
+    productCode: ProductCode;
+    legalFeeMode?: LegalFeeApplicationMode;
+  };
+  approvedConditions?: {
+    amount: number;
+    rateMonthly: number;
+    termMonths: number;
+    frequency: PaymentFrequency;
+    amortizationMethod: AmortizationMethod;
+  } | null;
+  payoffSnapshot: RenewalPayoffBreakdown;
+  initialPayoffBreakdown?: RenewalPayoffBreakdown;
+  finalPayoffBreakdown?: RenewalPayoffBreakdown | null;
+  settledPayoffAmount?: number | null;
+  otherDeductionsAmount?: number | null;
+  netDisbursementAmount?: number | null;
+  collateralSummary?: string | null;
+  coDebtorsSummary?: string | null;
+  paymentBehaviorSummary?: string | null;
+  guaranteesSnapshot?: string | null;
+  coDebtorsSnapshot?: Array<{ fullName: string; phone?: string; relationship?: string }>;
+  originPaymentBehavior?: {
+    totalInstallments: number;
+    paidInstallments: number;
+    overdueInstallments: number;
+    paidPercentage: number;
+    currentDpd: number;
+    maxHistoricalDpd: number;
+    paymentsCount: number;
+    behaviorSummary: string;
+  };
+  status: RenewalProcessStatus;
+  initiatedBy: string;
+  initiatedByName: string;
+  evaluatorId?: string | null;
+  evaluatorName?: string | null;
+  committeeDecision?: 'APROBADO' | 'APROBADO_CONDICIONADO' | 'DEVUELTO' | 'RECHAZADO' | null;
+  committeeDecidedBy?: string | null;
+  committeeDecidedByName?: string | null;
+  committeeDecisionBy?: string | null;
+  committeeDecisionByName?: string | null;
+  committeeNotes?: string | null;
+  rejectionReason?: string | null;
+  formalizedBy?: string | null;
+  formalizedByName?: string | null;
+  disbursedBy?: string | null;
+  disbursedByName?: string | null;
+  approvedAt?: string | null;
+  liquidationDate?: string | null;
+  disbursedAt?: string | null;
+  justification?: string | null;
+  errorMessage?: string | null;
+  idempotencyKey: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 }

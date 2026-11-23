@@ -1,15 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowRight,
   Building2,
   CheckCircle2,
   Eye,
   FileText,
+  GitBranch,
   Home,
   Mail,
   MapPin,
   PencilLine,
   Phone,
   Plus,
+  RefreshCw,
   Save,
   Search,
   ShieldCheck,
@@ -26,13 +29,21 @@ import {
   type CustomerDirectoryFilter,
   type CustomerDirectorySummary,
 } from '../engine/customerDirectory';
+import { buildCustomerRenewalChains } from '../engine/renewalEngine';
+import { RenewalInitiationModal } from '../components/RenewalInitiationModal';
 import {
   saveBusinessUnique,
   saveCustomerUnique,
   updateCustomerRecord,
 } from '../services/axycoreStore';
 import type { CustomerRecord, HousingType, SocialMediaStatus } from '../types/axycore';
-import { formatMoney } from '../utils/formatters';
+import {
+  formatMoney,
+  isClosedLoanStatus,
+  LOAN_STATUS_LABELS,
+  RENEWAL_MODALITY_LABELS,
+  RENEWAL_STATUS_LABELS,
+} from '../utils/formatters';
 
 export type CustomersViewInitialSection = 'ALL' | 'ACTIVO' | 'INACTIVO' | 'UPDATE';
 
@@ -90,6 +101,7 @@ export function CustomersView({
     businesses,
     applications,
     loans,
+    creditRenewals,
     collectionAccounts,
     userProfile,
     rbac,
@@ -98,6 +110,7 @@ export function CustomersView({
   } = useAxyCore();
 
   const canUpdateCustomers = rbac.canAccessSection('customers_update');
+  const canInitiateRenewal = rbac.isInternalStaff && !rbac.isReadOnlyAuditor;
 
   const [moduleMode, setModuleMode] = useState<'DIRECTORY' | 'UPDATE'>(
     initialSection === 'UPDATE' ? 'UPDATE' : 'DIRECTORY'
@@ -114,6 +127,11 @@ export function CustomersView({
 
   // Selected customer for quick inspection modal
   const [inspectCustomerId, setInspectCustomerId] = useState<string | null>(null);
+  const [inspectTab, setInspectTab] = useState<'SUMMARY' | 'RENEWALS'>('SUMMARY');
+  const [renewalModalTarget, setRenewalModalTarget] = useState<{
+    customer: CustomerRecord;
+    loanId?: string | null;
+  } | null>(null);
 
   // Update Customer state
   const [updateSearch, setUpdateSearch] = useState('');
@@ -986,15 +1004,31 @@ export function CustomersView({
                               )}
                             </td>
                             <td className="py-3 px-4 text-right">
-                              <div className="inline-flex items-center gap-1.5">
+                              <div className="inline-flex items-center gap-1.5 flex-wrap justify-end">
                                 <button
                                   type="button"
-                                  onClick={() => setInspectCustomerId(c.id)}
+                                  onClick={() => {
+                                    setInspectTab('SUMMARY');
+                                    setInspectCustomerId(c.id);
+                                  }}
                                   className="axy-btn-secondary px-2.5 py-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
                                 >
                                   <Eye className="w-3 h-3" />
                                   <span>Ficha</span>
                                 </button>
+                                {canInitiateRenewal && item.activeLoansCount > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setRenewalModalTarget({ customer: c, loanId: null })
+                                    }
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/35 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"
+                                    title="Iniciar renovación o reenganche de crédito"
+                                  >
+                                    <RefreshCw className="w-3 h-3" />
+                                    <span>Renovar</span>
+                                  </button>
+                                )}
                                 {canUpdateCustomers && (
                                   <button
                                     type="button"
@@ -1421,148 +1455,398 @@ export function CustomersView({
       )}
 
       {/* ============================================================
-          QUICK CUSTOMER PROFILE INSPECTION MODAL
+          QUICK CUSTOMER PROFILE INSPECTION MODAL (WITH RENOVAR + RENOVACIONES TAB)
          ============================================================ */}
-      {inspectSummary && (
-        <div className="fixed inset-0 z-50 bg-[#030816]/70 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <div className="axy-panel-in axy-surface w-full max-w-2xl rounded-2xl border border-[var(--axy-border-strong)] shadow-2xl overflow-hidden">
-            <div className="axy-infinity-line" />
-            <div className="px-5 py-4 border-b border-[var(--axy-border)] flex items-center justify-between gap-3 bg-[var(--axy-surface-tonal)]">
-              <div>
-                <h3 className="font-display text-base font-bold text-slate-950 dark:text-white">
-                  {inspectSummary.customer.firstName} {inspectSummary.customer.lastName}
-                </h3>
-                <p className="text-[11px] font-mono text-slate-500 dark:text-[#00B8FF]">
-                  {inspectSummary.customer.documentType}: {inspectSummary.customer.documentNumber}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectCustomerId(null)}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer"
-                aria-label="Cerrar ficha"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {inspectSummary && (() => {
+        const inspectRenewals = creditRenewals
+          .filter((r) => r.customerId === inspectSummary.customer.id)
+          .sort((a, b) => (b.renewalNumber || '').localeCompare(a.renewalNumber || ''));
+        const renewalChains = buildCustomerRenewalChains({
+          customerLoans: inspectLoans,
+          customerRenewals: inspectRenewals,
+        });
+        const activeCustomerLoans = inspectLoans.filter((l) => !isClosedLoanStatus(l.status));
 
-            <div className="p-5 space-y-5 max-h-[75vh] overflow-y-auto text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="axy-surface-tonal p-3.5 rounded-xl space-y-1.5">
-                  <p className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-[#00B8FF]" />
-                    <span>Contacto</span>
+        return (
+          <div className="fixed inset-0 z-50 bg-[#030816]/70 backdrop-blur-[2px] flex items-center justify-center p-4">
+            <div className="axy-panel-in axy-surface w-full max-w-4xl rounded-2xl border border-[var(--axy-border-strong)] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="axy-infinity-line" />
+              <div className="px-5 py-4 border-b border-[var(--axy-border)] flex flex-wrap items-center justify-between gap-3 bg-[var(--axy-surface-tonal)]">
+                <div>
+                  <h3 className="font-display text-base font-bold text-slate-950 dark:text-white">
+                    {inspectSummary.customer.firstName} {inspectSummary.customer.lastName}
+                  </h3>
+                  <p className="text-[11px] font-mono text-slate-500 dark:text-[#00B8FF]">
+                    {inspectSummary.customer.documentType}: {inspectSummary.customer.documentNumber}
                   </p>
-                  <p className="font-mono">{inspectSummary.customer.phone}</p>
-                  {inspectSummary.customer.altPhone && (
-                    <p className="font-mono text-slate-500 dark:text-slate-400">
-                      Alt: {inspectSummary.customer.altPhone}
-                    </p>
-                  )}
-                  <p className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                    <Mail className="w-3 h-3" />
-                    <span>{inspectSummary.customer.email || 'Sin correo'}</span>
-                  </p>
-                  {inspectSummary.customer.altContactName && (
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Ref. Alterna: {inspectSummary.customer.altContactName} ({inspectSummary.customer.altContactPhone || '—'})
-                    </p>
-                  )}
                 </div>
-
-                <div className="axy-surface-tonal p-3.5 rounded-xl space-y-1.5">
-                  <p className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#00B8FF]" />
-                    <span>Domicilio y Vivienda</span>
-                  </p>
-                  <p>{inspectSummary.customer.address || 'Dirección no registrada'}</p>
-                  <p className="text-slate-500 dark:text-slate-400">
-                    {inspectSummary.customer.municipality || '—'}, {inspectSummary.customer.province || '—'}
-                  </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Vivienda: {inspectSummary.customer.housingType || 'NO_DECLARADA'} ·{' '}
-                    {inspectSummary.customer.residenceMonths ?? 0} meses
-                  </p>
+                <div className="flex items-center gap-2">
+                  {canInitiateRenewal && activeCustomerLoans.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetCustomer = inspectSummary.customer;
+                        setInspectCustomerId(null);
+                        setRenewalModalTarget({
+                          customer: targetCustomer,
+                          loanId: activeCustomerLoans[0]?.id ?? null,
+                        });
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Renovar Crédito</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setInspectCustomerId(null)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer"
+                    aria-label="Cerrar ficha"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <h4 className="font-display font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-[#00B8FF]" />
-                  <span>Historial de Préstamos en la Empresa ({inspectLoans.length})</span>
-                </h4>
-                {inspectLoans.length === 0 ? (
-                  <p className="axy-surface-tonal p-3 rounded-xl text-slate-500 dark:text-slate-400">
-                    Este cliente aún no tiene préstamos desembolsados.
-                  </p>
-                ) : (
-                  <div className="divide-y divide-[var(--axy-border)] rounded-xl border border-[var(--axy-border)] overflow-hidden">
-                    {inspectLoans.map((loan) => (
-                      <div
-                        key={loan.id}
-                        className="p-3 flex flex-wrap items-center justify-between gap-2 bg-[var(--axy-surface-tonal)]"
-                      >
-                        <div>
-                          <span className="font-mono font-bold text-slate-900 dark:text-white">
-                            {loan.loanNumber}
-                          </span>
-                          <span className="mx-2 text-slate-400">·</span>
-                          <span className="text-slate-500 dark:text-slate-400">
-                            Desembolso {loan.disbursementDate}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 font-mono tabular-nums">
-                          <span>
-                            Saldo: <strong>{formatMoney(loan.currentPrincipalBalance, loan.currency)}</strong>
-                          </span>
-                          <span
-                            className={`font-sans font-semibold ${
-                              loan.status === 'CANCELADO' || loan.status === 'PAGADO'
-                                ? 'text-amber-600 dark:text-[#E2B35E]'
-                                : 'text-emerald-600 dark:text-emerald-400'
-                            }`}
-                          >
-                            {loan.status}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setInspectCustomerId(null);
-                              setSelectedCollectionLoanId(loan.id);
-                            }}
-                            className="font-sans text-[11px] font-semibold text-[#0066FF] dark:text-[#00B8FF] hover:underline cursor-pointer"
-                          >
-                            Ver 360°
-                          </button>
-                        </div>
+              {/* Expediente Tabs */}
+              <div className="px-5 pt-3 border-b border-[var(--axy-border)] flex items-center gap-2 bg-[var(--axy-surface-tonal)]">
+                <button
+                  type="button"
+                  onClick={() => setInspectTab('SUMMARY')}
+                  className={`px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
+                    inspectTab === 'SUMMARY'
+                      ? 'border-[#00B8FF] text-[#0052CC] dark:text-[#00D1FF]'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Expediente y Préstamos ({inspectLoans.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInspectTab('RENEWALS')}
+                  className={`px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
+                    inspectTab === 'RENEWALS'
+                      ? 'border-[#00B8FF] text-[#0052CC] dark:text-[#00D1FF]'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>Renovaciones ({inspectRenewals.length})</span>
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5 overflow-y-auto text-xs flex-1">
+                {inspectTab === 'SUMMARY' ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="axy-surface-tonal p-3.5 rounded-xl space-y-1.5">
+                        <p className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5 text-[#00B8FF]" />
+                          <span>Contacto</span>
+                        </p>
+                        <p className="font-mono">{inspectSummary.customer.phone}</p>
+                        {inspectSummary.customer.altPhone && (
+                          <p className="font-mono text-slate-500 dark:text-slate-400">
+                            Alt: {inspectSummary.customer.altPhone}
+                          </p>
+                        )}
+                        <p className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                          <Mail className="w-3 h-3" />
+                          <span>{inspectSummary.customer.email || 'Sin correo'}</span>
+                        </p>
+                        {inspectSummary.customer.altContactName && (
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Ref. Alterna: {inspectSummary.customer.altContactName} ({inspectSummary.customer.altContactPhone || '—'})
+                          </p>
+                        )}
                       </div>
-                    ))}
+
+                      <div className="axy-surface-tonal p-3.5 rounded-xl space-y-1.5">
+                        <p className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#00B8FF]" />
+                          <span>Domicilio y Vivienda</span>
+                        </p>
+                        <p>{inspectSummary.customer.address || 'Dirección no registrada'}</p>
+                        <p className="text-slate-500 dark:text-slate-400">
+                          {inspectSummary.customer.municipality || '—'}, {inspectSummary.customer.province || '—'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Vivienda: {inspectSummary.customer.housingType || 'NO_DECLARADA'} ·{' '}
+                          {inspectSummary.customer.residenceMonths ?? 0} meses
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="font-display font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[#00B8FF]" />
+                        <span>Historial de Préstamos en la Empresa ({inspectLoans.length})</span>
+                      </h4>
+                      {inspectLoans.length === 0 ? (
+                        <p className="axy-surface-tonal p-3 rounded-xl text-slate-500 dark:text-slate-400">
+                          Este cliente aún no tiene préstamos desembolsados.
+                        </p>
+                      ) : (
+                        <div className="divide-y divide-[var(--axy-border)] rounded-xl border border-[var(--axy-border)] overflow-hidden">
+                          {inspectLoans.map((loan) => {
+                            const closed = isClosedLoanStatus(loan.status);
+                            return (
+                              <div
+                                key={loan.id}
+                                className="p-3 flex flex-wrap items-center justify-between gap-2 bg-[var(--axy-surface-tonal)]"
+                              >
+                                <div className="space-y-0.5">
+                                  <div>
+                                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                      {loan.loanNumber}
+                                    </span>
+                                    <span className="mx-2 text-slate-400">·</span>
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                      Desembolso {loan.disbursementDate}
+                                    </span>
+                                  </div>
+                                  {loan.originLoanNumber && (
+                                    <div className="text-[11px] text-sky-600 dark:text-sky-400 font-mono">
+                                      ↳ Renovación de {loan.originLoanNumber}
+                                    </div>
+                                  )}
+                                  {loan.renewedToLoanNumber && (
+                                    <div className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
+                                      → Liquidado y renovado hacia {loan.renewedToLoanNumber}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 font-mono tabular-nums flex-wrap">
+                                  <span>
+                                    Saldo: <strong>{formatMoney(loan.currentPrincipalBalance, loan.currency)}</strong>
+                                  </span>
+                                  <span
+                                    className={`font-sans font-semibold ${
+                                      closed
+                                        ? 'text-amber-600 dark:text-[#E2B35E]'
+                                        : 'text-emerald-600 dark:text-emerald-400'
+                                    }`}
+                                  >
+                                    {LOAN_STATUS_LABELS[loan.status] || loan.status}
+                                  </span>
+                                  {canInitiateRenewal && !closed && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const targetCustomer = inspectSummary.customer;
+                                        setInspectCustomerId(null);
+                                        setRenewalModalTarget({
+                                          customer: targetCustomer,
+                                          loanId: loan.id,
+                                        });
+                                      }}
+                                      className="font-sans px-2.5 py-1 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/35 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <RefreshCw className="w-3 h-3" />
+                                      <span>Renovar</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setInspectCustomerId(null);
+                                      setSelectedCollectionLoanId(loan.id);
+                                    }}
+                                    className="font-sans text-[11px] font-semibold text-[#0066FF] dark:text-[#00B8FF] hover:underline cursor-pointer"
+                                  >
+                                    Ver 360°
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-5">
+                    {/* Visual Renewal Chain */}
+                    <div className="space-y-2">
+                      <h4 className="font-display font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <GitBranch className="w-4 h-4 text-[#00B8FF]" />
+                        <span>Cadena Histórica de Renovaciones</span>
+                      </h4>
+                      {renewalChains.length === 0 ? (
+                        <p className="axy-surface-tonal p-3.5 rounded-xl text-slate-500 dark:text-slate-400">
+                          Aún no existen renovaciones desembolsadas encadenadas para este cliente.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {renewalChains.map((chain) => (
+                            <div
+                              key={chain.rootLoanId}
+                              className="p-3.5 rounded-xl axy-surface-tonal border border-[var(--axy-border)] overflow-x-auto"
+                            >
+                              <div className="flex items-center gap-2 min-w-max">
+                                {chain.nodes.map((node, idx) => (
+                                  <React.Fragment key={node.loanId}>
+                                    <div
+                                      className={`px-3 py-2 rounded-xl border text-[11px] min-w-[165px] ${
+                                        node.status === 'CANCELADO_POR_RENOVACION'
+                                          ? 'border-amber-500/35 bg-amber-500/10'
+                                          : 'border-emerald-500/35 bg-emerald-500/10'
+                                      }`}
+                                    >
+                                      <div className="font-mono font-bold text-slate-950 dark:text-white">
+                                        {node.loanNumber}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                                        {LOAN_STATUS_LABELS[node.status] || node.status}
+                                      </div>
+                                      <div className="font-mono text-[11px] font-semibold mt-1">
+                                        {formatMoney(node.approvedPrincipal, node.currency)}
+                                      </div>
+                                      {node.netDisbursementDelivered != null && (
+                                        <div className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300">
+                                          Neto: {formatMoney(node.netDisbursementDelivered, node.currency)}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {idx < chain.nodes.length - 1 && (
+                                      <div className="flex flex-col items-center text-slate-400 px-1">
+                                        <span className="text-[9px] font-semibold uppercase tracking-wide text-[#00B8FF]">
+                                          Renovación
+                                        </span>
+                                        <ArrowRight className="w-4 h-4 text-[#00B8FF]" />
+                                      </div>
+                                    )}
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Renewal History Table */}
+                    <div className="space-y-2">
+                      <h4 className="font-display font-bold text-slate-900 dark:text-white">
+                        Historial Completo de Solicitudes y Renovaciones ({inspectRenewals.length})
+                      </h4>
+                      {inspectRenewals.length === 0 ? (
+                        <p className="axy-surface-tonal p-3.5 rounded-xl text-slate-500 dark:text-slate-400">
+                          Este cliente no registra procesos de renovación todavía.
+                        </p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-[var(--axy-border)]">
+                          <table className="w-full text-left text-[11px]">
+                            <thead>
+                              <tr className="axy-table-head text-slate-500 dark:text-slate-400">
+                                <th className="py-2.5 px-3 font-semibold">Renovación</th>
+                                <th className="py-2.5 px-3 font-semibold">Préstamo Ant. → Nuevo</th>
+                                <th className="py-2.5 px-3 font-semibold">Modalidad</th>
+                                <th className="py-2.5 px-3 font-semibold text-right">Monto Nuevo</th>
+                                <th className="py-2.5 px-3 font-semibold text-right">Liquidación</th>
+                                <th className="py-2.5 px-3 font-semibold text-right">Desemb. Neto</th>
+                                <th className="py-2.5 px-3 font-semibold">Estado</th>
+                                <th className="py-2.5 px-3 font-semibold">Usuarios</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--axy-border)]">
+                              {inspectRenewals.map((r) => {
+                                const curr = r.originCurrency || r.currency || 'DOP';
+                                const gross = r.approvedAmount ?? r.grossApprovedAmount ?? r.requestedAmount;
+                                const settled = r.settledPayoffAmount ?? r.payoffSnapshot?.totalPayoffAmount ?? 0;
+                                const net = r.netDisbursementAmount ?? Math.max(0, gross - settled);
+                                return (
+                                  <tr key={r.id} className="axy-table-row">
+                                    <td className="py-2.5 px-3 font-mono">
+                                      <div className="font-bold text-slate-900 dark:text-white">
+                                        {r.renewalNumber}
+                                      </div>
+                                      <div className="text-[10px] text-slate-500">
+                                        {r.liquidationDate || r.disbursedAt?.slice(0, 10) || r.payoffSnapshot?.asOfDateIso || '—'}
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-mono">
+                                      <span>{r.originLoanNumber}</span>
+                                      <span className="mx-1 text-[#00B8FF]">→</span>
+                                      <strong className="text-slate-900 dark:text-white">
+                                        {r.targetLoanNumber || 'Pendiente'}
+                                      </strong>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      {RENEWAL_MODALITY_LABELS[r.modality] || r.modality}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold">
+                                      {formatMoney(gross, curr)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400">
+                                      -{formatMoney(settled, curr)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
+                                      {formatMoney(net, curr)}
+                                    </td>
+                                    <td className="py-2.5 px-3 font-semibold">
+                                      {RENEWAL_STATUS_LABELS[r.status] || r.status}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-[10px] text-slate-500">
+                                      <div>Inició: {r.initiatedByName}</div>
+                                      {(r.committeeDecidedByName || r.committeeDecisionByName) && (
+                                        <div>Comité: {r.committeeDecidedByName || r.committeeDecisionByName}</div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
 
-            <div className="px-5 py-3.5 border-t border-[var(--axy-border)] flex items-center justify-end gap-2 bg-[var(--axy-surface-tonal)]">
-              <button
-                type="button"
-                onClick={() => setInspectCustomerId(null)}
-                className="axy-btn-secondary px-4 py-2 text-xs font-medium cursor-pointer"
-              >
-                Cerrar
-              </button>
-              {canUpdateCustomers && (
+              <div className="px-5 py-3.5 border-t border-[var(--axy-border)] flex items-center justify-end gap-2 bg-[var(--axy-surface-tonal)]">
                 <button
                   type="button"
-                  onClick={() => handleOpenUpdateForCustomer(inspectSummary.customer)}
-                  className="px-4 py-2 rounded-xl axy-brand-gradient text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => setInspectCustomerId(null)}
+                  className="axy-btn-secondary px-4 py-2 text-xs font-medium cursor-pointer"
                 >
-                  <PencilLine className="w-3.5 h-3.5" />
-                  <span>Actualizar Datos de este Cliente</span>
+                  Cerrar
                 </button>
-              )}
+                {canUpdateCustomers && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenUpdateForCustomer(inspectSummary.customer)}
+                    className="px-4 py-2 rounded-xl axy-brand-gradient text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <PencilLine className="w-3.5 h-3.5" />
+                    <span>Actualizar Datos de este Cliente</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        );
+      })()}
+
+      {/* ============================================================
+          RENEWAL INITIATION MODAL
+         ============================================================ */}
+      {renewalModalTarget && (
+        <RenewalInitiationModal
+          customer={renewalModalTarget.customer}
+          initialLoanId={renewalModalTarget.loanId}
+          onClose={() => setRenewalModalTarget(null)}
+          onCompleted={(res) => {
+            setFeedback({
+              type: 'ok',
+              msg: `Renovación ${res.renewal.renewalNumber} creada (${res.application.applicationNumber}) y enviada a ${
+                res.renewal.modality === 'MISMAS_CONDICIONES' ? 'Comité de Créditos' : 'Evaluación'
+              }.`,
+            });
+          }}
+        />
       )}
     </div>
   );

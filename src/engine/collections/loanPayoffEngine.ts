@@ -145,6 +145,7 @@ export function listAllClientsForPayoff(params: {
     const evaluatedInsts = evaluated?.updatedInstallments ?? loanInsts;
     const isClosed =
       loan.status === 'CANCELADO' ||
+      loan.status === 'CANCELADO_POR_RENOVACION' ||
       (loan.status === 'PAGADO' && toCents(loan.currentPrincipalBalance) <= 0);
 
     let remPrincipalCents = 0;
@@ -284,7 +285,11 @@ export function computeLoanPayoffPlan(params: {
   if (!item.loan || !item.loanId) {
     throw new Error('Este cliente no tiene un préstamo activo para generar o aplicar un saldo.');
   }
-  if (item.loan.status === 'CANCELADO' || item.loan.status === 'PAGADO') {
+  if (
+    item.loan.status === 'CANCELADO' ||
+    item.loan.status === 'CANCELADO_POR_RENOVACION' ||
+    item.loan.status === 'PAGADO'
+  ) {
     throw new Error('Este préstamo ya se encuentra pagado o cancelado.');
   }
 

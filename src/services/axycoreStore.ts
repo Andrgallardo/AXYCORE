@@ -137,7 +137,16 @@ import type {
   UserRole,
   UserStatus,
   InvitationStatus,
+  CreditRenewalRecord,
+  CollectionPolicyVersionRecord,
+  CollectionAccountRecord,
 } from '../types/axycore';
+import type { AccountingAccountRecord } from '../types/dgiiEcf';
+import {
+  buildRenewalAccountingJournalEntry,
+  calculateRenewalNetDisbursement,
+  computeRenewalPayoffBreakdown,
+} from '../engine/renewalEngine';
 import { ROLE_LABELS } from '../types/axycore';
 
 export const DEFAULT_ORG_ID = SU_GLORIA_ORG_ID;
@@ -259,6 +268,12 @@ const APPLICATION_ALLOWED_KEYS = new Set<string>([
   'legalFeeMode',
   'interestOnlyPeriods',
   'installmentCount',
+  'isRenewal',
+  'renewalId',
+  'renewalModality',
+  'originLoanId',
+  'originLoanNumber',
+  'originPayoffSnapshot',
   'movementHistory',
   'createdByName',
 ]);
@@ -1030,6 +1045,23 @@ export function buildMaterializedApplicationPayload(
             Math.min(10000, Math.round(Number(merged.installmentCount) || 1))
           ),
         }
+      : {}),
+    ...(merged.isRenewal !== undefined ? { isRenewal: Boolean(merged.isRenewal) } : {}),
+    ...(typeof merged.renewalId === 'string' && VALID_ID_REGEX.test(merged.renewalId.trim())
+      ? { renewalId: merged.renewalId.trim() }
+      : {}),
+    ...(merged.renewalModality === 'MISMAS_CONDICIONES' ||
+    merged.renewalModality === 'AUMENTO_O_MODIFICACION'
+      ? { renewalModality: merged.renewalModality }
+      : {}),
+    ...(typeof merged.originLoanId === 'string' && VALID_ID_REGEX.test(merged.originLoanId.trim())
+      ? { originLoanId: merged.originLoanId.trim() }
+      : {}),
+    ...(typeof merged.originLoanNumber === 'string' && merged.originLoanNumber.trim()
+      ? { originLoanNumber: merged.originLoanNumber.trim().slice(0, 64) }
+      : {}),
+    ...(isPlainObject(merged.originPayoffSnapshot)
+      ? { originPayoffSnapshot: merged.originPayoffSnapshot }
       : {}),
     consentVersion: String(merged.consentVersion || 'v1.0-Ley172-13').slice(0, 40),
     consentAcceptedAt: consentAt,
@@ -5023,6 +5055,29 @@ export async function saveEvaluationConditionsAdjustment(params: {
     },
   });
 
+  if (application.isRenewal && application.renewalId) {
+    batch.update(
+      doc(db, 'credit_renewals', application.renewalId),
+      cleanObject({
+        status: 'EN_EVALUACION',
+        evaluatorId: actorUid,
+        evaluatorName: (effectiveUser.displayName || effectiveUser.email || 'Analista').slice(0, 160),
+        requestedConditions: {
+          amount: targetAmount,
+          rateMonthly: policyRateDecimal,
+          termMonths: targetTermMonths,
+          frequency: targetFrequency,
+          amortizationMethod: targetMethod,
+          installmentAmount: calculatedInstallment,
+          productCode: application.productCode,
+          legalFeeMode: targetLegalFeeMode,
+        },
+        grossApprovedAmount: targetAmount,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  }
+
   const auditId = generateId('audit');
   batch.set(doc(db, 'audit_logs', auditId), {
     ...buildCriticalAuditEntryPayload({
@@ -5336,6 +5391,35 @@ export async function saveAnalystEvaluationAndRecalc(params: {
       movementHistory: newHistory,
     },
   });
+
+  if (application.isRenewal && application.renewalId) {
+    const nextRenStatus =
+      targetStatus === 'EN_COMITE'
+        ? 'PENDIENTE_COMITE'
+        : targetStatus === 'DEVUELTA'
+        ? 'DEVUELTA_CORRECCION'
+        : 'EN_EVALUACION';
+    batch.update(
+      doc(db, 'credit_renewals', application.renewalId),
+      cleanObject({
+        status: nextRenStatus,
+        evaluatorId: user.uid,
+        evaluatorName: (user.displayName || user.email || 'Analista').slice(0, 160),
+        requestedConditions: {
+          amount: effRecAmount,
+          rateMonthly: effRecRate,
+          termMonths: effRecTerm,
+          frequency: effFrequency,
+          amortizationMethod: effMethod,
+          installmentAmount: evalCalculatedInstallment ?? newScoring.recommendedInstallment ?? 0,
+          productCode: application.productCode,
+          legalFeeMode: effLegalFeeMode,
+        },
+        grossApprovedAmount: effRecAmount,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  }
 
   if (existingEval?.exists()) {
     batch.update(
@@ -5981,6 +6065,21 @@ export async function submitCommitteeDecision(params: {
   batch.set(doc(db, 'committee_decisions', voteDocId), finalDecisionPayload);
 
   if (resolvedDecision === 'APROBADO' || resolvedDecision === 'APROBADO_CONDICIONADO') {
+    const originPayoffEstimate = Number(application.originPayoffSnapshot?.totalPayoffAmount ?? 0);
+    if (application.isRenewal && originPayoffEstimate > 0) {
+      const renewalCheck = calculateRenewalNetDisbursement({
+        grossApprovedAmount: approvedCapital,
+        payoffAmount: originPayoffEstimate,
+        otherAuthorizedDiscounts: 0,
+      });
+      if (!renewalCheck.valid) {
+        throw new Error(
+          renewalCheck.reason ||
+            'El monto aprobado en Comité no cubre el saldo de cancelación del préstamo anterior.'
+        );
+      }
+    }
+
     const schedule = generateAmortizationSchedule({
       financedPrincipal: approvedCapital,
       monthlyRate: contractualRate,
@@ -6015,6 +6114,10 @@ export async function submitCommitteeDecision(params: {
         firstPaymentDate: firstPayDate,
       });
 
+      const renewalContractClause = application.isRenewal
+        ? `\n\nCLÁUSULA ESPECIAL DE RENOVACIÓN Y LIQUIDACIÓN DE PRÉSTAMO ANTERIOR:\nEl prestatario autoriza irrevocablemente que del monto aprobado de este nuevo crédito (${formatMoney(approvedCapital, application.currency)}), la entidad liquide y cancele totalmente el saldo actualizado del préstamo anterior No. ${application.originLoanNumber || application.originLoanId || 'N/A'} (estimado en ${formatMoney(originPayoffEstimate, application.currency)}), entregándose únicamente el desembolso neto resultante al momento de la ejecución efectiva del desembolso.\n`
+        : '';
+
       const safeMaturityDate = String(schedule.maturityDate || firstPayDate).slice(0, 20);
       const safeTotalPayable = Number.isFinite(schedule.totalContractualPayable)
         ? Number(schedule.totalContractualPayable.toFixed(2))
@@ -6023,6 +6126,9 @@ export async function submitCommitteeDecision(params: {
         typeof application.proposedCollateral === 'string'
           ? application.proposedCollateral.trim().slice(0, 1950)
           : '';
+      const initialNetDisb = application.isRenewal
+        ? Number(Math.max(0.01, approvedCapital - originPayoffEstimate).toFixed(2))
+        : approvedCapital;
 
       const autoForm: Omit<FormalizationRecord, 'createdAt' | 'updatedAt'> = {
         id: formId,
@@ -6033,7 +6139,7 @@ export async function submitCommitteeDecision(params: {
         financedExpenses: 0,
         totalFinanced: approvedCapital,
         deductedExpenses: 0,
-        netDisbursementAmount: approvedCapital,
+        netDisbursementAmount: initialNetDisb,
         contractualRateMonthly: contractualRate,
         termMonths,
         frequency: safeFrequency,
@@ -6043,7 +6149,7 @@ export async function submitCommitteeDecision(params: {
         maturityDate: safeMaturityDate,
         totalContractualPayable: safeTotalPayable,
         contractTemplateVersion: 'tpl-v1.0-revision-legal',
-        contractText: contractText.slice(0, 19500),
+        contractText: `${contractText}${renewalContractClause}`.slice(0, 19500),
         promissoryNoteText: promissoryNoteText.slice(0, 14500),
         requiredDocsChecklist: [
           { key: 'id_doc', label: 'Documento de identidad vigente', completed: true },
@@ -6059,6 +6165,16 @@ export async function submitCommitteeDecision(params: {
         legalReviewConfirmed: false,
         promissoryNoteConfirmed: false,
         contractConfirmed: false,
+        ...(application.isRenewal
+          ? {
+              isRenewal: true,
+              renewalId: application.renewalId ?? null,
+              originLoanId: application.originLoanId ?? null,
+              originLoanNumber: application.originLoanNumber ?? null,
+              renewalPayoffAmount: originPayoffEstimate,
+              renewalPayoffBreakdown: application.originPayoffSnapshot ?? null,
+            }
+          : {}),
         status: 'PENDIENTE',
         formalizedBy: user.uid,
         formalizedByName: safeActorName,
@@ -6070,6 +6186,46 @@ export async function submitCommitteeDecision(params: {
       });
       batch.set(doc(db, 'formalizations', formId), autoFormPayload);
     }
+  }
+
+  // Sync credit_renewals status upon Committee resolution (NEVER cancels origin loan here!)
+  if (application.isRenewal && application.renewalId) {
+    const nextRenewalStatus =
+      resolvedDecision === 'APROBADO' || resolvedDecision === 'APROBADO_CONDICIONADO'
+        ? 'PENDIENTE_FORMALIZACION'
+        : resolvedDecision === 'DEVUELTO'
+        ? 'DEVUELTA_CORRECCION'
+        : 'RECHAZADA';
+    batch.update(
+      doc(db, 'credit_renewals', application.renewalId),
+      cleanObject({
+        status: nextRenewalStatus,
+        committeeDecision: resolvedDecision,
+        committeeDecidedBy: user.uid,
+        committeeDecidedByName: safeActorName,
+        committeeDecisionBy: user.uid,
+        committeeDecisionByName: safeActorName,
+        committeeNotes: normalizedDecisionInput.observations || null,
+        rejectionReason: normalizedDecisionInput.rejectionReason || null,
+        ...(resolvedDecision === 'APROBADO' || resolvedDecision === 'APROBADO_CONDICIONADO'
+          ? {
+              formalizationId: formId,
+              approvedAmount: approvedCapital,
+              grossApprovedAmount: approvedCapital,
+              approvedAt: nowIso,
+              approvedConditions: {
+                amount: approvedCapital,
+                rateMonthly: contractualRate,
+                termMonths,
+                frequency: safeFrequency,
+                amortizationMethod: safeAmortization,
+                installmentAmount: scheduleRows[0]?.totalAmount ?? 0,
+              },
+            }
+          : {}),
+        updatedAt: serverTimestamp(),
+      })
+    );
   }
 
   const auditId = generateId('audit');
@@ -6387,6 +6543,41 @@ export async function saveFormalizationRecord(params: {
       ? existingData.organizationId
       : effectiveOrgId;
 
+  const isRenewalForm = Boolean(formalization.isRenewal || application.isRenewal);
+  const safeRenewalPayoff = isRenewalForm
+    ? Number(
+        Math.max(
+          0,
+          Number(
+            formalization.renewalPayoffAmount ??
+              application.originPayoffSnapshot?.totalPayoffAmount ??
+              0
+          )
+        ).toFixed(2)
+      )
+    : 0;
+  const resolvedNetForRenewal = isRenewalForm
+    ? Number((safeApprovedCapital - safeDeductedExpenses - safeRenewalPayoff).toFixed(2))
+    : safeNetDisbursement;
+
+  if (isRenewalForm && resolvedNetForRenewal <= 0) {
+    throw new Error(
+      `Bloqueo de renovación en formalización: el desembolso neto (${formatMoney(resolvedNetForRenewal, application.currency)}) debe ser mayor a cero luego de liquidar ${formatMoney(safeRenewalPayoff, application.currency)} y descontar ${formatMoney(safeDeductedExpenses, application.currency)}.`
+    );
+  }
+
+  const renewalFormFields = isRenewalForm
+    ? {
+        isRenewal: true,
+        renewalId: formalization.renewalId ?? application.renewalId ?? null,
+        originLoanId: formalization.originLoanId ?? application.originLoanId ?? null,
+        originLoanNumber: formalization.originLoanNumber ?? application.originLoanNumber ?? null,
+        renewalPayoffAmount: safeRenewalPayoff,
+        renewalPayoffBreakdown:
+          formalization.renewalPayoffBreakdown ?? application.originPayoffSnapshot ?? null,
+      }
+    : {};
+
   const fullSanitizedFormalizationPayload = cleanObject({
     id: formId,
     organizationId: existingData ? preservedOrgIdForExisting : effectiveOrgId,
@@ -6397,7 +6588,7 @@ export async function saveFormalizationRecord(params: {
     financedExpenses: safeFinancedExpenses,
     totalFinanced: safeTotalFinanced,
     deductedExpenses: safeDeductedExpenses,
-    netDisbursementAmount: safeNetDisbursement,
+    netDisbursementAmount: resolvedNetForRenewal,
     contractualRateMonthly: normalizedRate,
     termMonths: safeTermMonths,
     frequency: safeFrequency,
@@ -6416,6 +6607,7 @@ export async function saveFormalizationRecord(params: {
     legalReviewConfirmed: syncedLegalConfirmed,
     promissoryNoteConfirmed: promissoryConfirmed,
     contractConfirmed: contractConfirmed,
+    ...renewalFormFields,
     status: targetStatus,
     formalizedBy: existingData ? preservedFormalizedBy : user.uid,
     formalizedByName: existingData ? preservedFormalizedByName : safeActorName,
@@ -6430,7 +6622,7 @@ export async function saveFormalizationRecord(params: {
     financedExpenses: safeFinancedExpenses,
     totalFinanced: safeTotalFinanced,
     deductedExpenses: safeDeductedExpenses,
-    netDisbursementAmount: safeNetDisbursement,
+    netDisbursementAmount: resolvedNetForRenewal,
     contractualRateMonthly: normalizedRate,
     termMonths: safeTermMonths,
     frequency: safeFrequency,
@@ -6449,6 +6641,7 @@ export async function saveFormalizationRecord(params: {
     promissoryNoteConfirmed: promissoryConfirmed,
     contractConfirmed: contractConfirmed,
     approvedFinancialAnalysisId: linkedApprovedAnalysisId,
+    ...renewalFormFields,
     status: targetStatus,
     updatedAt: serverTimestamp(),
   });
@@ -6459,6 +6652,23 @@ export async function saveFormalizationRecord(params: {
   } else {
     // Admin full-document set self-heals any legacy/drifted formalization fields (e.g. approvedCapital mismatch or missing keys).
     batch.set(formRef, fullSanitizedFormalizationPayload);
+  }
+
+  if (isRenewalForm && (formalization.renewalId || application.renewalId)) {
+    const renId = formalization.renewalId || application.renewalId!;
+    batch.update(
+      doc(db, 'credit_renewals', renId),
+      cleanObject({
+        status: markReadyForDisbursement ? 'PENDIENTE_DESEMBOLSO' : 'PENDIENTE_FORMALIZACION',
+        formalizationId: formId,
+        formalizedBy: user.uid,
+        formalizedByName: safeActorName,
+        otherDeductionsAmount: safeDeductedExpenses,
+        settledPayoffAmount: safeRenewalPayoff,
+        netDisbursementAmount: resolvedNetForRenewal,
+        updatedAt: serverTimestamp(),
+      })
+    );
   }
 
   const auditId = generateId('audit');
@@ -6566,6 +6776,8 @@ export async function executeIdempotentDisbursement(params: {
   authorizerUserName: string;
   idempotencyKey: string;
   voucherFile?: { fileName: string; mimeType: string; sizeBytes: number; dataUrl: string } | null;
+  accountingAccounts?: AccountingAccountRecord[];
+  collectionPolicy?: CollectionPolicyVersionRecord;
   user: UserProfile;
 }): Promise<{ loan: LoanRecord; disbursement: DisbursementRecord }> {
   const {
@@ -6582,6 +6794,8 @@ export async function executeIdempotentDisbursement(params: {
     authorizerUserName,
     idempotencyKey,
     voucherFile,
+    accountingAccounts = [],
+    collectionPolicy,
     user,
   } = params;
 
@@ -6633,14 +6847,58 @@ export async function executeIdempotentDisbursement(params: {
   const loanNumber = `PRE-${application.applicationNumber.replace(/^SOL-/, '')}`.slice(0, 64);
   const disbNumber = `DES-${application.applicationNumber.replace(/^SOL-/, '')}`.slice(0, 64);
 
+  const isRenewalOp = Boolean(
+    (application.isRenewal || formalization.isRenewal) &&
+      (application.originLoanId || formalization.originLoanId)
+  );
+  const originLoanId = (application.originLoanId || formalization.originLoanId || '').trim();
+  const renewalId = (application.renewalId || formalization.renewalId || '').trim();
+
+  // Pre-fetch origin loan installment document IDs outside the transaction so all reads inside tx occur before writes
+  let originInstallmentIds: string[] = [];
+  if (isRenewalOp && originLoanId) {
+    const instSnap = await getDocs(
+      query(
+        collection(db, 'loan_installments'),
+        where('organizationId', '==', application.organizationId),
+        where('loanId', '==', originLoanId)
+      )
+    );
+    originInstallmentIds = instSnap.docs.map((d) => d.id);
+    // Guard Firestore 500-write transaction limit cleanly before mutating anything
+    const projectedWrites = schedule.rows.length + originInstallmentIds.length + 12;
+    if (projectedWrites > 490) {
+      throw new Error(
+        `La renovación supera el límite transaccional atómico de Firestore (${projectedWrites} operaciones). Reduzca la cantidad de cuotas.`
+      );
+    }
+  }
+
   let createdDisb!: DisbursementRecord;
   let createdLoan!: LoanRecord;
 
   try {
     await runTransaction(db, async (tx) => {
+      // --- PHASE 1: ALL FIRESTORE READS BEFORE ANY WRITES ---
       const existingDisbSnap = await tx.get(disbRef);
       const appSnap = await tx.get(appRef);
       const formSnap = await tx.get(formRef);
+
+      let originLoanSnap: Awaited<ReturnType<typeof tx.get>> | null = null;
+      let originColAccSnap: Awaited<ReturnType<typeof tx.get>> | null = null;
+      let renewalSnap: Awaited<ReturnType<typeof tx.get>> | null = null;
+      const originInstSnaps: Array<Awaited<ReturnType<typeof tx.get>>> = [];
+
+      if (isRenewalOp && originLoanId) {
+        originLoanSnap = await tx.get(doc(db, 'loans', originLoanId));
+        originColAccSnap = await tx.get(doc(db, 'collection_accounts', originLoanId));
+        if (renewalId) {
+          renewalSnap = await tx.get(doc(db, 'credit_renewals', renewalId));
+        }
+        for (const instId of originInstallmentIds) {
+          originInstSnaps.push(await tx.get(doc(db, 'loan_installments', instId)));
+        }
+      }
 
       if (!appSnap.exists()) {
         throw new Error('Expediente de solicitud no encontrado en Firestore.');
@@ -6659,6 +6917,73 @@ export async function executeIdempotentDisbursement(params: {
         throw new Error(guard.reason || 'Precondiciones de desembolso no satisfechas.');
       }
 
+      // --- PHASE 2: COORDINATED RENEWAL LIQUIDATION COMPUTATION & HARD VALIDATIONS ---
+      let effectiveNetDelivered = formalization.netDisbursementAmount;
+      let finalPayoffBreakdown:
+        | ReturnType<typeof computeRenewalPayoffBreakdown>['breakdown']
+        | null = null;
+      let renewalAccountingEntryId: string | null = null;
+      let originLoanData: LoanRecord | null = null;
+      let freshOriginInsts: LoanInstallmentRecord[] = [];
+
+      if (isRenewalOp && originLoanId) {
+        if (!originLoanSnap || !originLoanSnap.exists()) {
+          throw new Error(`El préstamo anterior (${originLoanId}) no existe en Firestore.`);
+        }
+        originLoanData = originLoanSnap.data() as LoanRecord;
+        if (
+          originLoanData.status === 'CANCELADO' ||
+          originLoanData.status === 'CANCELADO_POR_RENOVACION' ||
+          (originLoanData.status === 'PAGADO' && originLoanData.currentPrincipalBalance <= 0)
+        ) {
+          throw new Error(
+            `El préstamo anterior ${originLoanData.loanNumber} ya se encuentra en estado ${originLoanData.status} y no puede volver a liquidarse por renovación.`
+          );
+        }
+        if (renewalSnap?.exists()) {
+          const rData = renewalSnap.data() as CreditRenewalRecord;
+          if (rData.status === 'DESEMBOLSADA') {
+            throw new Error(
+              `Bloqueo de idempotencia: la renovación ${rData.renewalNumber} ya fue desembolsada.`
+            );
+          }
+        }
+
+        freshOriginInsts = originInstSnaps
+          .filter((s) => s.exists())
+          .map((s) => s.data() as LoanInstallmentRecord);
+
+        const freshOriginColAcc = originColAccSnap?.exists()
+          ? (originColAccSnap.data() as CollectionAccountRecord)
+          : null;
+
+        finalPayoffBreakdown = computeRenewalPayoffBreakdown({
+          loan: originLoanData,
+          installments: freshOriginInsts,
+          account: freshOriginColAcc,
+          policy: collectionPolicy,
+          asOfDateIso: cleanDisbDate,
+        }).breakdown;
+
+        const netCalc = calculateRenewalNetDisbursement({
+          grossApprovedAmount: formalization.approvedCapital,
+          payoffAmount: finalPayoffBreakdown.totalPayoffAmount,
+          otherAuthorizedDiscounts: formalization.deductedExpenses,
+        });
+
+        if (!netCalc.valid) {
+          throw new Error(
+            netCalc.reason ||
+              `Saldo insuficiente para renovación: el monto aprobado (${formatMoney(formalization.approvedCapital, application.currency)}) no cubre la liquidación actualizada (${formatMoney(finalPayoffBreakdown.totalPayoffAmount, application.currency)}) más descuentos (${formatMoney(formalization.deductedExpenses, application.currency)}).`
+          );
+        }
+
+        effectiveNetDelivered = netCalc.netDisbursementAmount;
+        renewalAccountingEntryId = `je_ren_${sanitizeIdSegment(application.id)}`.slice(0, 120);
+      }
+
+      const nowIso = new Date().toISOString();
+
       createdDisb = cleanObject({
         id: disbId,
         organizationId: application.organizationId,
@@ -6669,7 +6994,7 @@ export async function executeIdempotentDisbursement(params: {
         approvedAmount: formalization.approvedCapital,
         totalFinanced: formalization.totalFinanced,
         expenses: formalization.financedExpenses + formalization.deductedExpenses,
-        netDeliveredAmount: formalization.netDisbursementAmount,
+        netDeliveredAmount: effectiveNetDelivered,
         disbursementDate: cleanDisbDate,
         paymentMethod,
         financialEntity: cleanEntity.slice(0, 160),
@@ -6679,6 +7004,17 @@ export async function executeIdempotentDisbursement(params: {
         voucherFileName: voucherFile?.fileName?.slice(0, 240) ?? null,
         voucherMimeType: voucherFile?.mimeType?.slice(0, 120) ?? null,
         voucherDocumentId: voucherDocId,
+        ...(isRenewalOp && finalPayoffBreakdown && originLoanData
+          ? {
+              isRenewal: true,
+              renewalId: renewalId || null,
+              originLoanId: originLoanData.id,
+              originLoanNumber: originLoanData.loanNumber,
+              renewalPayoffAmount: finalPayoffBreakdown.totalPayoffAmount,
+              renewalPayoffBreakdown: finalPayoffBreakdown,
+              accountingEntryId: renewalAccountingEntryId,
+            }
+          : {}),
         idempotencyKey: idempotencyKey.slice(0, 128),
         responsibleUserId: user.uid,
         responsibleUserName: user.displayName.slice(0, 160),
@@ -6717,20 +7053,169 @@ export async function executeIdempotentDisbursement(params: {
         maturityDate: schedule.maturityDate,
         totalContractualInterest: schedule.totalInterestScheduled,
         totalContractualPayable: schedule.totalContractualPayable,
+        ...(isRenewalOp && finalPayoffBreakdown && originLoanData
+          ? {
+              isRenewal: true,
+              renewalId: renewalId || null,
+              originLoanId: originLoanData.id,
+              originLoanNumber: originLoanData.loanNumber,
+              payoffSettledAmount: finalPayoffBreakdown.totalPayoffAmount,
+              additionalDeductionsAmount: formalization.deductedExpenses,
+              netDisbursementDelivered: effectiveNetDelivered,
+            }
+          : {}),
         status: 'ACTIVO' as const,
         createdBy: user.uid,
         createdAt: serverTimestamp(),
       });
 
       const newHistory = appendMovementHistory(freshApp.movementHistory, {
-        timestamp: new Date().toISOString(),
-        action: `Desembolso confirmado (${disbNumber}) y Préstamo creado (${loanNumber})`,
+        timestamp: nowIso,
+        action:
+          isRenewalOp && originLoanData && finalPayoffBreakdown
+            ? `Desembolso por renovación (${disbNumber}) confirmado: liquidado ${originLoanData.loanNumber} (${formatMoney(finalPayoffBreakdown.totalPayoffAmount, application.currency)}) -> Nuevo préstamo ${loanNumber}`
+            : `Desembolso confirmado (${disbNumber}) y Préstamo creado (${loanNumber})`,
         fromStatus: freshApp.status,
         toStatus: 'DESEMBOLSADA',
         userId: user.uid,
         userName: user.displayName,
-        note: `Ref: ${cleanRef} · Neto entregado: ${formalization.netDisbursementAmount}`,
+        note: `Ref: ${cleanRef} · Neto entregado: ${formatMoney(effectiveNetDelivered, application.currency)}`,
       });
+
+      // --- PHASE 3: ALL ATOMIC WRITES ---
+      if (isRenewalOp && originLoanData && finalPayoffBreakdown) {
+        // 3A. Settle all unpaid installments of the origin loan
+        for (const inst of freshOriginInsts) {
+          if (inst.status === 'PAGADA') continue;
+          const totalLateFee = originLoanData.lateFeeExempt ? 0 : inst.accruedLateFee ?? 0;
+          const netLateFeeToPay = Math.max(
+            0,
+            Number((totalLateFee - (inst.waivedLateFee ?? 0)).toFixed(2))
+          );
+          tx.update(doc(db, 'loan_installments', inst.id), {
+            status: 'PAGADA',
+            paidPrincipal: inst.principalAmount,
+            paidInterest: inst.interestAmount,
+            paidOtherCharges: inst.otherCharges,
+            paidLateFee: netLateFeeToPay,
+            paidAt: nowIso,
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        // 3B. Transition origin loan to CANCELADO_POR_RENOVACION with bidirectional linkage
+        const nextOriginPaidPrincipal = Number(
+          (
+            (originLoanData.paidPrincipalTotal ?? 0) + finalPayoffBreakdown.remainingPrincipal
+          ).toFixed(2)
+        );
+        const nextOriginPaidInterest = Number(
+          (
+            (originLoanData.paidInterestTotal ?? 0) + finalPayoffBreakdown.remainingInterest
+          ).toFixed(2)
+        );
+        const nextOriginPaidLateFee = Number(
+          (
+            (originLoanData.paidLateFeeTotal ?? 0) + finalPayoffBreakdown.remainingLateFee
+          ).toFixed(2)
+        );
+
+        tx.update(doc(db, 'loans', originLoanData.id), {
+          status: 'CANCELADO_POR_RENOVACION',
+          currentPrincipalBalance: 0,
+          paidPrincipalTotal: nextOriginPaidPrincipal,
+          paidInterestTotal: nextOriginPaidInterest,
+          paidLateFeeTotal: nextOriginPaidLateFee,
+          renewedToLoanId: loanId,
+          renewedToLoanNumber: loanNumber,
+          renewalPayoffAmount: finalPayoffBreakdown.totalPayoffAmount,
+          renewalLiquidationDate: cleanDisbDate,
+          closedAt: nowIso,
+          closureCertificateNumber: `LIQ-REN-${loanNumber}`.slice(0, 64),
+          updatedAt: serverTimestamp(),
+        });
+
+        // 3C. Close origin collection account so delinquency/collections immediately reflect 0 debt
+        if (originColAccSnap?.exists()) {
+          tx.update(doc(db, 'collection_accounts', originLoanData.id), {
+            stage: 'CANCELADO',
+            bucket: 'AL_DIA',
+            dpd: 0,
+            priority: 'BAJA',
+            priorityScore: 0,
+            overdueInstallmentsCount: 0,
+            overduePrincipal: 0,
+            overdueInterest: 0,
+            overdueLateFee: 0,
+            overdueCharges: 0,
+            overdueTotalAmount: 0,
+            totalOutstandingPrincipal: 0,
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        // 3D. Create balanced double-entry accounting journal entry
+        if (renewalAccountingEntryId) {
+          const journalEntry = buildRenewalAccountingJournalEntry({
+            entryId: renewalAccountingEntryId,
+            organizationId: application.organizationId,
+            entryDate: cleanDisbDate,
+            currency: application.currency,
+            renewalNumber:
+              (renewalSnap?.exists()
+                ? (renewalSnap.data() as CreditRenewalRecord).renewalNumber
+                : null) || `REN-${loanNumber}`,
+            originLoanNumber: originLoanData.loanNumber,
+            targetLoanNumber: loanNumber,
+            disbursementId: disbId,
+            disbursementNumber: disbNumber,
+            customerName: application.applicantDisplayName,
+            totalFinancedNewLoan: formalization.totalFinanced,
+            financedExpenses: formalization.financedExpenses,
+            deductedExpenses: formalization.deductedExpenses,
+            settledPrincipal: finalPayoffBreakdown.remainingPrincipal,
+            settledInterest: finalPayoffBreakdown.remainingInterest,
+            settledLateFee: finalPayoffBreakdown.remainingLateFee,
+            settledCharges: finalPayoffBreakdown.remainingCharges,
+            netDisbursementDelivered: effectiveNetDelivered,
+            idempotencyKey,
+            accounts: accountingAccounts,
+            userId: user.uid,
+            userName: user.displayName || user.email || 'Usuario AxyCore',
+          });
+          tx.set(doc(db, 'accounting_journal_entries', renewalAccountingEntryId), {
+            ...cleanObject(journalEntry),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+
+        // 3E. Finalize credit_renewals/{renewalId} record
+        if (renewalId && renewalSnap?.exists()) {
+          tx.update(
+            doc(db, 'credit_renewals', renewalId),
+            cleanObject({
+              status: 'DESEMBOLSADA',
+              targetLoanId: loanId,
+              targetLoanNumber: loanNumber,
+              disbursementId: disbId,
+              accountingEntryId: renewalAccountingEntryId,
+              finalPayoffBreakdown,
+              approvedAmount: formalization.approvedCapital,
+              grossApprovedAmount: formalization.approvedCapital,
+              settledPayoffAmount: finalPayoffBreakdown.totalPayoffAmount,
+              otherDeductionsAmount: formalization.deductedExpenses,
+              netDisbursementAmount: effectiveNetDelivered,
+              disbursedBy: user.uid,
+              disbursedByName: (user.displayName || user.email || 'Usuario').slice(0, 160),
+              liquidationDate: cleanDisbDate,
+              disbursedAt: nowIso,
+              errorMessage: null,
+              updatedAt: serverTimestamp(),
+            })
+          );
+        }
+      }
 
       if (voucherFile && voucherDocId) {
         tx.set(doc(db, 'application_documents', voucherDocId), {
@@ -6768,7 +7253,9 @@ export async function executeIdempotentDisbursement(params: {
         bucket: 'AL_DIA',
         priority: 'BAJA',
         priorityScore: 0,
-        priorityReasons: ['Préstamo recién desembolsado'],
+        priorityReasons: [
+          isRenewalOp ? 'Préstamo desembolsado por renovación' : 'Préstamo recién desembolsado',
+        ],
         overdueInstallmentsCount: 0,
         totalInstallmentsCount: schedule.rows.length,
         paidInstallmentsCount: 0,
@@ -6867,12 +7354,17 @@ export async function executeIdempotentDisbursement(params: {
         ...buildCriticalAuditEntryPayload({
           id: auditId,
           organizationId: application.organizationId,
-          eventType: 'DISBURSEMENT_AND_LOAN_CREATED',
+          eventType: isRenewalOp
+            ? 'RENEWAL_DISBURSEMENT_AND_LIQUIDATION'
+            : 'DISBURSEMENT_AND_LOAN_CREATED',
           entityType: 'loans',
           entityId: loanId,
-          action: `Desembolso ${disbNumber} confirmado -> Préstamo ${loanNumber} (${schedule.rows.length} cuotas)`,
+          action:
+            isRenewalOp && originLoanData && finalPayoffBreakdown
+              ? `Renovación desembolsada (${disbNumber}): ${originLoanData.loanNumber} CANCELADO_POR_RENOVACION (${formatMoney(finalPayoffBreakdown.totalPayoffAmount, application.currency)}) -> Nuevo ${loanNumber} | Neto ${formatMoney(effectiveNetDelivered, application.currency)}`
+              : `Desembolso ${disbNumber} confirmado -> Préstamo ${loanNumber} (${schedule.rows.length} cuotas)`,
           previousState: 'FORMALIZADA',
-          newState: 'DESEMBOLSADA / ACTIVO',
+          newState: isRenewalOp ? 'DESEMBOLSADA / CANCELADO_POR_RENOVACION + ACTIVO' : 'DESEMBOLSADA / ACTIVO',
           justification: `Ref: ${cleanRef} | Idempotency: ${idempotencyKey}`,
           transactionId: idempotencyKey,
           userId: user.uid,
@@ -6883,6 +7375,35 @@ export async function executeIdempotentDisbursement(params: {
       });
     });
   } catch (err) {
+    // On renewal transaction failure, Firestore rolls back completely so originLoan stays untouched.
+    // Record ERROR_EJECUCION on credit_renewals & audit_logs for traceability without mutating originLoan.
+    if (isRenewalOp && renewalId) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      await updateDoc(doc(db, 'credit_renewals', renewalId), {
+        status: 'ERROR_EJECUCION',
+        errorMessage: errMsg.slice(0, 950),
+        updatedAt: serverTimestamp(),
+      }).catch(() => {});
+      const errAuditId = generateId('audit');
+      await setDoc(doc(db, 'audit_logs', errAuditId), {
+        ...buildCriticalAuditEntryPayload({
+          id: errAuditId,
+          organizationId: application.organizationId,
+          eventType: 'RENEWAL_DISBURSEMENT_ERROR',
+          entityType: 'credit_renewals',
+          entityId: renewalId,
+          action: `Error en desembolso de renovación (${application.applicationNumber}): rollback atómico ejecutado; préstamo origen intacto`,
+          previousState: 'PENDIENTE_DESEMBOLSO',
+          newState: 'ERROR_EJECUCION',
+          justification: errMsg.slice(0, 950),
+          transactionId: idempotencyKey,
+          userId: user.uid,
+          userEmail: user.email,
+          userRole: user.role,
+        }),
+        timestamp: serverTimestamp(),
+      }).catch(() => {});
+    }
     if (err instanceof Error && !err.message.includes('Missing or insufficient permissions')) {
       throw err;
     }

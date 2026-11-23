@@ -376,6 +376,7 @@ function AxyCoreRouter() {
     biometricLocked,
     biometricSetupPending,
     portalAccessError,
+    parsedExternalPortalLink,
   } = useAxyCore();
 
   const [ecfAdjustmentPrefill, setEcfAdjustmentPrefill] =
@@ -497,14 +498,16 @@ function AxyCoreRouter() {
     );
   }
 
-  // Require authenticated user, verified email, active profile, no biometric lock/pending setup, and valid portal access
+  // Require authenticated user, verified email, active profile, no biometric lock/pending setup, and valid portal access.
+  // Also allow authenticated staff/admins to preview or test any public external link (/?portal=<CODE> or /portal/<CODE>) directly.
   if (
     !firebaseUser ||
     !firebaseUser.emailVerified ||
     !userProfile ||
     biometricLocked ||
     biometricSetupPending ||
-    portalAccessError
+    portalAccessError ||
+    (parsedExternalPortalLink.isExternalInstitutionLink && userProfile.role !== 'EXTERNAL_CLIENT')
   ) {
     return <LoginGate />;
   }

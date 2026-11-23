@@ -75,32 +75,45 @@ service cloud.firestore {
     }
 
     function currentRole() {
-      return isBootstrappedAdmin()
-        ? 'ADMIN'
-        : (userExists() && 'role' in userDoc() ? userDoc().role : 'NONE');
+      let u = userExists() ? userDoc() : null;
+      return isBootstrappedAdmin() ? 'ADMIN' : (u != null && 'role' in u ? u.role : 'NONE');
     }
 
     function inSameOrg(orgId) {
+      let u = userExists() ? userDoc() : null;
       return isValidId(orgId) && (
         isBootstrappedAdmin() ||
-        (isActiveStaffDoc() && (
-          ('organizationId' in userDoc() && userDoc().organizationId == orgId) ||
-          ('role' in userDoc() && userDoc().role == 'ADMIN') ||
-          ('isSuperAdmin' in userDoc() && userDoc().isSuperAdmin == true) ||
+        (isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'] && (
+          ('organizationId' in u && u.organizationId == orgId) ||
+          ('role' in u && u.role == 'ADMIN') ||
+          ('isSuperAdmin' in u && u.isSuperAdmin == true) ||
           hasOrgMembershipDoc(orgId)
         ))
       );
     }
 
     function isAdmin() {
-      return isBootstrappedAdmin() || (isActiveStaffDoc() && (
-        ('role' in userDoc() && userDoc().role == 'ADMIN') ||
-        ('isSuperAdmin' in userDoc() && userDoc().isSuperAdmin == true)
-      ));
+      let u = userExists() ? userDoc() : null;
+      return isBootstrappedAdmin() || (
+        isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'] && (
+          ('role' in u && u.role == 'ADMIN') ||
+          ('isSuperAdmin' in u && u.isSuperAdmin == true)
+        )
+      );
     }
 
     function isInternalStaff(orgId) {
-      return inSameOrg(orgId) && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']);
+      let u = userExists() ? userDoc() : null;
+      return isValidId(orgId) && (
+        isBootstrappedAdmin() ||
+        (isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED']
+          && 'role' in u && !(u.role in ['EXTERNAL_CLIENT', 'NONE']) && (
+          ('organizationId' in u && u.organizationId == orgId) ||
+          u.role == 'ADMIN' ||
+          ('isSuperAdmin' in u && u.isSuperAdmin == true) ||
+          hasOrgMembershipDoc(orgId)
+        ))
+      );
     }
 
     function hasOrgRole(orgId, roles) {
@@ -455,6 +468,7 @@ service cloud.firestore {
           'originalRequestedConditions', 'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId',
           'requiresHumanIntervention', 'decisionQualificationStatus', 'financialAnalysisVersion',
           'legalFeeMode', 'interestOnlyPeriods', 'installmentCount',
+          'isRenewal', 'renewalId', 'renewalModality', 'originLoanId', 'originLoanNumber', 'originPayoffSnapshot',
           'consentVersion', 'consentAcceptedAt', 'assignedTo', 'assignedToName',
           'movementHistory', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'
         ])
@@ -472,6 +486,7 @@ service cloud.firestore {
         && optList(data, 'references', 4) && optList(data, 'movementHistory', 50)
         && (!('latestScore' in data) || data.latestScore == null || (data.latestScore is number && data.latestScore >= 0 && data.latestScore <= 100))
         && optId(data, 'businessId') && optId(data, 'activeFinancialAnalysisId') && optId(data, 'latestScoringExecutionId')
+        && (!('isRenewal' in data) || data.isRenewal is bool)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && data.updatedAt is timestamp;
     }
@@ -618,6 +633,7 @@ service cloud.firestore {
           'contractTemplateVersion', 'contractText', 'promissoryNoteText',
           'requiredDocsChecklist', 'conditionsFulfilled', 'signatures', 'collateralDetails',
           'legalReviewConfirmed', 'promissoryNoteConfirmed', 'contractConfirmed',
+          'isRenewal', 'renewalId', 'originLoanId', 'originLoanNumber', 'renewalPayoffAmount', 'renewalPayoffBreakdown',
           'status', 'formalizedBy', 'formalizedByName',
           'createdAt', 'updatedAt'
         ])
@@ -635,6 +651,7 @@ service cloud.firestore {
         && optList(data, 'requiredDocsChecklist', 25) && optBool(data, 'conditionsFulfilled')
         && optList(data, 'signatures', 10) && optStr(data, 'collateralDetails', 2000)
         && optBool(data, 'legalReviewConfirmed') && optBool(data, 'promissoryNoteConfirmed') && optBool(data, 'contractConfirmed')
+        && (!('isRenewal' in data) || data.isRenewal is bool)
         && data.status in ['PENDIENTE', 'LISTA_PARA_DESEMBOLSO', 'DESEMBOLSADA']
         && isValidId(data.formalizedBy) && optStr(data, 'formalizedByName', 160)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
@@ -647,6 +664,8 @@ service cloud.firestore {
           'approvedAmount', 'totalFinanced', 'expenses', 'netDeliveredAmount', 'disbursementDate',
           'paymentMethod', 'financialEntity', 'destinationAccountMasked', 'referenceNumber',
           'receiptNotes', 'voucherFileName', 'voucherMimeType', 'voucherDocumentId',
+          'isRenewal', 'renewalId', 'originLoanId', 'originLoanNumber',
+          'renewalPayoffAmount', 'renewalPayoffBreakdown', 'accountingEntryId',
           'idempotencyKey', 'responsibleUserId', 'responsibleUserName',
           'authorizerUserId', 'authorizerUserName', 'status', 'createdAt'
         ])
@@ -664,6 +683,7 @@ service cloud.firestore {
         && strLen(data.referenceNumber, 2, 100)
         && optStr(data, 'receiptNotes', 1000) && optStr(data, 'voucherFileName', 240)
         && optStr(data, 'voucherMimeType', 120) && optId(data, 'voucherDocumentId')
+        && (!('isRenewal' in data) || data.isRenewal is bool)
         && strLen(data.idempotencyKey, 6, 128)
         && isValidId(data.responsibleUserId) && optStr(data, 'responsibleUserName', 160)
         && isValidId(data.authorizerUserId) && optStr(data, 'authorizerUserName', 160)
@@ -680,6 +700,9 @@ service cloud.firestore {
           'totalContractualInterest', 'totalContractualPayable', 'status',
           'paidPrincipalTotal', 'paidInterestTotal', 'paidLateFeeTotal',
           'waivedLateFeeTotal', 'lateFeeExempt', 'lateFeeExemptReason', 'lateFeeExemptBy', 'lateFeeExemptAt',
+          'isRenewal', 'renewalId', 'originLoanId', 'originLoanNumber',
+          'renewedToLoanId', 'renewedToLoanNumber', 'renewalPayoffAmount', 'renewalLiquidationDate',
+          'payoffSettledAmount', 'additionalDeductionsAmount', 'netDisbursementDelivered',
           'closedAt', 'closureCertificateNumber', 'createdBy', 'createdAt', 'updatedAt'
         ])
         && data.id == loanId && isValidId(data.id) && isValidId(data.organizationId)
@@ -700,10 +723,11 @@ service cloud.firestore {
         && data.firstPaymentDate is string && data.firstPaymentDate.size() <= 20
         && data.maturityDate is string && data.maturityDate.size() <= 20
         && optNum(data, 'totalContractualInterest') && optNum(data, 'totalContractualPayable')
-        && data.status in ['ACTIVO', 'PAGADO', 'VENCIDO', 'CANCELADO']
+        && data.status in ['ACTIVO', 'PAGADO', 'VENCIDO', 'CANCELADO', 'CANCELADO_POR_RENOVACION']
         && optNonNeg(data, 'paidPrincipalTotal') && optNonNeg(data, 'paidInterestTotal') && optNonNeg(data, 'paidLateFeeTotal')
         && optNonNeg(data, 'waivedLateFeeTotal') && optBool(data, 'lateFeeExempt')
         && optStr(data, 'lateFeeExemptReason', 500) && optId(data, 'lateFeeExemptBy') && optStr(data, 'lateFeeExemptAt', 40)
+        && (!('isRenewal' in data) || data.isRenewal is bool)
         && optStr(data, 'closedAt', 40) && optStr(data, 'closureCertificateNumber', 64)
         && isValidId(data.createdBy)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
@@ -1647,7 +1671,9 @@ service cloud.firestore {
                     'frequency', 'amortizationMethod', 'disbursementTargetDate', 'firstPaymentDate',
                     'maturityDate', 'totalContractualPayable', 'contractText', 'promissoryNoteText',
                     'requiredDocsChecklist', 'conditionsFulfilled', 'signatures', 'collateralDetails',
-                    'legalReviewConfirmed', 'promissoryNoteConfirmed', 'contractConfirmed', 'status', 'updatedAt'
+                    'legalReviewConfirmed', 'promissoryNoteConfirmed', 'contractConfirmed',
+                    'isRenewal', 'renewalId', 'originLoanId', 'originLoanNumber', 'renewalPayoffAmount', 'renewalPayoffBreakdown',
+                    'status', 'updatedAt'
                   ])) ||
                   (currentRole() in ['ADMIN', 'OPERATIONS', 'FINANCE'] && incoming().status == 'DESEMBOLSADA' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
                 )
@@ -1722,23 +1748,28 @@ service cloud.firestore {
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'currentPrincipalBalance', 'status', 'paidPrincipalTotal',
                   'paidInterestTotal', 'paidLateFeeTotal', 'waivedLateFeeTotal', 'closedAt',
-                  'closureCertificateNumber', 'updatedAt'
+                  'closureCertificateNumber', 'renewedToLoanId', 'renewedToLoanNumber',
+                  'renewalPayoffAmount', 'renewalLiquidationDate', 'updatedAt'
                 ])) ||
               (currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'SUPERVISOR', 'MANAGEMENT']
                 && existing().status != 'CANCELADO'
+                && existing().status != 'CANCELADO_POR_RENOVACION'
                 && existing().status != 'PAGADO'
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'waivedLateFeeTotal', 'lateFeeExempt', 'lateFeeExemptReason',
                   'lateFeeExemptBy', 'lateFeeExemptAt', 'updatedAt'
                 ])) ||
               (currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS']
-                && incoming().status == 'CANCELADO'
+                && incoming().status in ['CANCELADO', 'CANCELADO_POR_RENOVACION']
                 && incoming().currentPrincipalBalance == 0
                 && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'status', 'closedAt', 'closureCertificateNumber', 'updatedAt'
+                  'status', 'closedAt', 'closureCertificateNumber',
+                  'renewedToLoanId', 'renewedToLoanNumber', 'renewalPayoffAmount', 'renewalLiquidationDate',
+                  'updatedAt'
                 ])) ||
               (!(currentRole() in ['EXTERNAL_CLIENT', 'NONE'])
                 && existing().status != 'CANCELADO'
+                && existing().status != 'CANCELADO_POR_RENOVACION'
                 && incoming().status in ['ACTIVO', 'VENCIDO']
                 && incoming().currentPrincipalBalance == existing().currentPrincipalBalance
                 && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
@@ -2177,127 +2208,137 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /reconciliation_matches/{matchId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(matchId) && canReconcileBank(incoming().organizationId)
-        && isValidCollectionBase(incoming(), matchId)
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(matchId) && canReconcileBank(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
+    match /{sharedCol}/{docId} {
+      allow read: if sharedCol in [
+          'reconciliation_matches', 'reconciliation_exceptions', 'dgii_receivers', 'dgii_products',
+          'collector_targets', 'collection_campaigns', 'message_templates', 'collection_policy_versions',
+          'message_events', 'risk_alerts', 'customer_disputes', 'collection_daily_snapshots',
+          'altera_scenarios', 'altera_recommendations', 'altera_outcomes', 'altera_analyses', 'altera_configs',
+          'impulsa_opportunities', 'impulsa_configs'
+        ] && isInternalStaff(resource.data.organizationId);
+      allow create: if isValidId(docId) && (
+        (sharedCol in ['reconciliation_matches', 'reconciliation_exceptions']
+          && canReconcileBank(incoming().organizationId)
+          && isValidCollectionBase(incoming(), docId)
+          && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+        (sharedCol == 'collector_targets'
+          && canAssignPortfolio(incoming().organizationId)
+          && isValidCollectionBase(incoming(), docId)
+          && incoming().updatedAt == request.time) ||
+        (sharedCol in ['collection_campaigns', 'message_templates', 'collection_policy_versions']
+          && canManageBot(incoming().organizationId)
+          && isValidCollectionBase(incoming(), docId)
+          && (sharedCol == 'message_templates' || (incoming().createdBy == request.auth.uid && incoming().createdAt == request.time))
+          && incoming().updatedAt == request.time) ||
+        (sharedCol == 'message_events'
+          && (canManageBot(incoming().organizationId) || canLogCollections(incoming().organizationId))
+          && isValidCollectionBase(incoming(), docId)
+          && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time) ||
+        (sharedCol == 'risk_alerts'
+          && isInternalStaff(incoming().organizationId)
+          && isValidCollectionBase(incoming(), docId)
+          && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+        (sharedCol == 'customer_disputes'
+          && isInternalStaff(incoming().organizationId)
+          && isValidCollectionBase(incoming(), docId)
+          && incoming().openedBy == request.auth.uid
+          && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+        (sharedCol == 'collection_daily_snapshots'
+          && isInternalStaff(incoming().organizationId)
+          && isValidCollectionBase(incoming(), docId)
+          && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time) ||
+        (sharedCol in ['dgii_receivers', 'dgii_products']
+          && canManageAccountingAndEcf(incoming().organizationId)
+          && (sharedCol == 'dgii_receivers' ? isValidDgiiReceiver(incoming(), docId) : isValidDgiiProduct(incoming(), docId))
+          && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+        (sharedCol in ['altera_scenarios', 'altera_recommendations', 'altera_outcomes', 'altera_analyses', 'altera_configs', 'impulsa_opportunities', 'impulsa_configs']
+          && isInternalStaff(incoming().organizationId) && incoming().id == docId && (
+            (sharedCol == 'altera_scenarios'
+              && !(currentRole() in ['AUDITOR', 'CASHIER', 'FORMALIZATION'])
+              && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
+              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+            (sharedCol == 'altera_recommendations'
+              && currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FINANCE', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+              && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
+              && incoming().status in ['GENERADA', 'PENDIENTE_REVISION']
+              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+            (sharedCol == 'altera_outcomes'
+              && currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FINANCE', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+              && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
+              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+            (sharedCol == 'altera_analyses'
+              && incoming().actorUid == request.auth.uid && incoming().createdAt == request.time) ||
+            (sharedCol == 'altera_configs'
+              && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COLLECTION_COORDINATOR']
+              && incoming().requireHumanApprovalForAllInterventions == true && incoming().updatedBy == request.auth.uid
+              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+            (sharedCol == 'impulsa_opportunities'
+              && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+              && incoming().currency in ['DOP', 'USD']
+              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+            (sharedCol == 'impulsa_configs'
+              && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+              && incoming().organizationId == docId
+              && incoming().requireExplicitConsentForExternalContact == true
+              && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time)
+          ))
+      );
+      allow update: if isValidId(docId) && (
+        (sharedCol in ['reconciliation_matches', 'reconciliation_exceptions']
+          && canReconcileBank(existing().organizationId)
+          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
+          && incoming().updatedAt == request.time) ||
+        (sharedCol == 'collector_targets'
+          && canAssignPortfolio(existing().organizationId)
+          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
+          && incoming().updatedAt == request.time) ||
+        (sharedCol in ['collection_campaigns', 'message_templates', 'collection_policy_versions']
+          && canManageBot(existing().organizationId)
+          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
+          && incoming().updatedAt == request.time) ||
+        (sharedCol == 'risk_alerts'
+          && (canResolveDisputesAndAgreements(existing().organizationId) || canAssignPortfolio(existing().organizationId))
+          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
+          && incoming().updatedAt == request.time) ||
+        (sharedCol == 'customer_disputes'
+          && canResolveDisputesAndAgreements(existing().organizationId)
+          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
+          && incoming().updatedAt == request.time) ||
+        (sharedCol in ['dgii_receivers', 'dgii_products']
+          && canManageAccountingAndEcf(existing().organizationId)
+          && (sharedCol == 'dgii_receivers' ? isValidDgiiReceiver(incoming(), docId) : isValidDgiiProduct(incoming(), docId))
+          && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy
+          && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time) ||
+        (sharedCol in ['altera_scenarios', 'altera_recommendations', 'altera_outcomes', 'altera_configs', 'impulsa_opportunities', 'impulsa_configs']
+          && isInternalStaff(existing().organizationId)
+          && incoming().id == docId
+          && incoming().organizationId == existing().organizationId
+          && incoming().updatedAt == request.time && (
+            (sharedCol == 'altera_scenarios'
+              && !(currentRole() in ['AUDITOR', 'CASHIER', 'FORMALIZATION'])
+              && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt) ||
+            (sharedCol == 'altera_recommendations'
+              && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt
+              && (
+                currentRole() in ['ADMIN', 'RISK_OFFICER', 'COMMITTEE_MEMBER', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+                || (currentRole() in ['CREDIT_ANALYST', 'FINANCE', 'SUPERVISOR'] && existing().status in ['GENERADA', 'PENDIENTE_REVISION'] && incoming().status in ['GENERADA', 'PENDIENTE_REVISION'])
+              )) ||
+            (sharedCol == 'altera_outcomes'
+              && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COMMITTEE_MEMBER', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+              && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt) ||
+            (sharedCol == 'altera_configs'
+              && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COLLECTION_COORDINATOR']
+              && incoming().createdAt == existing().createdAt
+              && incoming().requireHumanApprovalForAllInterventions == true && incoming().updatedBy == request.auth.uid) ||
+            (sharedCol == 'impulsa_opportunities'
+              && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+              && incoming().customerId == existing().customerId) ||
+            (sharedCol == 'impulsa_configs'
+              && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+              && incoming().requireExplicitConsentForExternalContact == true && incoming().updatedBy == request.auth.uid)
+          ))
+      );
       allow delete: if false;
-    }
-
-    match /reconciliation_exceptions/{excId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(excId) && canReconcileBank(incoming().organizationId)
-        && isValidCollectionBase(incoming(), excId)
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(excId) && canReconcileBank(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /collector_targets/{targetId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(targetId) && (canAssignPortfolio(incoming().organizationId) || isAdmin())
-        && isValidCollectionBase(incoming(), targetId)
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(targetId) && (canAssignPortfolio(existing().organizationId) || isAdmin())
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /collection_campaigns/{campaignId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(campaignId) && canManageBot(incoming().organizationId)
-        && isValidCollectionBase(incoming(), campaignId)
-        && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(campaignId) && canManageBot(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /message_templates/{templateId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(templateId) && canManageBot(incoming().organizationId)
-        && isValidCollectionBase(incoming(), templateId)
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(templateId) && canManageBot(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /message_events/{eventId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(eventId) && (canManageBot(incoming().organizationId) || canLogCollections(incoming().organizationId))
-        && isValidCollectionBase(incoming(), eventId)
-        && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time;
-      allow update, delete: if false;
-    }
-
-    match /risk_alerts/{alertId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(alertId) && isInternalStaff(incoming().organizationId)
-        && isValidCollectionBase(incoming(), alertId)
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(alertId) && (canResolveDisputesAndAgreements(existing().organizationId) || canAssignPortfolio(existing().organizationId) || isAdmin())
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /customer_disputes/{disputeId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(disputeId) && isInternalStaff(incoming().organizationId)
-        && isValidCollectionBase(incoming(), disputeId)
-        && incoming().openedBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(disputeId) && canResolveDisputesAndAgreements(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /collection_policy_versions/{policyVersionId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(policyVersionId) && canManageCollectionPolicies(incoming().organizationId)
-        && isValidCollectionBase(incoming(), policyVersionId)
-        && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(policyVersionId) && canManageCollectionPolicies(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /collection_daily_snapshots/{snapshotId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(snapshotId) && isInternalStaff(incoming().organizationId)
-        && isValidCollectionBase(incoming(), snapshotId)
-        && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time;
-      allow update, delete: if false;
     }
 
     match /notifications/{notificationId} {
@@ -2851,30 +2892,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /dgii_receivers/{recId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(recId) && canManageAccountingAndEcf(incoming().organizationId)
-        && isValidDgiiReceiver(incoming(), recId)
-        && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isValidId(recId) && canManageAccountingAndEcf(existing().organizationId)
-        && isValidDgiiReceiver(incoming(), recId)
-        && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy
-        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /dgii_products/{prodId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(prodId) && canManageAccountingAndEcf(incoming().organizationId)
-        && isValidDgiiProduct(incoming(), prodId)
-        && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isValidId(prodId) && canManageAccountingAndEcf(existing().organizationId)
-        && isValidDgiiProduct(incoming(), prodId)
-        && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy
-        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
     match /dgii_ecf_documents/{docId} {
       allow read: if isInternalStaff(resource.data.organizationId);
       allow create: if isValidId(docId) && canManageAccountingAndEcf(incoming().organizationId)
@@ -2913,95 +2930,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // --- ALTERA Inteligencia Crediticia Adaptativa ---
-
-    match /altera_scenarios/{scenarioId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isInternalStaff(incoming().organizationId) && !(currentRole() in ['AUDITOR', 'CASHIER', 'FORMALIZATION'])
-        && incoming().id == scenarioId && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
-        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isInternalStaff(existing().organizationId) && !(currentRole() in ['AUDITOR', 'CASHIER', 'FORMALIZATION'])
-        && incoming().id == scenarioId && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /altera_recommendations/{recId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isInternalStaff(incoming().organizationId)
-        && currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FINANCE', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-        && incoming().id == recId && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
-        && incoming().status in ['GENERADA', 'PENDIENTE_REVISION']
-        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isInternalStaff(existing().organizationId)
-        && incoming().id == recId && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
-        && (
-          currentRole() in ['ADMIN', 'RISK_OFFICER', 'COMMITTEE_MEMBER', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-          || (currentRole() in ['CREDIT_ANALYST', 'FINANCE', 'SUPERVISOR'] && existing().status in ['GENERADA', 'PENDIENTE_REVISION'] && incoming().status in ['GENERADA', 'PENDIENTE_REVISION'])
-        );
-      allow delete: if false;
-    }
-
-    match /altera_outcomes/{outcomeId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isInternalStaff(incoming().organizationId)
-        && currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FINANCE', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-        && incoming().id == outcomeId && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
-        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isInternalStaff(existing().organizationId)
-        && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COMMITTEE_MEMBER', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-        && incoming().id == outcomeId && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /altera_analyses/{analysisId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isInternalStaff(incoming().organizationId)
-        && incoming().id == analysisId && incoming().actorUid == request.auth.uid && incoming().createdAt == request.time;
-      allow update, delete: if false;
-    }
-
-    match /altera_configs/{configId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isInternalStaff(incoming().organizationId)
-        && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COLLECTION_COORDINATOR']
-        && incoming().id == configId && incoming().requireHumanApprovalForAllInterventions == true && incoming().updatedBy == request.auth.uid
-        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isInternalStaff(existing().organizationId)
-        && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COLLECTION_COORDINATOR']
-        && incoming().id == configId && incoming().organizationId == existing().organizationId && incoming().createdAt == existing().createdAt
-        && incoming().requireHumanApprovalForAllInterventions == true && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    // --- AxyCore IMPULSA (Motor Inteligente de Crecimiento Crediticio) ---
-
-    match /impulsa_opportunities/{oppId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isInternalStaff(incoming().organizationId)
-        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-        && incoming().id == oppId && incoming().currency in ['DOP', 'USD']
-        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isInternalStaff(existing().organizationId)
-        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-        && incoming().id == oppId && incoming().organizationId == existing().organizationId
-        && incoming().customerId == existing().customerId && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /impulsa_configs/{configId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isInternalStaff(incoming().organizationId)
-        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-        && incoming().id == configId && incoming().organizationId == configId
-        && incoming().requireExplicitConsentForExternalContact == true
-        && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time;
-      allow update: if isInternalStaff(existing().organizationId)
-        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
-        && incoming().id == configId && incoming().organizationId == existing().organizationId
-        && incoming().requireExplicitConsentForExternalContact == true
-        && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
+    // --- ALTERA & IMPULSA collections are enforced in the consolidated /{sharedCol}/{docId} block above ---
 
     // --- AxyCore REGULA (32 Tenant-Isolated Regulatory, Risk, PLAFTPADM, Control & Audit Entities) ---
 
@@ -3105,6 +3034,50 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'status', 'convertedApplicationId', 'convertedBy', 'convertedByName', 'convertedAt', 'reviewNotes', 'updatedAt'
         ]);
+      allow delete: if false;
+    }
+
+    // --- Sistema de Renovaciones y Reenganche de Créditos ---
+    function isValidCreditRenewal(data, renewalId) {
+      return data.id == renewalId && isValidId(data.organizationId)
+        && isValidId(data.customerId) && isValidId(data.originLoanId) && isValidId(data.applicationId)
+        && data.modality in ['MISMAS_CONDICIONES', 'AUMENTO_O_MODIFICACION']
+        && data.status in [
+          'RENOVACION_INICIADA', 'PENDIENTE_EVALUACION', 'EN_EVALUACION',
+          'PENDIENTE_COMITE', 'EN_COMITE', 'APROBADA', 'RECHAZADA',
+          'DEVUELTA_CORRECCION', 'PENDIENTE_FORMALIZACION', 'PENDIENTE_DESEMBOLSO',
+          'DESEMBOLSADA', 'CANCELADA_USUARIO', 'ERROR_EJECUCION'
+        ]
+        && data.currency in ['DOP', 'USD']
+        && data.originConditions is map && data.requestedConditions is map
+        && data.initialPayoffBreakdown is map
+        && isValidId(data.initiatedBy)
+        && data.updatedAt is timestamp;
+    }
+
+    match /credit_renewals/{renewalId} {
+      allow get: if isValidId(renewalId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId));
+      allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
+      allow create: if isValidId(renewalId)
+        && isInternalStaff(incoming().organizationId)
+        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'MANAGEMENT', 'OPERATIONS', 'FINANCE', 'RISK_OFFICER', 'COMMITTEE_MEMBER']
+        && isValidCreditRenewal(incoming(), renewalId)
+        && incoming().initiatedBy == request.auth.uid
+        && incoming().status in ['RENOVACION_INICIADA', 'PENDIENTE_EVALUACION', 'PENDIENTE_COMITE']
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(renewalId)
+        && isInternalStaff(existing().organizationId)
+        && currentRole() != 'AUDITOR'
+        && isValidCreditRenewal(incoming(), renewalId)
+        && incoming().organizationId == existing().organizationId
+        && incoming().originLoanId == existing().originLoanId
+        && incoming().customerId == existing().customerId
+        && incoming().applicationId == existing().applicationId
+        && incoming().initiatedBy == existing().initiatedBy
+        && incoming().createdAt == existing().createdAt
+        && existing().status != 'DESEMBOLSADA'
+        && incoming().updatedAt == request.time;
       allow delete: if false;
     }
   }
