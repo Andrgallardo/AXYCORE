@@ -31,6 +31,7 @@ import {
   runRegulaNormativeAnalysis,
   runRegulaReportDraft,
 } from './server/regulaAi';
+import { runImpulsaAiAssistant } from './server/impulsaAi';
 import { checkTenantApiAccess } from './src/engine/multiTenantEngine';
 import * as webpush from 'web-push';
 import {
@@ -108,6 +109,7 @@ async function startServer() {
         policy,
         organization,
         useVerifiedData,
+        evaluationRateMethod,
         executionTrigger,
         executedBy,
         executedByName,
@@ -142,6 +144,8 @@ async function startServer() {
         customer,
         policy: effectivePolicy,
         useVerifiedData: Boolean(useVerifiedData),
+        evaluationRateMethod:
+          evaluationRateMethod === 'SALDO_INSOLUTO' ? 'SALDO_INSOLUTO' : 'INTERES_FIJO',
         executionTrigger: executionTrigger ?? 'INITIAL_SUBMIT',
         executedBy: executedBy ?? 'system_api',
         executedByName: executedByName ?? 'API Backend',
@@ -1025,7 +1029,7 @@ async function startServer() {
     res.json({
       configured,
       model: 'gemini-4-hydrogen',
-      features: ['director', 'bela', 'ocr', 'biometrics', 'regula'],
+      features: ['director', 'bela', 'ocr', 'biometrics', 'regula', 'impulsa'],
     });
   });
 
@@ -2036,6 +2040,40 @@ async function startServer() {
       res.json(result);
     } catch (err) {
       handleRegulaAiError(res, err, 'Error consultando al asistente REGULA AI.');
+    }
+  });
+
+  app.post('/api/impulsa/assistant', async (req, res) => {
+    try {
+      const { question, impulsaContext, actorId, actorRole, organization } = req.body ?? {};
+      if (actorRole === 'EXTERNAL_CLIENT') {
+        res.status(403).json({
+          error: 'Acceso denegado: clientes externos no tienen acceso al asistente Impulsa IA.',
+        });
+        return;
+      }
+      if (organization) {
+        const apiAccess = checkTenantApiAccess({ apiPath: '/api/impulsa', organization });
+        if (!apiAccess.allowed) {
+          res.status(403).json({ error: apiAccess.reason });
+          return;
+        }
+      }
+      if (!question || typeof question !== 'string' || !question.trim()) {
+        res.status(400).json({ error: 'Escribe una consulta válida para Impulsa IA.' });
+        return;
+      }
+      const result = await runImpulsaAiAssistant({
+        question: question.trim(),
+        impulsaContext: typeof impulsaContext === 'object' && impulsaContext ? impulsaContext : {},
+        actorId: typeof actorId === 'string' ? actorId : undefined,
+      });
+      res.json(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error consultando a Impulsa IA.';
+      const status = msg.includes('Límite temporal') ? 429 : msg.includes('tiempo máximo') ? 504 : 502;
+      console.error('Impulsa AI Error:', err);
+      res.status(status).json({ error: msg });
     }
   });
 

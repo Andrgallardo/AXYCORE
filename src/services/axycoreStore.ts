@@ -33,13 +33,18 @@ import {
 } from '../engine/workflowGuards';
 import { hasRolePermission } from '../engine/rbac';
 import {
+  AMORTIZATION_METHOD_LABELS,
   buildOriginalRequestedConditions,
   canUserExecuteHumanReevaluation,
   canUserOverrideRateOrFees,
+  computeInstallmentCountFromMonths,
+  LEGAL_FEE_MODE_LABELS,
+  PAYMENT_FREQUENCY_LABELS,
   runIntegratedDecisionAndCalculation,
   type AlternativeConditionsOverrideInput,
   type IntegratedCreditEvaluationResult,
 } from '../engine/integratedCreditEngine';
+import { suggestLoanConditions } from '../engine/loanCalculatorEngine';
 import { buildCustomerStatusEmailPayload } from '../engine/emailTemplates';
 import {
   formatMoney,
@@ -69,6 +74,7 @@ import {
   validateModuleToggle,
   type RegisterNewCompanyInput,
 } from '../engine/multiTenantEngine';
+import { buildPublicPortalRecordFromOrg } from '../engine/externalPortalEngine';
 import {
   buildDeterministicInvitationId,
   buildInvitationActivationUrl,
@@ -116,7 +122,10 @@ import type {
   LoanRecord,
   MovementHistoryEntry,
   OrganizationMembershipRecord,
+  AmortizationMethod,
+  LegalFeeApplicationMode,
   OrganizationRecord,
+  PaymentFrequency,
   PushSubscriptionRecord,
   RiskOpinionStatus,
   ScoringExecutionRecord,
@@ -1792,7 +1801,10 @@ export async function retryCustomerEmailNotification(
   };
 }
 
-export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserProfile> {
+export async function bootstrapUserAndOrg(
+  fbUser: FirebaseUser,
+  preferredExternalOrgId?: string | null
+): Promise<UserProfile> {
   const userRef = doc(db, 'users', fbUser.uid);
   let snap;
   try {
@@ -1954,12 +1966,16 @@ export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserPro
         invitedAt: decision.invitedAt,
       };
     } else if (!existingProfile) {
+      const boundOrgId =
+        decision.role === 'EXTERNAL_CLIENT' && preferredExternalOrgId
+          ? preferredExternalOrgId
+          : decision.organizationId;
       const newProfile = cleanObject({
         uid: fbUser.uid,
         email: cleanEmail || 'sin-correo@axycore.local',
         displayName: decision.displayName,
         role: decision.role,
-        organizationId: decision.organizationId,
+        organizationId: boundOrgId,
         status: 'ACTIVE' as const,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -1979,6 +1995,27 @@ export async function bootstrapUserAndOrg(fbUser: FirebaseUser): Promise<UserPro
       };
     } else {
       profile = existingProfile;
+      // If an external client opens a specific institution's portal link, scope their session strictly to that institution
+      if (
+        profile.role === 'EXTERNAL_CLIENT' &&
+        preferredExternalOrgId &&
+        profile.organizationId !== preferredExternalOrgId
+      ) {
+        try {
+          await updateDoc(userRef, {
+            organizationId: preferredExternalOrgId,
+            linkedCustomerId: null,
+            updatedAt: serverTimestamp(),
+          });
+          profile = {
+            ...profile,
+            organizationId: preferredExternalOrgId,
+            linkedCustomerId: undefined,
+          };
+        } catch {
+          // non-blocking
+        }
+      }
       // Confirm invitation if pending upon successful sign-in
       if (profile.invitationStatus === 'INVITACION_ENVIADA') {
         try {
@@ -2552,6 +2589,7 @@ export async function submitOrSaveApplication(params: {
   financialAnalysis?: FinancialAnalysisRecord;
 }> {
   const { application, customer, policy, mode, user, consentText } = params;
+  const actorUid = auth.currentUser?.uid || user.uid;
   const effectiveOrgId =
     (application.organizationId && VALID_ID_REGEX.test(application.organizationId.trim())
       ? application.organizationId.trim()
@@ -2566,7 +2604,7 @@ export async function submitOrSaveApplication(params: {
     ...application,
     organizationId: effectiveOrgId,
     customerId: customer.id,
-    createdBy: user.uid,
+    createdBy: actorUid,
     createdByName: (application.createdByName || safeActorName).trim().slice(0, 160),
     requestedAmount: Math.max(0, Math.min(100_000_000, Number(application.requestedAmount) || 0)),
     requestedTermMonths: Math.max(0, Math.min(360, Math.round(Number(application.requestedTermMonths) || 0))),
@@ -2583,11 +2621,11 @@ export async function submitOrSaveApplication(params: {
     const draftPayload = buildMaterializedApplicationPayload(
       normalizedApp,
       { status: 'BORRADOR' },
-      user.uid,
+      actorUid,
       safeActorName,
       {
         preserveOrganizationId: effectiveOrgId,
-        preserveCreatedBy: existingData?.createdBy ?? user.uid,
+        preserveCreatedBy: existingData?.createdBy ?? actorUid,
         preserveCreatedAt: existingData?.createdAt,
       }
     ) as unknown as ApplicationRecord;
@@ -2602,7 +2640,7 @@ export async function submitOrSaveApplication(params: {
               id: normalizedApp.id,
             },
             { ...draftPayload, status: 'BORRADOR' },
-            user.uid,
+            actorUid,
             safeActorName,
             {
               preserveOrganizationId:
@@ -2610,7 +2648,7 @@ export async function submitOrSaveApplication(params: {
                 VALID_ID_REGEX.test(existingData.organizationId)
                   ? existingData.organizationId
                   : effectiveOrgId,
-              preserveCreatedBy: existingData?.createdBy ?? user.uid,
+              preserveCreatedBy: existingData?.createdBy ?? actorUid,
               preserveCreatedAt: existingData?.createdAt,
             }
           );
@@ -2659,7 +2697,7 @@ export async function submitOrSaveApplication(params: {
     analysisType: 'SOLICITUD_INICIAL',
     version: 1,
     useVerifiedData: false,
-    user,
+    user: { ...user, uid: actorUid },
   });
 
   const scoringResult = integrated.scoring;
@@ -2676,7 +2714,7 @@ export async function submitOrSaveApplication(params: {
       : `Solicitud recibida y evaluada por Motor V2 (${scoringResult.status}, Score ${scoringResult.totalScore}/100) -> requiere intervención humana`,
     fromStatus: normalizedApp.status,
     toStatus: targetPostSubmitStatus,
-    userId: user.uid,
+    userId: actorUid,
     userName: safeActorName,
     userRole: user.role,
     note: integrated.analysis.decisionSummary.explanation,
@@ -2686,7 +2724,7 @@ export async function submitOrSaveApplication(params: {
     ...scoringResult,
     organizationId: effectiveOrgId,
     applicationId: normalizedApp.id,
-    executedBy: user.uid,
+    executedBy: actorUid,
     executedByName: safeActorName,
   });
 
@@ -2699,7 +2737,7 @@ export async function submitOrSaveApplication(params: {
     organizationId: effectiveOrgId,
     applicationId: normalizedApp.id,
     scoringExecutionId: canPersistScoring ? execPayload.id : null,
-    calculatedBy: user.uid,
+    calculatedBy: actorUid,
     calculatedByName: safeActorName,
     calculatedByRole: user.role,
     calculatedAt: serverTimestamp(),
@@ -2713,7 +2751,7 @@ export async function submitOrSaveApplication(params: {
     analysisId: integrated.analysis.id,
     scoringExecutionId: canPersistScoring ? execPayload.id : null,
     newStatus: targetPostSubmitStatus,
-    actorId: user.uid,
+    actorId: actorUid,
     actorName: safeActorName,
     actorRole: user.role,
     createdAt: serverTimestamp(),
@@ -2748,11 +2786,11 @@ export async function submitOrSaveApplication(params: {
       consentVersion: normalizedApp.consentVersion || 'v1.0-Ley172-13',
       movementHistory: updatedHistory,
     },
-    user.uid,
+    actorUid,
     safeActorName,
     {
       preserveOrganizationId: effectiveOrgId,
-      preserveCreatedBy: existingData?.createdBy ?? user.uid,
+      preserveCreatedBy: existingData?.createdBy ?? actorUid,
       preserveCreatedAt: existingData?.createdAt,
     }
   ) as unknown as ApplicationRecord;
@@ -2803,7 +2841,7 @@ export async function submitOrSaveApplication(params: {
     customerId: customer.id,
     consentVersion: finalApp.consentVersion,
     consentText,
-    acceptedBy: user.uid,
+    acceptedBy: actorUid,
   });
 
   const auditId = generateId('audit');
@@ -2820,7 +2858,7 @@ export async function submitOrSaveApplication(params: {
       newState: `${targetPostSubmitStatus} | ${integrated.decisionQualificationStatus}`,
       transactionId: integrated.analysis.idempotencyKey,
       engineVersion: policy.version,
-      userId: user.uid,
+      userId: actorUid,
       userEmail: user.email,
       userRole: user.role,
     }),
@@ -2862,6 +2900,28 @@ export async function submitOrSaveApplication(params: {
         await setDoc(appRef, finalApp);
       }
     } catch (appErr) {
+      const schemaDrift = hasApplicationSchemaDrift(
+        finalApp as unknown as Record<string, unknown>,
+        normalizedApp.id
+      );
+      const diag = {
+        isExisting,
+        status: finalApp.status,
+        orgId: finalApp.organizationId,
+        uidMatch: finalApp.createdBy === auth.currentUser?.uid,
+        schemaDrift,
+        keysCount: Object.keys(finalApp).length,
+        extraKeys: Object.keys(finalApp).filter((k) => !APPLICATION_ALLOWED_KEYS.has(k)),
+        faIdValid:
+          !finalApp.activeFinancialAnalysisId ||
+          VALID_ID_REGEX.test(String(finalApp.activeFinancialAnalysisId)),
+        execIdValid:
+          !finalApp.latestScoringExecutionId ||
+          VALID_ID_REGEX.test(String(finalApp.latestScoringExecutionId)),
+        custIdValid: VALID_ID_REGEX.test(String(finalApp.customerId || '')),
+        batchErrMsg: batchErr instanceof Error ? batchErr.message : String(batchErr),
+      };
+      console.error('Application write diagnostic (non-PII):', JSON.stringify(diag));
       handleFirestoreError(appErr, OperationType.WRITE, `applications/${normalizedApp.id}`);
     }
 
@@ -4776,16 +4836,266 @@ export async function reevaluateApplicationWithEngine(params: {
   };
 }
 
+export interface EvaluationAdjustedConditionsInput {
+  requestedAmount: number;
+  termMonths: number;
+  paymentFrequency: PaymentFrequency;
+  amortizationMethod: AmortizationMethod;
+  legalFeeMode: LegalFeeApplicationMode;
+  interestOnlyPeriods?: number;
+}
+
+export async function saveEvaluationConditionsAdjustment(params: {
+  application: ApplicationRecord;
+  customer: CustomerRecord;
+  policy: CreditPolicyRecord;
+  adjustedConditions: EvaluationAdjustedConditionsInput;
+  justification?: string;
+  user: UserProfile;
+}): Promise<{
+  newScoring: ScoringExecutionRecord;
+  analysis: FinancialAnalysisRecord;
+  policyRatePct: number;
+  policyLegalFees: number;
+}> {
+  const { application, customer, policy, adjustedConditions, justification, user } = params;
+
+  if (!hasRolePermission(user.role, 'EDIT_VERIFIED_FINANCIALS')) {
+    throw new Error(
+      'Permiso RBAC denegado: solo Analista de Créditos o Administrador puede ajustar las condiciones en Evaluación.'
+    );
+  }
+
+  const targetAmount = Math.max(1, Number(adjustedConditions.requestedAmount) || 0);
+  const targetTermMonths = Math.max(1, Math.round(Number(adjustedConditions.termMonths) || 1));
+  const targetFrequency: PaymentFrequency = adjustedConditions.paymentFrequency;
+  const targetMethod: AmortizationMethod = adjustedConditions.amortizationMethod;
+  const targetLegalFeeMode: LegalFeeApplicationMode = adjustedConditions.legalFeeMode;
+  const targetInterestOnly = Math.max(0, Math.round(Number(adjustedConditions.interestOnlyPeriods) || 0));
+  const targetInstallmentCount = computeInstallmentCountFromMonths(targetTermMonths, targetFrequency);
+
+  // Strictly resolve rate & legal fees from institutional policy scale
+  const policySuggestion = suggestLoanConditions(application.currency, targetAmount);
+  const policyRateDecimal = Number((policySuggestion.tasa / 100).toFixed(6));
+  const originalSnapshot =
+    application.originalRequestedConditions ?? buildOriginalRequestedConditions(application);
+
+  const updatedAppForScoring: ApplicationRecord = {
+    ...application,
+    requestedAmount: targetAmount,
+    requestedTermMonths: targetTermMonths,
+    paymentFrequency: targetFrequency,
+    amortizationMethod: targetMethod,
+    legalFeeMode: targetLegalFeeMode,
+    installmentCount: targetInstallmentCount,
+    interestOnlyPeriods: targetInterestOnly,
+    originalRequestedConditions: originalSnapshot,
+  };
+
+  const nextVer = (application.financialAnalysisVersion ?? 1) + 1;
+  const actorUid = auth.currentUser?.uid || user.uid;
+  const effectiveUser: UserProfile = { ...user, uid: actorUid };
+
+  const evalIntegrated = await runBackendIntegratedDecisionAndCalculation({
+    application: updatedAppForScoring,
+    customer,
+    policy,
+    analysisType: 'AJUSTE_EVALUACION',
+    version: nextVer,
+    useVerifiedData: Boolean(
+      application.verifiedFinancialData || application.verifiedBusinessFinancialData
+    ),
+    alternativeConditions: {
+      requestedAmount: targetAmount,
+      termMonths: targetTermMonths,
+      installmentCount: targetInstallmentCount,
+      paymentFrequency: targetFrequency,
+      amortizationMethod: targetMethod,
+      useSuggestedRate: true,
+      legalFeeMode: targetLegalFeeMode,
+      interestOnlyPeriods: targetInterestOnly,
+    },
+    justification:
+      justification?.trim() ||
+      `Ajuste de condiciones en Evaluación: ${formatMoney(targetAmount, application.currency)} · ${targetTermMonths} meses (${PAYMENT_FREQUENCY_LABELS[targetFrequency]}) · ${AMORTIZATION_METHOD_LABELS[targetMethod]} · Gastos legales: ${LEGAL_FEE_MODE_LABELS[targetLegalFeeMode]}.`,
+    user: effectiveUser,
+  });
+
+  const nowIso = new Date().toISOString();
+  const execPayload = sanitizeScoringExecutionPayload({
+    ...evalIntegrated.scoring,
+    organizationId: application.organizationId,
+    applicationId: application.id,
+    executedBy: actorUid,
+    executedByName: effectiveUser.displayName,
+  });
+  const validScoringDoc =
+    Array.isArray(execPayload.indicatorDetails) && execPayload.indicatorDetails.length === 22;
+
+  const calculatedInstallment =
+    evalIntegrated.analysis.financialSummary?.initialInstallment ?? execPayload.recommendedInstallment;
+
+  const newHistory = appendMovementHistory(application.movementHistory, {
+    timestamp: nowIso,
+    action: `Condiciones ajustadas en Evaluación: ${formatMoney(targetAmount, application.currency)} · ${targetTermMonths}m ${PAYMENT_FREQUENCY_LABELS[targetFrequency]} · ${AMORTIZATION_METHOD_LABELS[targetMethod]} · Tasa política ${policySuggestion.tasa}%`,
+    fromStatus: application.status,
+    toStatus: application.status,
+    userId: actorUid,
+    userName: effectiveUser.displayName,
+    userRole: effectiveUser.role,
+    note: `Gastos legales (${formatMoney(policySuggestion.gastosLegales, application.currency)}): ${LEGAL_FEE_MODE_LABELS[targetLegalFeeMode]}. ${justification?.trim() || ''}`.trim(),
+  });
+
+  const batch = writeBatch(db);
+  if (validScoringDoc) {
+    batch.set(doc(db, 'scoring_executions', execPayload.id), execPayload);
+  }
+  if (
+    application.activeFinancialAnalysisId &&
+    application.activeFinancialAnalysisId !== evalIntegrated.analysis.id
+  ) {
+    batch.update(doc(db, 'financial_analyses', application.activeFinancialAnalysisId), {
+      status: 'HISTORICO',
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  const analysisPayload = cleanObject({
+    ...evalIntegrated.analysis,
+    organizationId: application.organizationId,
+    applicationId: application.id,
+    scoringExecutionId: validScoringDoc ? execPayload.id : null,
+    status: 'VIGENTE' as const,
+    calculatedBy: actorUid,
+    calculatedByName: effectiveUser.displayName,
+    calculatedByRole: effectiveUser.role,
+    calculatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  batch.set(doc(db, 'financial_analyses', evalIntegrated.analysis.id), analysisPayload);
+  batch.set(
+    doc(db, 'application_decision_history', evalIntegrated.decisionHistory.id),
+    cleanObject({
+      ...evalIntegrated.decisionHistory,
+      organizationId: application.organizationId,
+      applicationId: application.id,
+      analysisId: evalIntegrated.analysis.id,
+      scoringExecutionId: validScoringDoc ? execPayload.id : null,
+      eventType: 'EVALUATION_CONDITIONS_ADJUSTED' as const,
+      previousStatus: application.status,
+      newStatus: application.status,
+      actorId: actorUid,
+      actorName: effectiveUser.displayName,
+      actorRole: effectiveUser.role,
+      createdAt: serverTimestamp(),
+    })
+  );
+
+  await ensureApplicationPersistedInBatch({
+    batch,
+    application,
+    customer,
+    user: effectiveUser,
+    updates: {
+      requestedAmount: targetAmount,
+      requestedTermMonths: targetTermMonths,
+      paymentFrequency: targetFrequency,
+      amortizationMethod: targetMethod,
+      legalFeeMode: targetLegalFeeMode,
+      installmentCount: targetInstallmentCount,
+      interestOnlyPeriods: targetInterestOnly,
+      originalRequestedConditions: originalSnapshot,
+      prequalificationStatus: execPayload.status,
+      ...(validScoringDoc ? { latestScoringExecutionId: execPayload.id } : {}),
+      latestScore: execPayload.totalScore,
+      latestRiskBand: execPayload.riskBand.code,
+      recommendedAmount: targetAmount,
+      recommendedRateMonthly: policyRateDecimal,
+      recommendedTermMonths: targetTermMonths,
+      recommendedInstallment: calculatedInstallment,
+      activeFinancialAnalysisId: evalIntegrated.analysis.id,
+      approvedEvaluationAnalysisId: evalIntegrated.analysis.id,
+      financialAnalysisVersion: nextVer,
+      assignedTo: actorUid,
+      assignedToName: effectiveUser.displayName,
+      movementHistory: newHistory,
+    },
+  });
+
+  const auditId = generateId('audit');
+  batch.set(doc(db, 'audit_logs', auditId), {
+    ...buildCriticalAuditEntryPayload({
+      id: auditId,
+      organizationId: application.organizationId,
+      eventType: 'CREDIT_EVALUATION_RECALC',
+      entityType: 'applications',
+      entityId: application.id,
+      action: `Ajuste condiciones Evaluación v${nextVer}: ${formatMoney(targetAmount, application.currency)} / ${targetTermMonths}m ${targetFrequency} / ${targetMethod} / ${targetLegalFeeMode}`,
+      previousState: application.status,
+      newState: application.status,
+      justification:
+        justification?.trim() || 'Ajuste de condiciones según política institucional en Evaluación',
+      transactionId: evalIntegrated.analysis.idempotencyKey,
+      engineVersion: policy.version,
+      userId: actorUid,
+      userEmail: effectiveUser.email,
+      userRole: effectiveUser.role,
+    }),
+    timestamp: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `applications/${application.id}`);
+  }
+
+  if (evalIntegrated.installments.length > 0) {
+    await persistFinancialAnalysisInstallmentsChunked(
+      evalIntegrated.installments.map((r) => ({
+        ...r,
+        organizationId: application.organizationId,
+        applicationId: application.id,
+      }))
+    ).catch((err) => {
+      console.warn('Evaluation condition adjustment installments persistence warning:', err);
+    });
+  }
+
+  return {
+    newScoring: { ...evalIntegrated.scoring, executedAt: nowIso } as ScoringExecutionRecord,
+    analysis: {
+      ...evalIntegrated.analysis,
+      status: 'VIGENTE',
+      calculatedAt: nowIso,
+      updatedAt: nowIso,
+    } as FinancialAnalysisRecord,
+    policyRatePct: policySuggestion.tasa,
+    policyLegalFees: policySuggestion.gastosLegales,
+  };
+}
+
 export async function saveAnalystEvaluationAndRecalc(params: {
   application: ApplicationRecord;
   customer: CustomerRecord;
   policy: CreditPolicyRecord;
   evaluation: Omit<CreditEvaluationRecord, 'createdAt' | 'updatedAt'>;
+  adjustedConditions?: EvaluationAdjustedConditionsInput;
   sendToCommittee: boolean;
   returnToApplicant: boolean;
   user: UserProfile;
 }): Promise<{ newScoring: ScoringExecutionRecord }> {
-  const { application, customer, policy, evaluation, sendToCommittee, returnToApplicant, user } = params;
+  const {
+    application,
+    customer,
+    policy,
+    evaluation,
+    adjustedConditions,
+    sendToCommittee,
+    returnToApplicant,
+    user,
+  } = params;
 
   if (!hasRolePermission(user.role, 'EDIT_VERIFIED_FINANCIALS')) {
     throw new Error('Permiso RBAC denegado: solo Analista de Créditos o Administrador puede registrar la depuración analítica.');
@@ -4804,8 +5114,58 @@ export async function saveAnalystEvaluationAndRecalc(params: {
     }
   }
 
+  const effAmount =
+    adjustedConditions && adjustedConditions.requestedAmount > 0
+      ? adjustedConditions.requestedAmount
+      : evaluation.recommendedAmount !== null &&
+          evaluation.recommendedAmount !== undefined &&
+          evaluation.recommendedAmount > 0
+      ? evaluation.recommendedAmount
+      : application.requestedAmount;
+  const effTerm =
+    adjustedConditions && adjustedConditions.termMonths > 0
+      ? Math.max(1, Math.round(adjustedConditions.termMonths))
+      : evaluation.recommendedTermMonths !== null &&
+          evaluation.recommendedTermMonths !== undefined &&
+          evaluation.recommendedTermMonths > 0
+      ? Math.max(1, Math.round(evaluation.recommendedTermMonths))
+      : application.requestedTermMonths;
+  const effFrequency: PaymentFrequency =
+    adjustedConditions?.paymentFrequency ?? application.paymentFrequency;
+  const effMethod: AmortizationMethod =
+    adjustedConditions?.amortizationMethod ?? application.amortizationMethod;
+  const effLegalFeeMode: LegalFeeApplicationMode =
+    adjustedConditions?.legalFeeMode ?? application.legalFeeMode ?? 'DESCONTAR_DESEMBOLSO';
+  const effInterestOnly =
+    adjustedConditions?.interestOnlyPeriods ?? application.interestOnlyPeriods ?? 0;
+  const effInstallmentCount = computeInstallmentCountFromMonths(effTerm, effFrequency);
+  const originalSnapshot =
+    application.originalRequestedConditions ?? buildOriginalRequestedConditions(application);
+
+  // Resolve institutional policy rate & legal fees strictly from configured scale
+  let policyRateDecimal = normalizeMonthlyRateDecimal(
+    evaluation.recommendedRateMonthly ?? application.recommendedRateMonthly ?? 0.05,
+    0.05
+  );
+  if (effAmount >= 1) {
+    try {
+      const policySug = suggestLoanConditions(application.currency, effAmount);
+      policyRateDecimal = Number((policySug.tasa / 100).toFixed(6));
+    } catch {
+      // Fallback to existing rate if out of bounds
+    }
+  }
+
   const updatedAppForScoring: ApplicationRecord = {
     ...application,
+    requestedAmount: effAmount,
+    requestedTermMonths: effTerm,
+    paymentFrequency: effFrequency,
+    amortizationMethod: effMethod,
+    legalFeeMode: effLegalFeeMode,
+    installmentCount: effInstallmentCount,
+    interestOnlyPeriods: effInterestOnly,
+    originalRequestedConditions: originalSnapshot,
     verifiedFinancialData: (evaluation.verifiedSnapshot.financialData as ApplicationRecord['financialData']) ?? application.financialData,
     verifiedBusinessFinancialData:
       (evaluation.verifiedSnapshot.businessFinancialData as ApplicationRecord['businessFinancialData']) ??
@@ -4829,18 +5189,9 @@ export async function saveAnalystEvaluationAndRecalc(params: {
     ? 'EN_COMITE'
     : 'EN_EVALUACION';
 
-  const effRecAmount =
-    evaluation.recommendedAmount !== null && evaluation.recommendedAmount !== undefined && evaluation.recommendedAmount > 0
-      ? evaluation.recommendedAmount
-      : newScoring.recommendedAmount;
-  const effRecRate =
-    evaluation.recommendedRateMonthly !== null && evaluation.recommendedRateMonthly !== undefined && evaluation.recommendedRateMonthly > 0
-      ? normalizeMonthlyRateDecimal(evaluation.recommendedRateMonthly, 0)
-      : normalizeMonthlyRateDecimal(newScoring.recommendedRateMonthly, 0);
-  const effRecTerm =
-    evaluation.recommendedTermMonths !== null && evaluation.recommendedTermMonths !== undefined && evaluation.recommendedTermMonths > 0
-      ? evaluation.recommendedTermMonths
-      : newScoring.recommendedTermMonths;
+  const effRecAmount = effAmount > 0 ? effAmount : newScoring.recommendedAmount;
+  const effRecRate = policyRateDecimal > 0 ? policyRateDecimal : normalizeMonthlyRateDecimal(newScoring.recommendedRateMonthly, 0);
+  const effRecTerm = effTerm > 0 ? effTerm : newScoring.recommendedTermMonths;
 
   const nowIso = new Date().toISOString();
   const newHistory = appendMovementHistory(application.movementHistory, {
@@ -4865,10 +5216,11 @@ export async function saveAnalystEvaluationAndRecalc(params: {
     );
   }
 
-  // If analyst adjusted conditions in Evaluation, create a new versioned FinancialAnalysis marked VIGENTE
+  // Create a new versioned FinancialAnalysis marked VIGENTE applying institutional policy rate & legal fees
   // while preserving all prior versions as HISTORICO.
   let evalAnalysisId: string | null = application.activeFinancialAnalysisId ?? null;
   let evalAnalysisVersion: number = application.financialAnalysisVersion ?? 1;
+  let evalCalculatedInstallment: number | null = null;
   let evalInstallmentsToSave: Array<Omit<FinancialAnalysisInstallmentRecord, 'createdAt'>> = [];
 
   if (effRecAmount > 0 && effRecTerm > 0) {
@@ -4884,12 +5236,12 @@ export async function saveAnalystEvaluationAndRecalc(params: {
         alternativeConditions: {
           requestedAmount: effRecAmount,
           termMonths: effRecTerm,
-          paymentFrequency: application.paymentFrequency,
-          amortizationMethod: application.amortizationMethod,
-          useSuggestedRate: effRecRate <= 0,
-          customMonthlyRatePct: effRecRate > 0 ? Number((effRecRate * 100).toFixed(4)) : undefined,
-          legalFeeMode: application.legalFeeMode ?? 'DESCONTAR_DESEMBOLSO',
-          interestOnlyPeriods: application.interestOnlyPeriods ?? 0,
+          installmentCount: effInstallmentCount,
+          paymentFrequency: effFrequency,
+          amortizationMethod: effMethod,
+          useSuggestedRate: true,
+          legalFeeMode: effLegalFeeMode,
+          interestOnlyPeriods: effInterestOnly,
         },
         justification: evaluation.justification || evaluation.findings || 'Ajuste en etapa de Evaluación',
         user,
@@ -4897,6 +5249,7 @@ export async function saveAnalystEvaluationAndRecalc(params: {
 
       evalAnalysisId = evalIntegrated.analysis.id;
       evalAnalysisVersion = nextVer;
+      evalCalculatedInstallment = evalIntegrated.analysis.financialSummary?.initialInstallment ?? null;
       evalInstallmentsToSave = evalIntegrated.installments;
 
       if (
@@ -4952,6 +5305,14 @@ export async function saveAnalystEvaluationAndRecalc(params: {
     customer,
     user,
     updates: {
+      requestedAmount: effRecAmount,
+      requestedTermMonths: effRecTerm,
+      paymentFrequency: effFrequency,
+      amortizationMethod: effMethod,
+      legalFeeMode: effLegalFeeMode,
+      installmentCount: effInstallmentCount,
+      interestOnlyPeriods: effInterestOnly,
+      originalRequestedConditions: originalSnapshot,
       verifiedFinancialData: updatedAppForScoring.verifiedFinancialData ?? null,
       verifiedBusinessFinancialData: updatedAppForScoring.verifiedBusinessFinancialData ?? null,
       status: targetStatus,
@@ -4962,7 +5323,7 @@ export async function saveAnalystEvaluationAndRecalc(params: {
       recommendedAmount: effRecAmount,
       recommendedRateMonthly: effRecRate,
       recommendedTermMonths: effRecTerm,
-      recommendedInstallment: newScoring.recommendedInstallment,
+      recommendedInstallment: evalCalculatedInstallment ?? newScoring.recommendedInstallment,
       ...(evalAnalysisId
         ? {
             activeFinancialAnalysisId: evalAnalysisId,
@@ -5334,27 +5695,82 @@ export async function submitCommitteeDecision(params: {
     }
   }
 
+  const safeOrgIdInitial =
+    typeof application.organizationId === 'string' && VALID_ID_REGEX.test(application.organizationId.trim())
+      ? application.organizationId.trim()
+      : user.organizationId || DEFAULT_ORG_ID;
+  const safeActorName =
+    String(decisionInput.decidedByName || user.displayName || user.email || 'Miembro de Comité')
+      .trim()
+      .slice(0, 160) || 'Miembro de Comité';
+  const safeActorRole =
+    String(decisionInput.decidedByRole || user.role || 'COMMITTEE_MEMBER')
+      .trim()
+      .slice(0, 64) || 'COMMITTEE_MEMBER';
+  const safeFrequency: PaymentFrequency = VALID_PAYMENT_FREQUENCIES.has(
+    String(decisionInput.approvedFrequency ?? application.paymentFrequency)
+  )
+    ? ((decisionInput.approvedFrequency ?? application.paymentFrequency) as PaymentFrequency)
+    : 'MENSUAL';
+  const safeAmortization: AmortizationMethod = VALID_AMORTIZATION_METHODS.has(
+    String(decisionInput.approvedAmortizationMethod ?? application.amortizationMethod)
+  )
+    ? ((decisionInput.approvedAmortizationMethod ?? application.amortizationMethod) as AmortizationMethod)
+    : 'SALDO_INSOLUTO';
+
+  const safeApprovedAmount =
+    decisionInput.approvedAmount !== null &&
+    decisionInput.approvedAmount !== undefined &&
+    Number.isFinite(Number(decisionInput.approvedAmount)) &&
+    Number(decisionInput.approvedAmount) >= 0
+      ? Number(Number(decisionInput.approvedAmount).toFixed(2))
+      : null;
+  const safeApprovedRateMonthly =
+    decisionInput.approvedRateMonthly !== null &&
+    decisionInput.approvedRateMonthly !== undefined &&
+    Number.isFinite(Number(decisionInput.approvedRateMonthly)) &&
+    Number(decisionInput.approvedRateMonthly) >= 0
+      ? normalizeMonthlyRateDecimal(decisionInput.approvedRateMonthly, 0.04)
+      : null;
+  const safeApprovedTermMonths =
+    decisionInput.approvedTermMonths !== null &&
+    decisionInput.approvedTermMonths !== undefined &&
+    Number.isFinite(Number(decisionInput.approvedTermMonths)) &&
+    Number(decisionInput.approvedTermMonths) >= 0
+      ? Math.round(Number(decisionInput.approvedTermMonths))
+      : null;
+
   const normalizedDecisionInput = {
     ...decisionInput,
-    approvedRateMonthly:
-      decisionInput.approvedRateMonthly !== null && decisionInput.approvedRateMonthly !== undefined
-        ? normalizeMonthlyRateDecimal(decisionInput.approvedRateMonthly, 0.04)
+    organizationId: safeOrgIdInitial,
+    applicationId: application.id,
+    approvedAmount: safeApprovedAmount,
+    approvedRateMonthly: safeApprovedRateMonthly,
+    approvedTermMonths: safeApprovedTermMonths,
+    approvedFrequency: safeFrequency,
+    approvedAmortizationMethod: safeAmortization,
+    conditions: Array.isArray(decisionInput.conditions) ? decisionInput.conditions.slice(0, 20) : [],
+    conditionsFulfilled: Boolean(decisionInput.conditionsFulfilled),
+    rejectionReason:
+      decisionInput.rejectionReason && String(decisionInput.rejectionReason).trim()
+        ? String(decisionInput.rejectionReason).trim().slice(0, 2000)
         : null,
+    observations: String(decisionInput.observations ?? '').trim().slice(0, 3000),
+    decidedBy: user.uid,
+    decidedByName: safeActorName,
+    decidedByRole: safeActorRole,
   };
 
-  // Load prior votes cast for this application in this organization (2-of-3 collegial quorum)
+  // Load prior votes cast for this application in this organization using a single-field query (no composite index required)
   const existingSnap = await getDocs(
-    query(
-      collection(db, 'committee_decisions'),
-      where('organizationId', '==', application.organizationId),
-      where('applicationId', '==', application.id)
-    )
+    query(collection(db, 'committee_decisions'), where('organizationId', '==', safeOrgIdInitial))
   ).catch(() => null);
 
   const priorVotes: CollegialVoteEntry[] = [];
   if (existingSnap) {
     for (const d of existingSnap.docs) {
       const rec = d.data() as CommitteeDecisionRecord;
+      if (rec.applicationId !== application.id) continue;
       if (rec.voteStatus === 'RESOLUCION_FINAL' && Array.isArray(rec.collegialVotes)) {
         rec.collegialVotes.forEach((v) => priorVotes.push(v));
       } else {
@@ -5376,28 +5792,36 @@ export async function submitCommitteeDecision(params: {
   const nowIso = new Date().toISOString();
   const thisVote: CollegialVoteEntry = {
     userId: user.uid,
-    userName: user.displayName,
-    role: user.role,
+    userName: safeActorName,
+    role: safeActorRole,
     vote: normalizedDecisionInput.decision,
     votedAt: nowIso,
   };
 
   const voteEval = evaluateCollegialCommitteeVotes([...priorVotes, thisVote], 2, 3);
   const voteDocId = `dec_${sanitizeIdSegment(application.id)}_${sanitizeIdSegment(user.uid)}`.slice(0, 120);
+  const safeAuthorityUsed = String(check.authorityUsed ?? 'Facultad de Comité').trim().slice(0, 200);
+  const safeCollegialVotes = voteEval.uniqueVotes.slice(0, 15).map((v) => ({
+    userId: String(v.userId || '').slice(0, 128),
+    userName: String(v.userName || 'Votante').slice(0, 160),
+    role: String(v.role || 'COMMITTEE_MEMBER').slice(0, 64),
+    vote: String(v.vote || 'APROBADO').slice(0, 40),
+    votedAt: String(v.votedAt || nowIso).slice(0, 40),
+  }));
 
   if (voteEval.resolvedDecision === null) {
     const newHistory = appendMovementHistory(application.movementHistory, {
       timestamp: nowIso,
-      action: `Voto Comité (${voteEval.totalVotes}/3): ${user.displayName} votó ${normalizedDecisionInput.decision} (${voteEval.approveCount}/2 requeridos)`,
+      action: `Voto Comité (${voteEval.totalVotes}/3): ${safeActorName} votó ${normalizedDecisionInput.decision} (${voteEval.approveCount}/2 requeridos)`,
       fromStatus: application.status,
       toStatus: 'EN_COMITE',
       userId: user.uid,
-      userName: user.displayName,
+      userName: safeActorName,
       note: normalizedDecisionInput.observations || normalizedDecisionInput.rejectionReason || null,
     });
 
     const batch = writeBatch(db);
-    await ensureApplicationPersistedInBatch({
+    const persisted = await ensureApplicationPersistedInBatch({
       batch,
       application,
       user,
@@ -5406,17 +5830,19 @@ export async function submitCommitteeDecision(params: {
         movementHistory: newHistory,
       },
     });
+    const effectiveOrgId = persisted.organizationId || safeOrgIdInitial;
 
     batch.set(
       doc(db, 'committee_decisions', voteDocId),
       cleanObject({
         ...normalizedDecisionInput,
         id: voteDocId,
-        collegialVotes: voteEval.uniqueVotes,
+        organizationId: effectiveOrgId,
+        collegialVotes: safeCollegialVotes,
         voteStatus: 'VOTO_PARCIAL',
         requiredVotes: 2,
         totalPanelMembers: 3,
-        authorityUsed: check.authorityUsed ?? 'Facultad de Comité',
+        authorityUsed: safeAuthorityUsed,
         isImmutable: true,
         decidedAt: serverTimestamp(),
       })
@@ -5426,7 +5852,7 @@ export async function submitCommitteeDecision(params: {
     batch.set(doc(db, 'audit_logs', auditId), {
       ...buildCriticalAuditEntryPayload({
         id: auditId,
-        organizationId: application.organizationId,
+        organizationId: effectiveOrgId,
         eventType: 'COMMITTEE_VOTE_RECORDED',
         entityType: 'committee_decisions',
         entityId: voteDocId,
@@ -5436,12 +5862,12 @@ export async function submitCommitteeDecision(params: {
         justification:
           normalizedDecisionInput.observations ||
           normalizedDecisionInput.rejectionReason ||
-          check.authorityUsed ||
+          safeAuthorityUsed ||
           '',
         transactionId: generateId('tx'),
         userId: user.uid,
         userEmail: user.email,
-        userRole: user.role,
+        userRole: safeActorRole,
       }),
       timestamp: serverTimestamp(),
     });
@@ -5477,52 +5903,31 @@ export async function submitCommitteeDecision(params: {
     fromStatus: application.status,
     toStatus: nextAppStatus,
     userId: user.uid,
-    userName: user.displayName,
+    userName: safeActorName,
     note: normalizedDecisionInput.observations || normalizedDecisionInput.rejectionReason || null,
   });
 
-  const batch = writeBatch(db);
-  await ensureApplicationPersistedInBatch({
-    batch,
-    application,
-    user,
-    updates: {
-      status: nextAppStatus,
-      movementHistory: newHistory,
-    },
-  });
-
-  batch.set(
-    doc(db, 'committee_decisions', voteDocId),
-    cleanObject({
-      ...normalizedDecisionInput,
-      id: voteDocId,
-      decision: resolvedDecision,
-      collegialVotes: voteEval.uniqueVotes,
-      voteStatus: 'RESOLUCION_FINAL',
-      requiredVotes: 2,
-      totalPanelMembers: 3,
-      authorityUsed: check.authorityUsed ?? 'Facultad de Comité',
-      isImmutable: true,
-      decidedAt: serverTimestamp(),
-    })
-  );
-
-  const approvedCapital =
+  const rawApprovedCapital =
     normalizedDecisionInput.approvedAmount ??
     application.recommendedAmount ??
     application.requestedAmount;
+  const approvedCapital = Number(
+    Math.max(1, Number.isFinite(Number(rawApprovedCapital)) ? Number(rawApprovedCapital) : 1).toFixed(2)
+  );
   const contractualRate = normalizeMonthlyRateDecimal(
     normalizedDecisionInput.approvedRateMonthly ?? application.recommendedRateMonthly ?? 0.04,
     0.04
   );
   const termMonths = Math.max(
     1,
-    Math.round(
-      normalizedDecisionInput.approvedTermMonths ??
-        application.recommendedTermMonths ??
-        application.requestedTermMonths ??
-        12
+    Math.min(
+      360,
+      Math.round(
+        normalizedDecisionInput.approvedTermMonths ??
+          application.recommendedTermMonths ??
+          application.requestedTermMonths ??
+          12
+      )
     )
   );
   const disbTargetDate = toIsoDateOnly();
@@ -5545,13 +5950,43 @@ export async function submitCommitteeDecision(params: {
     }
   }
 
+  const formId = `form_${sanitizeIdSegment(application.id)}`.slice(0, 128);
+  let autoFormPayload: Record<string, unknown> | null = null;
+
+  const batch = writeBatch(db);
+  const persisted = await ensureApplicationPersistedInBatch({
+    batch,
+    application,
+    user,
+    updates: {
+      status: nextAppStatus,
+      movementHistory: newHistory,
+    },
+  });
+  const effectiveOrgId = persisted.organizationId || safeOrgIdInitial;
+
+  const finalDecisionPayload = cleanObject({
+    ...normalizedDecisionInput,
+    id: voteDocId,
+    organizationId: effectiveOrgId,
+    decision: resolvedDecision,
+    collegialVotes: safeCollegialVotes,
+    voteStatus: 'RESOLUCION_FINAL',
+    requiredVotes: 2,
+    totalPanelMembers: 3,
+    authorityUsed: safeAuthorityUsed,
+    isImmutable: true,
+    decidedAt: serverTimestamp(),
+  });
+  batch.set(doc(db, 'committee_decisions', voteDocId), finalDecisionPayload);
+
   if (resolvedDecision === 'APROBADO' || resolvedDecision === 'APROBADO_CONDICIONADO') {
     const schedule = generateAmortizationSchedule({
       financedPrincipal: approvedCapital,
       monthlyRate: contractualRate,
       termMonths,
-      frequency: application.paymentFrequency,
-      amortizationMethod: application.amortizationMethod,
+      frequency: safeFrequency,
+      amortizationMethod: safeAmortization,
       disbursementDate: disbTargetDate,
       firstPaymentDate: firstPayDate,
     });
@@ -5564,11 +5999,15 @@ export async function submitCommitteeDecision(params: {
       remainingPrincipalBalance: r.remainingPrincipalBalance,
     }));
 
-    const formId = `form_${application.id}`.slice(0, 128);
     const existingFormSnap = await getDoc(doc(db, 'formalizations', formId)).catch(() => null);
     if (!existingFormSnap?.exists()) {
       const { contractText, promissoryNoteText } = buildDefaultFormalizationContent({
-        application,
+        application: {
+          ...application,
+          organizationId: effectiveOrgId,
+          paymentFrequency: safeFrequency,
+          amortizationMethod: safeAmortization,
+        },
         customer,
         approvedCapital,
         contractualRate,
@@ -5576,9 +6015,18 @@ export async function submitCommitteeDecision(params: {
         firstPaymentDate: firstPayDate,
       });
 
+      const safeMaturityDate = String(schedule.maturityDate || firstPayDate).slice(0, 20);
+      const safeTotalPayable = Number.isFinite(schedule.totalContractualPayable)
+        ? Number(schedule.totalContractualPayable.toFixed(2))
+        : approvedCapital;
+      const safeCollateralDetails =
+        typeof application.proposedCollateral === 'string'
+          ? application.proposedCollateral.trim().slice(0, 1950)
+          : '';
+
       const autoForm: Omit<FormalizationRecord, 'createdAt' | 'updatedAt'> = {
         id: formId,
-        organizationId: application.organizationId,
+        organizationId: effectiveOrgId,
         applicationId: application.id,
         decisionId: voteDocId,
         approvedCapital,
@@ -5588,12 +6036,12 @@ export async function submitCommitteeDecision(params: {
         netDisbursementAmount: approvedCapital,
         contractualRateMonthly: contractualRate,
         termMonths,
-        frequency: application.paymentFrequency,
-        amortizationMethod: application.amortizationMethod,
-        disbursementTargetDate: disbTargetDate,
-        firstPaymentDate: firstPayDate,
-        maturityDate: schedule.maturityDate,
-        totalContractualPayable: schedule.totalContractualPayable,
+        frequency: safeFrequency,
+        amortizationMethod: safeAmortization,
+        disbursementTargetDate: disbTargetDate.slice(0, 20),
+        firstPaymentDate: firstPayDate.slice(0, 20),
+        maturityDate: safeMaturityDate,
+        totalContractualPayable: safeTotalPayable,
         contractTemplateVersion: 'tpl-v1.0-revision-legal',
         contractText: contractText.slice(0, 19500),
         promissoryNoteText: promissoryNoteText.slice(0, 14500),
@@ -5607,30 +6055,28 @@ export async function submitCommitteeDecision(params: {
           resolvedDecision !== 'APROBADO_CONDICIONADO' ||
           (normalizedDecisionInput.conditions?.length ?? 0) === 0,
         signatures: [],
-        collateralDetails: (application.proposedCollateral ?? '').slice(0, 1950),
+        collateralDetails: safeCollateralDetails,
         legalReviewConfirmed: false,
         promissoryNoteConfirmed: false,
         contractConfirmed: false,
         status: 'PENDIENTE',
         formalizedBy: user.uid,
-        formalizedByName: user.displayName,
+        formalizedByName: safeActorName,
       };
-      batch.set(
-        doc(db, 'formalizations', formId),
-        cleanObject({
-          ...autoForm,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-      );
+      autoFormPayload = cleanObject({
+        ...autoForm,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      batch.set(doc(db, 'formalizations', formId), autoFormPayload);
     }
   }
 
   const auditId = generateId('audit');
-  batch.set(doc(db, 'audit_logs', auditId), {
+  const finalAuditPayload = {
     ...buildCriticalAuditEntryPayload({
       id: auditId,
-      organizationId: application.organizationId,
+      organizationId: effectiveOrgId,
       eventType: 'COMMITTEE_DECISION_IMMUTABLE',
       entityType: 'committee_decisions',
       entityId: voteDocId,
@@ -5640,24 +6086,55 @@ export async function submitCommitteeDecision(params: {
       justification:
         normalizedDecisionInput.observations ||
         normalizedDecisionInput.rejectionReason ||
-        check.authorityUsed ||
+        safeAuthorityUsed ||
         '',
       transactionId: generateId('tx'),
       userId: user.uid,
       userEmail: user.email,
-      userRole: user.role,
+      userRole: safeActorRole,
     }),
     timestamp: serverTimestamp(),
-  });
+  };
+  batch.set(doc(db, 'audit_logs', auditId), finalAuditPayload);
 
   try {
     await batch.commit();
   } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, `committee_decisions/${voteDocId}`);
+    if (autoFormPayload) {
+      // Fallback: commit the core collegial decision + application transition + audit log first,
+      // then persist the auto-formalization draft independently so a secondary draft conflict never blocks voting.
+      const coreBatch = writeBatch(db);
+      await ensureApplicationPersistedInBatch({
+        batch: coreBatch,
+        application,
+        user,
+        updates: {
+          status: nextAppStatus,
+          movementHistory: newHistory,
+        },
+      });
+      coreBatch.set(doc(db, 'committee_decisions', voteDocId), finalDecisionPayload);
+      coreBatch.set(doc(db, 'audit_logs', auditId), finalAuditPayload);
+      try {
+        await coreBatch.commit();
+        await setDoc(doc(db, 'formalizations', formId), autoFormPayload).catch((formErr) => {
+          console.warn('Auto-formalization draft skipped after committee approval:', formErr);
+        });
+      } catch (coreErr) {
+        handleFirestoreError(coreErr, OperationType.WRITE, `committee_decisions/${voteDocId}`);
+      }
+    } else {
+      handleFirestoreError(err, OperationType.WRITE, `committee_decisions/${voteDocId}`);
+    }
   }
 
   await enqueueCustomerStatusEmail({
-    application,
+    application: {
+      ...application,
+      organizationId: effectiveOrgId,
+      paymentFrequency: safeFrequency,
+      amortizationMethod: safeAmortization,
+    },
     customer,
     eventCode: nextAppStatus,
     fromStatus: application.status,
@@ -5691,35 +6168,99 @@ export async function saveFormalizationRecord(params: {
 }): Promise<void> {
   const { application, formalization, markReadyForDisbursement, user } = params;
 
-  if (!Number.isFinite(formalization.approvedCapital) || formalization.approvedCapital <= 0) {
+  const safeApprovedCapital = Number(
+    (Number.isFinite(Number(formalization.approvedCapital)) ? Number(formalization.approvedCapital) : 0).toFixed(2)
+  );
+  const safeFinancedExpenses = Number(
+    Math.max(
+      0,
+      Number.isFinite(Number(formalization.financedExpenses)) ? Number(formalization.financedExpenses) : 0
+    ).toFixed(2)
+  );
+  const safeDeductedExpenses = Number(
+    Math.max(
+      0,
+      Number.isFinite(Number(formalization.deductedExpenses)) ? Number(formalization.deductedExpenses) : 0
+    ).toFixed(2)
+  );
+  const safeTotalFinanced = Number(
+    Math.max(
+      safeApprovedCapital,
+      Number.isFinite(Number(formalization.totalFinanced))
+        ? Number(formalization.totalFinanced)
+        : safeApprovedCapital + safeFinancedExpenses
+    ).toFixed(2)
+  );
+  const safeNetDisbursement = Number(
+    (Number.isFinite(Number(formalization.netDisbursementAmount))
+      ? Number(formalization.netDisbursementAmount)
+      : safeApprovedCapital - safeDeductedExpenses
+    ).toFixed(2)
+  );
+
+  if (!Number.isFinite(safeApprovedCapital) || safeApprovedCapital <= 0) {
     throw new Error('El capital aprobado para formalización debe ser mayor a cero.');
   }
-  if (!Number.isFinite(formalization.netDisbursementAmount) || formalization.netDisbursementAmount <= 0) {
+  if (!Number.isFinite(safeNetDisbursement) || safeNetDisbursement <= 0) {
     throw new Error('El monto neto a entregar debe ser mayor a cero (revise los gastos descontados).');
   }
-  if (formalization.totalFinanced < formalization.approvedCapital) {
+  if (safeTotalFinanced < safeApprovedCapital) {
     throw new Error('El total financiado no puede ser inferior al capital aprobado.');
   }
 
   const normalizedRate = normalizeMonthlyRateDecimal(formalization.contractualRateMonthly, 0.04);
+  const safeTermMonths = Math.max(
+    1,
+    Math.min(
+      360,
+      Math.round(
+        Number.isFinite(Number(formalization.termMonths)) && Number(formalization.termMonths) > 0
+          ? Number(formalization.termMonths)
+          : application.recommendedTermMonths ?? application.requestedTermMonths ?? 12
+      )
+    )
+  );
+  const safeFrequency: PaymentFrequency = VALID_PAYMENT_FREQUENCIES.has(String(formalization.frequency))
+    ? formalization.frequency
+    : VALID_PAYMENT_FREQUENCIES.has(String(application.paymentFrequency))
+    ? application.paymentFrequency
+    : 'MENSUAL';
+  const safeAmortization: AmortizationMethod = VALID_AMORTIZATION_METHODS.has(
+    String(formalization.amortizationMethod)
+  )
+    ? formalization.amortizationMethod
+    : VALID_AMORTIZATION_METHODS.has(String(application.amortizationMethod))
+    ? application.amortizationMethod
+    : 'SALDO_INSOLUTO';
+
+  const safeActorName =
+    String(user.displayName || user.email || 'Formalización').trim().slice(0, 160) || 'Formalización';
+  const safeActorRole = String(user.role || 'FORMALIZATION').trim().slice(0, 64) || 'FORMALIZATION';
+
   const promissoryConfirmed = Boolean(formalization.promissoryNoteConfirmed ?? formalization.legalReviewConfirmed);
   const contractConfirmed = Boolean(formalization.contractConfirmed ?? formalization.legalReviewConfirmed);
   const syncedLegalConfirmed = promissoryConfirmed && contractConfirmed;
 
-  const syncedChecklist = (formalization.requiredDocsChecklist ?? []).slice(0, 25).map((item) => {
-    if (item.key === 'promissory' && promissoryConfirmed) return { ...item, completed: true };
-    if (item.key === 'contract_signed' && contractConfirmed) return { ...item, completed: true };
-    if (item.key === 'schedule' && syncedLegalConfirmed) return { ...item, completed: true };
-    return item;
-  });
+  const syncedChecklist = (Array.isArray(formalization.requiredDocsChecklist)
+    ? formalization.requiredDocsChecklist
+    : []
+  )
+    .slice(0, 25)
+    .map((item) => {
+      if (item.key === 'promissory' && promissoryConfirmed) return { ...item, completed: true };
+      if (item.key === 'contract_signed' && contractConfirmed) return { ...item, completed: true };
+      if (item.key === 'schedule' && syncedLegalConfirmed) return { ...item, completed: true };
+      return item;
+    });
 
+  const rawSignatures = Array.isArray(formalization.signatures) ? formalization.signatures : [];
   const effectiveSignatures = (
-    formalization.signatures.length > 0
-      ? formalization.signatures
+    rawSignatures.length > 0
+      ? rawSignatures
       : markReadyForDisbursement
       ? [
           {
-            signerName: user.displayName,
+            signerName: safeActorName,
             signerRole: 'Validación Legal y Formalización',
             method: 'ELECTRONICA_CERTIFICADA',
             signedAt: new Date().toISOString(),
@@ -5740,22 +6281,44 @@ export async function saveFormalizationRecord(params: {
     }
   }
 
-  const formId = formalization.id.slice(0, 128);
+  const rawFormId = typeof formalization.id === 'string' ? formalization.id.trim() : '';
+  const formId = (
+    VALID_ID_REGEX.test(rawFormId)
+      ? rawFormId
+      : `form_${sanitizeIdSegment(application.id)}`
+  ).slice(0, 128);
   const formRef = doc(db, 'formalizations', formId);
   const existingSnap = await getDoc(formRef).catch(() => null);
+  const existingData = existingSnap?.exists()
+    ? (existingSnap.data() as Record<string, unknown>)
+    : null;
   const targetStatus = markReadyForDisbursement ? 'LISTA_PARA_DESEMBOLSO' : 'PENDIENTE';
 
+  const newHistory = markReadyForDisbursement
+    ? appendMovementHistory(application.movementHistory, {
+        timestamp: new Date().toISOString(),
+        action: 'Expediente formalizado y habilitado para desembolso',
+        fromStatus: application.status,
+        toStatus: 'FORMALIZADA',
+        userId: user.uid,
+        userName: safeActorName,
+      })
+    : null;
+
   const batch = writeBatch(db);
-  if (markReadyForDisbursement) {
-    const newHistory = appendMovementHistory(application.movementHistory, {
-      timestamp: new Date().toISOString(),
-      action: 'Expediente formalizado y habilitado para desembolso',
-      fromStatus: application.status,
-      toStatus: 'FORMALIZADA',
-      userId: user.uid,
-      userName: user.displayName,
-    });
-    await ensureApplicationPersistedInBatch({
+  let effectiveOrgId =
+    (typeof existingData?.organizationId === 'string' && VALID_ID_REGEX.test(existingData.organizationId)
+      ? existingData.organizationId
+      : null) ??
+    (typeof application.organizationId === 'string' && VALID_ID_REGEX.test(application.organizationId)
+      ? application.organizationId
+      : null) ??
+    (typeof user.organizationId === 'string' && VALID_ID_REGEX.test(user.organizationId)
+      ? user.organizationId
+      : DEFAULT_ORG_ID);
+
+  if (markReadyForDisbursement && newHistory) {
+    const persisted = await ensureApplicationPersistedInBatch({
       batch,
       application,
       user,
@@ -5764,71 +6327,145 @@ export async function saveFormalizationRecord(params: {
         movementHistory: newHistory,
       },
     });
+    if (persisted.organizationId && VALID_ID_REGEX.test(persisted.organizationId)) {
+      effectiveOrgId = persisted.organizationId;
+    }
   }
 
-  const linkedApprovedAnalysisId =
+  const rawApprovedAnalysisId =
     formalization.approvedFinancialAnalysisId ??
     application.approvedEvaluationAnalysisId ??
     application.activeFinancialAnalysisId ??
     null;
+  const linkedApprovedAnalysisId =
+    typeof rawApprovedAnalysisId === 'string' && VALID_ID_REGEX.test(rawApprovedAnalysisId.trim())
+      ? rawApprovedAnalysisId.trim()
+      : null;
 
-  if (existingSnap?.exists()) {
-    batch.update(
-      formRef,
-      cleanObject({
-        financedExpenses: formalization.financedExpenses,
-        totalFinanced: formalization.totalFinanced,
-        deductedExpenses: formalization.deductedExpenses,
-        netDisbursementAmount: formalization.netDisbursementAmount,
-        disbursementTargetDate: formalization.disbursementTargetDate.slice(0, 20),
-        firstPaymentDate: formalization.firstPaymentDate.slice(0, 20),
-        maturityDate: formalization.maturityDate.slice(0, 20),
-        totalContractualPayable: formalization.totalContractualPayable,
-        contractText: formalization.contractText.slice(0, 19500),
-        promissoryNoteText: formalization.promissoryNoteText.slice(0, 14500),
-        requiredDocsChecklist: syncedChecklist,
-        conditionsFulfilled: formalization.conditionsFulfilled,
-        signatures: effectiveSignatures,
-        collateralDetails: (formalization.collateralDetails ?? '').slice(0, 1950),
-        legalReviewConfirmed: syncedLegalConfirmed,
-        promissoryNoteConfirmed: promissoryConfirmed,
-        contractConfirmed: contractConfirmed,
-        approvedFinancialAnalysisId: linkedApprovedAnalysisId,
-        status: targetStatus,
-        updatedAt: serverTimestamp(),
-      })
-    );
+  const rawDecisionId =
+    typeof formalization.decisionId === 'string' && VALID_ID_REGEX.test(formalization.decisionId.trim())
+      ? formalization.decisionId.trim()
+      : typeof existingData?.decisionId === 'string' && VALID_ID_REGEX.test(existingData.decisionId.trim())
+      ? existingData.decisionId.trim()
+      : `dec_${sanitizeIdSegment(application.id)}`.slice(0, 128);
+
+  const safeDisbTargetDate = String(formalization.disbursementTargetDate || toIsoDateOnly()).slice(0, 20);
+  const safeFirstPaymentDate = String(
+    formalization.firstPaymentDate || addMonthsPreservingAnchor(safeDisbTargetDate, 1)
+  ).slice(0, 20);
+  const safeMaturityDate = String(formalization.maturityDate || safeFirstPaymentDate).slice(0, 20);
+  const safeTotalPayable = Number(
+    (Number.isFinite(Number(formalization.totalContractualPayable)) &&
+    Number(formalization.totalContractualPayable) >= 0
+      ? Number(formalization.totalContractualPayable)
+      : safeTotalFinanced
+    ).toFixed(2)
+  );
+  const safeContractText = String(formalization.contractText ?? '').slice(0, 19500);
+  const safePromissoryText = String(formalization.promissoryNoteText ?? '').slice(0, 14500);
+  const safeCollateralDetails = String(formalization.collateralDetails ?? '').slice(0, 1950);
+  const safeTemplateVersion =
+    String(formalization.contractTemplateVersion || 'tpl-v1.0-revision-legal').trim().slice(0, 40) ||
+    'tpl-v1.0-revision-legal';
+
+  const preservedFormalizedBy =
+    existingData &&
+    typeof existingData.formalizedBy === 'string' &&
+    VALID_ID_REGEX.test(existingData.formalizedBy)
+      ? existingData.formalizedBy
+      : user.uid;
+  const preservedFormalizedByName =
+    existingData &&
+    typeof existingData.formalizedByName === 'string' &&
+    existingData.formalizedByName.trim().length > 0
+      ? existingData.formalizedByName.trim().slice(0, 160)
+      : safeActorName;
+  const preservedOrgIdForExisting =
+    existingData &&
+    typeof existingData.organizationId === 'string' &&
+    VALID_ID_REGEX.test(existingData.organizationId)
+      ? existingData.organizationId
+      : effectiveOrgId;
+
+  const fullSanitizedFormalizationPayload = cleanObject({
+    id: formId,
+    organizationId: existingData ? preservedOrgIdForExisting : effectiveOrgId,
+    applicationId: application.id,
+    decisionId: rawDecisionId,
+    approvedFinancialAnalysisId: linkedApprovedAnalysisId,
+    approvedCapital: safeApprovedCapital,
+    financedExpenses: safeFinancedExpenses,
+    totalFinanced: safeTotalFinanced,
+    deductedExpenses: safeDeductedExpenses,
+    netDisbursementAmount: safeNetDisbursement,
+    contractualRateMonthly: normalizedRate,
+    termMonths: safeTermMonths,
+    frequency: safeFrequency,
+    amortizationMethod: safeAmortization,
+    disbursementTargetDate: safeDisbTargetDate,
+    firstPaymentDate: safeFirstPaymentDate,
+    maturityDate: safeMaturityDate,
+    totalContractualPayable: safeTotalPayable,
+    contractTemplateVersion: safeTemplateVersion,
+    contractText: safeContractText,
+    promissoryNoteText: safePromissoryText,
+    requiredDocsChecklist: syncedChecklist,
+    conditionsFulfilled: Boolean(formalization.conditionsFulfilled),
+    signatures: effectiveSignatures,
+    collateralDetails: safeCollateralDetails,
+    legalReviewConfirmed: syncedLegalConfirmed,
+    promissoryNoteConfirmed: promissoryConfirmed,
+    contractConfirmed: contractConfirmed,
+    status: targetStatus,
+    formalizedBy: existingData ? preservedFormalizedBy : user.uid,
+    formalizedByName: existingData ? preservedFormalizedByName : safeActorName,
+    createdAt: existingData
+      ? normalizePreservedCreatedAt(existingData.createdAt)
+      : serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const updateFieldsPayload = cleanObject({
+    approvedCapital: safeApprovedCapital,
+    financedExpenses: safeFinancedExpenses,
+    totalFinanced: safeTotalFinanced,
+    deductedExpenses: safeDeductedExpenses,
+    netDisbursementAmount: safeNetDisbursement,
+    contractualRateMonthly: normalizedRate,
+    termMonths: safeTermMonths,
+    frequency: safeFrequency,
+    amortizationMethod: safeAmortization,
+    disbursementTargetDate: safeDisbTargetDate,
+    firstPaymentDate: safeFirstPaymentDate,
+    maturityDate: safeMaturityDate,
+    totalContractualPayable: safeTotalPayable,
+    contractText: safeContractText,
+    promissoryNoteText: safePromissoryText,
+    requiredDocsChecklist: syncedChecklist,
+    conditionsFulfilled: Boolean(formalization.conditionsFulfilled),
+    signatures: effectiveSignatures,
+    collateralDetails: safeCollateralDetails,
+    legalReviewConfirmed: syncedLegalConfirmed,
+    promissoryNoteConfirmed: promissoryConfirmed,
+    contractConfirmed: contractConfirmed,
+    approvedFinancialAnalysisId: linkedApprovedAnalysisId,
+    status: targetStatus,
+    updatedAt: serverTimestamp(),
+  });
+
+  const isAdminActor = user.role === 'ADMIN' || Boolean(user.isSuperAdmin);
+  if (existingData && !isAdminActor) {
+    batch.update(formRef, updateFieldsPayload);
   } else {
-    batch.set(
-      formRef,
-      cleanObject({
-        ...formalization,
-        id: formId,
-        contractualRateMonthly: normalizedRate,
-        disbursementTargetDate: formalization.disbursementTargetDate.slice(0, 20),
-        firstPaymentDate: formalization.firstPaymentDate.slice(0, 20),
-        maturityDate: formalization.maturityDate.slice(0, 20),
-        contractText: formalization.contractText.slice(0, 19500),
-        promissoryNoteText: formalization.promissoryNoteText.slice(0, 14500),
-        collateralDetails: (formalization.collateralDetails ?? '').slice(0, 1950),
-        requiredDocsChecklist: syncedChecklist,
-        signatures: effectiveSignatures,
-        legalReviewConfirmed: syncedLegalConfirmed,
-        promissoryNoteConfirmed: promissoryConfirmed,
-        contractConfirmed: contractConfirmed,
-        approvedFinancialAnalysisId: linkedApprovedAnalysisId,
-        status: targetStatus,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    );
+    // Admin full-document set self-heals any legacy/drifted formalization fields (e.g. approvedCapital mismatch or missing keys).
+    batch.set(formRef, fullSanitizedFormalizationPayload);
   }
 
   const auditId = generateId('audit');
-  batch.set(doc(db, 'audit_logs', auditId), {
+  const auditPayload = {
     ...buildCriticalAuditEntryPayload({
       id: auditId,
-      organizationId: application.organizationId,
+      organizationId: effectiveOrgId,
       eventType: markReadyForDisbursement ? 'FORMALIZATION_COMPLETED' : 'FORMALIZATION_SAVED',
       entityType: 'formalizations',
       entityId: formId,
@@ -5838,40 +6475,79 @@ export async function saveFormalizationRecord(params: {
       transactionId: generateId('tx'),
       userId: user.uid,
       userEmail: user.email,
-      userRole: user.role,
+      userRole: safeActorRole,
     }),
     timestamp: serverTimestamp(),
-  });
+  };
+  batch.set(doc(db, 'audit_logs', auditId), auditPayload);
 
   try {
     await batch.commit();
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, `formalizations/${formId}`);
+  } catch {
+    // Fallback: isolate formalization, application transition, and audit log writes so secondary conflicts never block
+    // formalization and any real permission denial pinpoints the exact document path.
+    try {
+      if (existingData && !isAdminActor) {
+        await updateDoc(formRef, updateFieldsPayload);
+      } else {
+        await setDoc(formRef, fullSanitizedFormalizationPayload);
+      }
+    } catch (formErr) {
+      handleFirestoreError(formErr, OperationType.WRITE, `formalizations/${formId}`);
+    }
+
+    if (markReadyForDisbursement && newHistory) {
+      try {
+        const appBatch = writeBatch(db);
+        await ensureApplicationPersistedInBatch({
+          batch: appBatch,
+          application,
+          user,
+          updates: {
+            status: 'FORMALIZADA',
+            movementHistory: newHistory,
+          },
+        });
+        await appBatch.commit();
+      } catch (appErr) {
+        handleFirestoreError(appErr, OperationType.UPDATE, `applications/${application.id}`);
+      }
+    }
+
+    await setDoc(doc(db, 'audit_logs', auditId), auditPayload).catch((auditErr) => {
+      console.warn('Formalization audit log warning:', auditErr);
+    });
   }
 
   if (markReadyForDisbursement) {
     await enqueueCustomerStatusEmail({
-      application,
+      application: {
+        ...application,
+        organizationId: effectiveOrgId,
+      },
       eventCode: 'FORMALIZADA',
       fromStatus: application.status,
       toStatus: 'FORMALIZADA',
       historyLength: (application.movementHistory?.length ?? 0) + 1,
       user,
-      approvedAmount: formalization.approvedCapital,
+      approvedAmount: safeApprovedCapital,
       approvedRateMonthly: normalizedRate,
-      approvedTermMonths: formalization.termMonths,
+      approvedTermMonths: safeTermMonths,
     });
-  } else if (formalization.signatures.length === 0) {
+  } else if (rawSignatures.length === 0) {
     await enqueueCustomerStatusEmail({
-      application,
+      application: {
+        ...application,
+        organizationId: effectiveOrgId,
+      },
       eventCode: 'PENDIENTE_FIRMA',
       fromStatus: application.status,
       toStatus: 'PENDIENTE_FIRMA',
       historyLength: application.movementHistory?.length ?? 0,
       user,
-      approvedAmount: formalization.approvedCapital,
+      approvedAmount: safeApprovedCapital,
       approvedRateMonthly: normalizedRate,
-      approvedTermMonths: formalization.termMonths,
+      approvedTermMonths: safeTermMonths,
     });
   }
 }
@@ -6134,7 +6810,7 @@ export async function executeIdempotentDisbursement(params: {
       }
       const freshAppRecord = freshApp as unknown as Record<string, unknown>;
       if (
-        user.role === 'ADMIN' &&
+        (user.role === 'ADMIN' || user.isSuperAdmin) &&
         hasApplicationSchemaDrift(freshAppRecord, application.id)
       ) {
         tx.set(
@@ -6501,20 +7177,94 @@ export async function updateOrganizationBranding(params: {
   organizationId: string;
   name: string;
   taxId: string;
+  phone?: string;
   primaryColor: string;
   accentColor: string;
+  logoUrl?: string;
   adminUser: UserProfile;
 }): Promise<void> {
+  const orgId = params.organizationId.trim();
+  const cleanName = (params.name || '').trim().slice(0, 160);
+  if (cleanName.length < 2) {
+    throw new Error('El nombre oficial de la institución debe tener al menos 2 caracteres.');
+  }
+  const cleanTaxId = (params.taxId || '').trim().slice(0, 40);
+  const cleanPhone =
+    typeof params.phone === 'string' ? params.phone.trim().slice(0, 40) : undefined;
+  const cleanPrimaryColor = (params.primaryColor || '#0B1220').trim().slice(0, 32);
+  const cleanAccentColor = (params.accentColor || '#2563EB').trim().slice(0, 32);
+  const cleanLogoUrl =
+    typeof params.logoUrl === 'string' && params.logoUrl.trim().length <= 350_000
+      ? params.logoUrl.trim()
+      : undefined;
+
+  const orgRef = doc(db, 'organizations', orgId);
+  const brandingPatch: Record<string, unknown> = {
+    name: cleanName,
+    taxId: cleanTaxId,
+    rnc: cleanTaxId,
+    ...(cleanPhone !== undefined ? { phone: cleanPhone } : {}),
+    primaryColor: cleanPrimaryColor,
+    accentColor: cleanAccentColor,
+    ...(cleanLogoUrl !== undefined ? { logoUrl: cleanLogoUrl } : {}),
+    updatedAt: serverTimestamp(),
+  };
+
   try {
-    await updateDoc(doc(db, 'organizations', params.organizationId), {
-      name: params.name,
-      taxId: params.taxId,
-      primaryColor: params.primaryColor,
-      accentColor: params.accentColor,
-      updatedAt: serverTimestamp(),
-    });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `organizations/${params.organizationId}`);
+    await updateDoc(orgRef, brandingPatch);
+    return;
+  } catch (updateErr) {
+    // Fallback: if org doc does not exist yet or contains legacy/unrecognized fields, self-heal with whitelisted schema fields
+    try {
+      const existingSnap = await getDoc(orgRef).catch(() => null);
+      const existingRaw = existingSnap?.exists()
+        ? (existingSnap.data() as Record<string, unknown>)
+        : {};
+      const allowedKeys = [
+        'tenantId', 'tenant_id', 'accessCode', 'legalName', 'tradeName', 'rnc',
+        'country', 'province', 'city', 'address', 'phone', 'corporateEmail',
+        'currency', 'timezone', 'status', 'onboardingDate', 'planCode',
+        'licenseId', 'licenseStatus', 'licenseStartDate', 'licenseEndDate',
+        'maxUsers', 'enabledModules', 'modulesEnabled', 'primaryAdminUid',
+        'primaryAdminName', 'primaryAdminEmail', 'primaryAdminPhone', 'notes',
+        'logoUrl',
+      ] as const;
+
+      const preserved: Record<string, unknown> = {};
+      for (const key of allowedKeys) {
+        if (existingRaw[key] !== undefined && existingRaw[key] !== null) {
+          preserved[key] = existingRaw[key];
+        }
+      }
+
+      const rawCreatedAt = existingRaw.createdAt;
+      const hasValidCreatedAt =
+        rawCreatedAt != null &&
+        (typeof rawCreatedAt === 'object' ||
+          (typeof rawCreatedAt === 'string' && rawCreatedAt.length >= 10 && rawCreatedAt.length <= 40));
+
+      const baseDefault = orgId === SU_GLORIA_ORG_ID ? SU_GLORIA_MANO_AMIGA_ORG : undefined;
+      const healedDoc = cleanObject({
+        ...(baseDefault || {}),
+        ...preserved,
+        id: orgId,
+        organizationId: orgId,
+        name: cleanName,
+        taxId: cleanTaxId,
+        rnc: cleanTaxId,
+        ...(cleanPhone !== undefined ? { phone: cleanPhone } : {}),
+        primaryColor: cleanPrimaryColor,
+        accentColor: cleanAccentColor,
+        ...(cleanLogoUrl !== undefined ? { logoUrl: cleanLogoUrl } : {}),
+        createdAt: hasValidCreatedAt ? rawCreatedAt : serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      await setDoc(orgRef, healedDoc);
+      return;
+    } catch {
+      handleFirestoreError(updateErr, OperationType.UPDATE, `organizations/${orgId}`);
+    }
   }
 }
 
@@ -7319,6 +8069,12 @@ export async function registerNewTenantOrganizationInStore(params: {
     timestamp: serverTimestamp(),
   });
 
+  const publicPortal = buildPublicPortalRecordFromOrg(bundle.organization);
+  batch.set(
+    doc(db, 'public_portals', publicPortal.portalCode),
+    cleanObject({ ...publicPortal, updatedAt: serverTimestamp() })
+  );
+
   await batch.commit();
   return bundle;
 }
@@ -7373,6 +8129,11 @@ export async function updateTenantOrganizationStatusInStore(params: {
 
   const batch = writeBatch(db);
   batch.set(doc(db, 'organizations', targetId), updatedOrg);
+  const publicPortal = buildPublicPortalRecordFromOrg(updatedOrg);
+  batch.set(
+    doc(db, 'public_portals', publicPortal.portalCode),
+    cleanObject({ ...publicPortal, updatedAt: serverTimestamp() })
+  );
 
   const auditId = generateId('audit');
   batch.set(doc(db, 'audit_logs', auditId), {

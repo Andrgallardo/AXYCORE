@@ -82,15 +82,18 @@ export function InstitutionalPerformanceSection({
 export function CollectionsSummaryPanel({
   summary,
   currency,
+  currencyLabel,
   canViewCollections,
   onNavigate,
 }: {
   summary: CollectionsOverviewSummary;
   currency: CurrencyCode;
+  currencyLabel?: string;
   canViewCollections: boolean;
   onNavigate: (sec: NavSectionId) => void;
 }) {
   const maxStageAmount = Math.max(...summary.recoveryByStage.map((s) => s.amount), 0);
+  const displayCurrency = currencyLabel || currency;
 
   return (
     <section className="axy-surface rounded-2xl p-5 sm:p-6 space-y-5">
@@ -98,7 +101,7 @@ export function CollectionsSummaryPanel({
         <div>
           <h3 className="font-display text-base font-bold text-slate-950 dark:text-white flex items-center gap-2">
             <ClipboardCheck className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
-            <span>Resumen de Cobros ({currency})</span>
+            <span>Resumen de Cobros ({displayCurrency})</span>
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Cumplimiento de meta diaria, contactabilidad, promesas y recuperación por etapa de mora
@@ -191,7 +194,7 @@ export function CollectionsSummaryPanel({
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-[#0B1F3A] dark:text-white">
-                Recuperación por etapa de mora ({currency})
+                Recuperación por etapa de mora ({displayCurrency})
               </span>
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                 Pagos aplicados en el período por etapa actual de la cuenta

@@ -152,20 +152,58 @@ export function FormalizationView() {
   useEffect(() => {
     if (!activeApp) return;
     if (existingForm) {
-      setFinancedExpenses(existingForm.financedExpenses);
-      setAllowFinancedExpenses(existingForm.financedExpenses > 0);
-      setDeductedExpenses(existingForm.deductedExpenses);
-      setDisbursementTargetDate(existingForm.disbursementTargetDate);
-      setFirstPaymentDate(existingForm.firstPaymentDate);
-      setContractText(existingForm.contractText);
-      setPromissoryNoteText(existingForm.promissoryNoteText);
-      setDocsChecklist(existingForm.requiredDocsChecklist);
+      const existingFinanced = Number.isFinite(Number(existingForm.financedExpenses))
+        ? Math.max(0, Number(existingForm.financedExpenses))
+        : 0;
+      const existingDeducted = Number.isFinite(Number(existingForm.deductedExpenses))
+        ? Math.max(0, Number(existingForm.deductedExpenses))
+        : 0;
+      const shouldInheritLinkedFees =
+        existingForm.status === 'PENDIENTE' &&
+        existingFinanced === 0 &&
+        existingDeducted === 0 &&
+        Boolean(linkedAnalysis?.financialSummary && linkedAnalysis.financialSummary.legalFeesAmount > 0);
+
+      if (shouldInheritLinkedFees && linkedAnalysis?.financialSummary) {
+        if (linkedAnalysis.financialSummary.legalFeeMode === 'FINANCIAR') {
+          setAllowFinancedExpenses(true);
+          setFinancedExpenses(linkedAnalysis.financialSummary.legalFeesAmount);
+          setDeductedExpenses(0);
+        } else {
+          setAllowFinancedExpenses(false);
+          setFinancedExpenses(0);
+          setDeductedExpenses(linkedAnalysis.financialSummary.legalFeesAmount);
+        }
+      } else {
+        setFinancedExpenses(existingFinanced);
+        setAllowFinancedExpenses(existingFinanced > 0);
+        setDeductedExpenses(existingDeducted);
+      }
+      setDisbursementTargetDate(existingForm.disbursementTargetDate || toIsoDateOnly());
+      setFirstPaymentDate(
+        existingForm.firstPaymentDate || addMonthsPreservingAnchor(toIsoDateOnly(), 1)
+      );
+      setContractText(existingForm.contractText || '');
+      setPromissoryNoteText(existingForm.promissoryNoteText || '');
+      setDocsChecklist(
+        Array.isArray(existingForm.requiredDocsChecklist) && existingForm.requiredDocsChecklist.length > 0
+          ? existingForm.requiredDocsChecklist
+          : [
+              { key: 'id_doc', label: 'Documento de identidad vigente', completed: true },
+              { key: 'contract_signed', label: 'Contrato de préstamo revisado y correcto', completed: false },
+              { key: 'promissory', label: 'Pagaré notarial / mercantil correcto', completed: false },
+              { key: 'schedule', label: 'Tabla de amortización generada y enviada al cliente', completed: true },
+            ]
+      );
       const pOk = Boolean(existingForm.promissoryNoteConfirmed ?? existingForm.legalReviewConfirmed);
       const cOk = Boolean(existingForm.contractConfirmed ?? existingForm.legalReviewConfirmed);
       setPromissoryNoteConfirmed(pOk);
       setContractConfirmed(cOk);
-      setConditionsFulfilled(existingForm.conditionsFulfilled);
-      setSignatures(existingForm.signatures);
+      setConditionsFulfilled(Boolean(existingForm.conditionsFulfilled ?? true));
+      setSignatures(Array.isArray(existingForm.signatures) ? existingForm.signatures : []);
+      setSignerName(
+        customer ? `${customer.firstName} ${customer.lastName}` : activeApp.applicantDisplayName
+      );
     } else {
       const defaults = buildDefaultFormalizationContent({
         application: activeApp,
@@ -371,10 +409,15 @@ export function FormalizationView() {
           termMonths,
           frequency: activeApp.paymentFrequency,
           amortizationMethod: activeApp.amortizationMethod,
-          disbursementTargetDate,
-          firstPaymentDate,
-          maturityDate: effectiveSchedule.maturityDate,
-          totalContractualPayable: effectiveSchedule.totalContractualPayable,
+          disbursementTargetDate: disbursementTargetDate || toIsoDateOnly(),
+          firstPaymentDate: firstPaymentDate || addMonthsPreservingAnchor(toIsoDateOnly(), 1),
+          maturityDate:
+            effectiveSchedule.maturityDate ||
+            firstPaymentDate ||
+            addMonthsPreservingAnchor(toIsoDateOnly(), 1),
+          totalContractualPayable: Number.isFinite(effectiveSchedule.totalContractualPayable)
+            ? effectiveSchedule.totalContractualPayable
+            : totalFinanced,
           contractTemplateVersion: 'tpl-v1.0-revision-legal',
           contractText,
           promissoryNoteText,
@@ -389,7 +432,7 @@ export function FormalizationView() {
           approvedFinancialAnalysisId:
             existingForm?.approvedFinancialAnalysisId ?? linkedAnalysis?.id ?? null,
           formalizedBy: userProfile.uid,
-          formalizedByName: userProfile.displayName,
+          formalizedByName: userProfile.displayName || userProfile.email || 'Formalización',
         },
       });
       setFeedback({
@@ -475,18 +518,18 @@ export function FormalizationView() {
           )}
           {feedback && (
             <div
-              className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
+              className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-2 overflow-hidden ${
                 feedback.type === 'ok'
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
                   : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300'
               }`}
             >
-              <span>{feedback.msg}</span>
+              <span className="min-w-0 flex-1 break-words">{feedback.msg}</span>
               {feedback.movedToDisbursement && (
                 <button
                   type="button"
                   onClick={() => setActiveSection('disbursements')}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold cursor-pointer shrink-0"
                 >
                   Ir a Desembolso
                 </button>

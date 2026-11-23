@@ -19,6 +19,7 @@ import {
 import { jsPDF } from 'jspdf';
 import { useAxyCore } from '../../context/AxyCoreContext';
 import { PaymentEvidencePreviewModal } from '../../components/PaymentEvidencePreviewModal';
+import { PaymentReceiptModal } from '../../components/PaymentReceiptModal';
 import {
   computeInstallmentRemaining,
   evaluateLoanDelinquency,
@@ -115,6 +116,7 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
   const [payEvidenceError, setPayEvidenceError] = useState<string | null>(null);
   const [uploadingPaymentId, setUploadingPaymentId] = useState<string | null>(null);
   const [previewPayment, setPreviewPayment] = useState<PaymentRecord | null>(null);
+  const [previewReceipt, setPreviewReceipt] = useState<CollectionReceiptRecord | null>(null);
   const [payNotes, setPayNotes] = useState('');
 
   // Reversal inline state
@@ -255,39 +257,8 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
 
   if (!loanId || !loan || !account) return null;
 
-  const downloadReceiptPdf = (receipt: CollectionReceiptRecord) => {
-    const docPdf = new jsPDF({ unit: 'pt', format: 'a4' });
-    docPdf.setFillColor(15, 61, 145);
-    docPdf.rect(0, 0, 595, 68, 'F');
-    docPdf.setTextColor(255, 255, 255);
-    docPdf.setFont('helvetica', 'bold');
-    docPdf.setFontSize(14);
-    docPdf.text(`${organization.name} · RECIBO OFICIAL DE PAGO`, 36, 30);
-    docPdf.setFont('helvetica', 'normal');
-    docPdf.setFontSize(9.5);
-    docPdf.text(`Recibo: ${receipt.receiptNumber} · Préstamo: ${receipt.loanNumber}`, 36, 50);
-
-    docPdf.setTextColor(15, 23, 42);
-    docPdf.setFontSize(10.5);
-    const lines = [
-      `Cliente: ${receipt.customerName}`,
-      `Fecha de Pago: ${receipt.paymentDate}`,
-      `Referencia: ${receipt.referenceNumber}`,
-      `Estado del Recibo: ${receipt.status}`,
-      `Monto Total Aplicado: ${formatMoney(receipt.amount, receipt.currency)}`,
-      `  - Aplicado a Mora: ${formatMoney(receipt.appliedToLateFee, receipt.currency)}`,
-      `  - Aplicado a Cargos: ${formatMoney(receipt.appliedToCharges, receipt.currency)}`,
-      `  - Aplicado a Interés: ${formatMoney(receipt.appliedToInterest, receipt.currency)}`,
-      `  - Aplicado a Capital: ${formatMoney(receipt.appliedToPrincipal, receipt.currency)}`,
-      `Saldo de Capital Posterior: ${formatMoney(receipt.remainingPrincipalAfter, receipt.currency)}`,
-      `Aplicado por: ${receipt.issuedByName}`,
-    ];
-    let y = 104;
-    for (const ln of lines) {
-      docPdf.text(ln, 36, y);
-      y += 22;
-    }
-    docPdf.save(`${receipt.receiptNumber}.pdf`);
+  const openReceiptPreview = (receipt: CollectionReceiptRecord) => {
+    setPreviewReceipt(receipt);
   };
 
   const downloadClosureCertificatePdf = () => {
@@ -677,7 +648,20 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                           <td className="py-2 px-3 text-right">{formatMoney(inst.principalAmount, loan.currency)}</td>
                           <td className="py-2 px-3 text-right">{formatMoney(inst.interestAmount, loan.currency)}</td>
                           <td className="py-2 px-3 text-right text-rose-700 dark:text-rose-400">
-                            {formatMoney(inst.accruedLateFee ?? 0, loan.currency)}
+                            {loan.lateFeeExempt ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-sans text-[11px] font-medium">
+                                Exenta
+                              </span>
+                            ) : (
+                              <div>
+                                <span>{formatMoney(rem.remLateFee, loan.currency)}</span>
+                                {(inst.waivedLateFee ?? 0) > 0 && (
+                                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans">
+                                    Desc. {formatMoney(inst.waivedLateFee ?? 0, loan.currency)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="py-2 px-3 text-right text-emerald-700 dark:text-emerald-400">
                             {formatMoney(paidSum, loan.currency)}
@@ -1124,8 +1108,8 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
                         {receipt && pay.status === 'APLICADO' && (
                           <button
                             type="button"
-                            onClick={() => downloadReceiptPdf(receipt)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-semibold cursor-pointer"
+                            onClick={() => openReceiptPreview(receipt)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold cursor-pointer"
                           >
                             <Download className="w-3.5 h-3.5" />
                             Recibo Oficial ({receipt.receiptNumber})
@@ -1444,6 +1428,19 @@ export function CustomerLoan360Drawer({ loanId, onClose }: Props) {
       <PaymentEvidencePreviewModal
         payment={previewPayment}
         onClose={() => setPreviewPayment(null)}
+      />
+
+      <PaymentReceiptModal
+        receipt={previewReceipt}
+        organization={organization}
+        payment={
+          previewReceipt
+            ? loanPayments.find((p) => p.id === previewReceipt.paymentId) ?? null
+            : null
+        }
+        loan={loan}
+        customer={customer ?? null}
+        onClose={() => setPreviewReceipt(null)}
       />
     </div>
   );

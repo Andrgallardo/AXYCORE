@@ -13,9 +13,9 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
 import { useAxyCore } from '../../context/AxyCoreContext';
 import { PaymentEvidencePreviewModal } from '../../components/PaymentEvidencePreviewModal';
+import { PaymentReceiptModal } from '../../components/PaymentReceiptModal';
 import { getSantoDomingoTodayIso } from '../../engine/collections/delinquencyEngine';
 import {
   attachPaymentEvidence,
@@ -76,6 +76,7 @@ export function RegisterPaymentsView() {
   const [busy, setBusy] = useState(false);
   const [uploadingPaymentId, setUploadingPaymentId] = useState<string | null>(null);
   const [previewPayment, setPreviewPayment] = useState<PaymentRecord | null>(null);
+  const [previewReceipt, setPreviewReceipt] = useState<CollectionReceiptRecord | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
 
   const canReport =
@@ -176,37 +177,8 @@ export function RegisterPaymentsView() {
     );
   }, [payments, selectedClient, clientLoans]);
 
-  const downloadReceiptPdf = (receipt: CollectionReceiptRecord) => {
-    const docPdf = new jsPDF({ unit: 'pt', format: 'a4' });
-    docPdf.setFillColor(4, 12, 30);
-    docPdf.rect(0, 0, 595, 72, 'F');
-    docPdf.setTextColor(255, 255, 255);
-    docPdf.setFont('helvetica', 'bold');
-    docPdf.setFontSize(14);
-    docPdf.text(`${organization.tradeName || organization.name} · RECIBO OFICIAL`, 36, 32);
-    docPdf.setFont('helvetica', 'normal');
-    docPdf.setFontSize(9.5);
-    docPdf.text(`Recibo ${receipt.receiptNumber} · Préstamo ${receipt.loanNumber}`, 36, 52);
-
-    docPdf.setTextColor(15, 23, 42);
-    docPdf.setFontSize(10.5);
-    const lines = [
-      `Cliente: ${receipt.customerName}`,
-      `Fecha de Pago: ${receipt.paymentDate}`,
-      `Referencia: ${receipt.referenceNumber}`,
-      `Estado: ${receipt.status}`,
-      `Monto Aplicado: ${formatMoney(receipt.amount, receipt.currency)}`,
-      `Mora: ${formatMoney(receipt.appliedToLateFee, receipt.currency)} · Cargos: ${formatMoney(receipt.appliedToCharges, receipt.currency)}`,
-      `Interés: ${formatMoney(receipt.appliedToInterest, receipt.currency)} · Capital: ${formatMoney(receipt.appliedToPrincipal, receipt.currency)}`,
-      `Saldo Capital Posterior: ${formatMoney(receipt.remainingPrincipalAfter, receipt.currency)}`,
-      `Validado por: ${receipt.issuedByName}`,
-    ];
-    let y = 108;
-    for (const ln of lines) {
-      docPdf.text(ln, 36, y);
-      y += 22;
-    }
-    docPdf.save(`${receipt.receiptNumber}.pdf`);
+  const openReceiptPreview = (receipt: CollectionReceiptRecord) => {
+    setPreviewReceipt(receipt);
   };
 
   const handleEvidenceFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -826,11 +798,11 @@ export function RegisterPaymentsView() {
                         {receipt && (
                           <button
                             type="button"
-                            onClick={() => downloadReceiptPdf(receipt)}
+                            onClick={() => openReceiptPreview(receipt)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-[#00B8FF]/25 hover:bg-slate-50 dark:hover:bg-[#0C1B3B] font-semibold cursor-pointer"
                           >
                             <Download className="w-3 h-3" />
-                            <span>Recibo PDF</span>
+                            <span>Recibo</span>
                           </button>
                         )}
                       </td>
@@ -846,6 +818,29 @@ export function RegisterPaymentsView() {
       <PaymentEvidencePreviewModal
         payment={previewPayment}
         onClose={() => setPreviewPayment(null)}
+      />
+
+      <PaymentReceiptModal
+        receipt={previewReceipt}
+        organization={organization}
+        payment={
+          previewReceipt
+            ? payments.find((p) => p.id === previewReceipt.paymentId) ?? null
+            : null
+        }
+        loan={
+          previewReceipt
+            ? loans.find(
+                (l) => l.id === previewReceipt.loanId || l.loanNumber === previewReceipt.loanNumber
+              ) ?? null
+            : null
+        }
+        customer={
+          previewReceipt
+            ? customers.find((c) => c.id === previewReceipt.customerId) ?? null
+            : null
+        }
+        onClose={() => setPreviewReceipt(null)}
       />
     </div>
   );

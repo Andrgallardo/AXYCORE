@@ -318,6 +318,9 @@ function resolveLiveCountForSection(
     case 'cobranza_daily':
     case 'cobranza_urgent':
     case 'cobranza_legal':
+    case 'cobranza_discounts':
+    case 'cobranza_discounts_mora':
+    case 'cobranza_discounts_payoff':
       return typeof metrics.collectionAccountsCount === 'number'
         ? { count: metrics.collectionAccountsCount, label: 'cuentas' }
         : {};
@@ -429,7 +432,7 @@ export function buildSitemapGraph(params: {
             (node.sectionId === 'system_sitemap'
               ? ['Arquitectura', 'Sitemap', 'Navegación']
               : [domain.shortTitle]),
-          comingSoon: guideMeta?.comingSoon || node.sectionId === 'intelligence_impulsa',
+          comingSoon: Boolean(guideMeta?.comingSoon),
           accessible,
           accessLabel,
           requiredModuleCode,

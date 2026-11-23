@@ -11,6 +11,7 @@ import {
   Globe2,
   KeyRound,
   Layers,
+  Link2,
   Lock,
   PlusCircle,
   RefreshCw,
@@ -25,6 +26,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
+import { ExternalLinkGeneratorPanel } from '../components/ExternalLinkGeneratorPanel';
+import { buildInstitutionExternalPortalLinks } from '../engine/externalPortalEngine';
 import {
   AXYCORE_MODULE_CATALOG,
   COMMERCIAL_PLANS_CATALOG,
@@ -56,6 +59,7 @@ import {
 type PlatformTabId =
   | 'DASHBOARD_GLOBAL'
   | 'EMPRESAS_CLIENTES'
+  | 'ENLACES_EXTERNOS'
   | 'REGISTRAR_EMPRESA'
   | 'MODULOS_EMPRESA'
   | 'PLANES_LICENCIAS'
@@ -633,6 +637,7 @@ export function PlatformControlView() {
           {[
             { id: 'DASHBOARD_GLOBAL', label: 'Dashboard Global', icon: Activity },
             { id: 'EMPRESAS_CLIENTES', label: 'Empresas Clientes', icon: Building2 },
+            { id: 'ENLACES_EXTERNOS', label: 'Generador de Enlaces Externos', icon: Link2 },
             { id: 'REGISTRAR_EMPRESA', label: 'Registrar Nueva Empresa', icon: PlusCircle },
             { id: 'MODULOS_EMPRESA', label: 'Módulos por Empresa (34)', icon: Layers },
             { id: 'PLANES_LICENCIAS', label: 'Planes, Licencias y Suscripciones', icon: KeyRound },
@@ -1008,8 +1013,47 @@ export function PlatformControlView() {
                             Copiar
                           </button>
                         </div>
+                        {(() => {
+                          const extLinks = buildInstitutionExternalPortalLinks(org);
+                          return (
+                            <div className="text-[11px] text-emerald-700 dark:text-emerald-300 flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1">
+                              <span className="inline-flex items-center gap-1 font-medium">
+                                <Link2 className="w-3 h-3" />
+                                Enlace Clientes:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(extLinks.portalUrl);
+                                  setBannerMessage({
+                                    type: 'success',
+                                    text: `Enlace externo del Portal de Clientes de ${org.tradeName || org.name} copiado (${extLinks.portalUrl}).`,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-mono underline hover:opacity-80 cursor-pointer"
+                              >
+                                <Copy className="w-3 h-3" />
+                                Copiar Portal
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(extLinks.creditApplicationUrl);
+                                  setBannerMessage({
+                                    type: 'success',
+                                    text: `Enlace directo de Solicitud de Crédito de ${org.tradeName || org.name} copiado.`,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-mono underline hover:opacity-80 cursor-pointer"
+                              >
+                                <Copy className="w-3 h-3" />
+                                Copiar Solicitud
+                              </button>
+                            </div>
+                          );
+                        })()}
                         {org.primaryAdminEmail && (
-                          <div className="text-[11px] text-slate-400">Admin: {org.primaryAdminEmail}</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">Admin: {org.primaryAdminEmail}</div>
                         )}
                       </td>
                       <td className="py-3.5 px-3">
@@ -1188,6 +1232,50 @@ export function PlatformControlView() {
                   Copiar Enlace de Invitación
                 </button>
               </div>
+              {(() => {
+                const newLinks = buildInstitutionExternalPortalLinks({
+                  id: createdCompanyResult.tenantId,
+                  tenantId: createdCompanyResult.tenantId,
+                  accessCode: createdCompanyResult.accessCode,
+                });
+                return (
+                  <div className="pt-2 border-t border-emerald-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="truncate font-mono text-[11px] text-sky-200">
+                      Enlace externo propio para clientes: {newLinks.portalUrl}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(newLinks.portalUrl);
+                          setBannerMessage({
+                            type: 'success',
+                            text: 'Enlace externo del Portal de Clientes copiado al portapapeles.',
+                          });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer"
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        Copiar Portal Clientes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(newLinks.creditApplicationUrl);
+                          setBannerMessage({
+                            type: 'success',
+                            text: 'Enlace directo de Solicitud de Crédito copiado al portapapeles.',
+                          });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copiar Solicitud Directa
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -2186,6 +2274,19 @@ export function PlatformControlView() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB: GENERADOR DE ENLACES EXTERNOS POR INSTITUCIÓN */}
+      {activeTab === 'ENLACES_EXTERNOS' && (
+        <div className="rounded-2xl axy-surface p-6">
+          <ExternalLinkGeneratorPanel
+            institutions={allOrganizations}
+            initialInstitutionId={organization.id}
+            canEdit={true}
+            title="Generador de Enlaces Externos Únicos por Institución"
+            subtitle="Selecciona cualquier institución registrada en AxyCore para generar, personalizar y publicar sus enlaces externos únicos: formulario público de solicitud de crédito (sin login) y portal privado de login para consulta de préstamos y cuotas."
+          />
         </div>
       )}
     </div>

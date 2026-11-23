@@ -423,7 +423,7 @@ export function DirectorDedicatedView() {
             </h2>
             <p className="text-xs text-slate-300">
               Período analizado: {periodBounds.label} ({periodBounds.startIso} → {periodBounds.endIso}) · Moneda:{' '}
-              {executiveCurrency === 'SEPARATED' ? 'DOP y USD por separado' : executiveCurrency} · Alcance RBAC: {rbac.roleLabel}
+              {executiveCurrency === 'SEPARATED' ? 'DOP y USD consolidados en RD$ (BCRD)' : executiveCurrency} · Alcance RBAC: {rbac.roleLabel}
             </p>
           </div>
 

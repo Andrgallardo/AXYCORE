@@ -37,6 +37,8 @@ import { formatMoney } from '../utils/formatters';
 
 interface PerformanceOverviewWidgetProps {
   currency: CurrencyCode;
+  consolidateUsdToDopRate?: number;
+  consolidatedRateLabel?: string;
   todayIso: string;
   darkMode: boolean;
   metrics: ExecutiveCurrencyMetrics;
@@ -110,6 +112,8 @@ function DeltaCaption({
 
 export function PerformanceOverviewWidget({
   currency,
+  consolidateUsdToDopRate,
+  consolidatedRateLabel,
   todayIso,
   darkMode,
   metrics,
@@ -129,10 +133,18 @@ export function PerformanceOverviewWidget({
     par30: true,
   });
 
+  const isConsolidated =
+    currency === 'DOP' &&
+    typeof consolidateUsdToDopRate === 'number' &&
+    Number.isFinite(consolidateUsdToDopRate) &&
+    consolidateUsdToDopRate > 0;
+  const displayCurrencyBadge = isConsolidated ? 'DOP + USD en RD$' : currency;
+
   const data = useMemo(
     () =>
       buildPerformanceOverviewData({
         currency,
+        consolidateUsdToDopRate,
         windowDays,
         todayIso,
         metrics,
@@ -143,6 +155,7 @@ export function PerformanceOverviewWidget({
       }),
     [
       currency,
+      consolidateUsdToDopRate,
       windowDays,
       todayIso,
       metrics,
@@ -192,7 +205,12 @@ export function PerformanceOverviewWidget({
             Vista General de Desempeño
           </h3>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <span>Moneda {currency}</span>
+            <span>
+              {isConsolidated
+                ? consolidatedRateLabel ||
+                  `Consolidado en RD$ (USD convertido a RD$${consolidateUsdToDopRate!.toFixed(4)} BCRD)`
+                : `Moneda ${currency}`}
+            </span>
             <span aria-hidden="true">·</span>
             <span className="font-mono tabular-nums">
               {data.startIso} al {data.endIso}
@@ -315,7 +333,7 @@ export function PerformanceOverviewWidget({
           <div className="space-y-1.5">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                Colocación Diaria · {currency}
+                Colocación Diaria · {displayCurrencyBadge}
               </p>
               <span className="font-mono tabular-nums text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
                 Hoy: {formatMoney(data.dailyPlacement.todayAmount, currency)}

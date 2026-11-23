@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { computeFinancialStatements } from '../engine/accountingEngine';
+import {
+  buildConsolidatedJournalEntries,
+  computeFinancialStatements,
+} from '../engine/accountingEngine';
+import { computeGeneralLedger } from '../engine/dgii/dgiiAccountingBridge';
 import { canRoleAccessSection } from '../engine/rbac';
 import type {
   CollectionReceiptRecord,
   DisbursementRecord,
   InvestorRecord,
   InvestorTransactionRecord,
+  LoanInstallmentRecord,
   LoanRecord,
   OperatingExpenseRecord,
+  PaymentAllocationRecord,
   PaymentRecord,
 } from '../types/axycore';
+import type { JournalEntryRecord } from '../types/dgiiEcf';
 
 describe('Accounting Engine & General Operations RBAC', () => {
   const sampleLoans: LoanRecord[] = [
@@ -393,5 +400,334 @@ describe('Accounting Engine & General Operations RBAC', () => {
     expect(canRoleAccessSection('COLLECTION_AGENT', 'register_payment')).toBe(true);
     expect(canRoleAccessSection('EXTERNAL_CLIENT', 'accounting')).toBe(false);
     expect(canRoleAccessSection('EXTERNAL_CLIENT', 'register_payment')).toBe(false);
+  });
+
+  it('recovers interest income and reconciles portfolio for migrated AppSheet payments without receipt breakdown', () => {
+    const migratedLoan: LoanRecord = {
+      id: 'loan_app_1',
+      organizationId: 'org_1',
+      loanNumber: 'LN-APP-001',
+      applicationId: 'app_m1',
+      disbursementId: 'disb_m1',
+      customerId: 'cust_m1',
+      applicantDisplayName: 'Carlos Migrado',
+      productCode: 'PERSONAL_DOP',
+      currency: 'DOP',
+      approvedPrincipal: 100000,
+      financedExpenses: 0,
+      totalFinancedPrincipal: 100000,
+      currentPrincipalBalance: 80000, // 20,000 capital recovered across 2 payments of 12,500 = 25,000 total collected -> 5,000 interest
+      contractualRateMonthly: 2.5,
+      termMonths: 10,
+      frequency: 'MENSUAL',
+      amortizationMethod: 'SALDO_INSOLUTO',
+      disbursementDate: '2026-01-10',
+      firstPaymentDate: '2026-02-10',
+      maturityDate: '2026-11-10',
+      totalContractualInterest: 25000,
+      totalContractualPayable: 125000,
+      status: 'ACTIVO',
+      createdBy: 'u1',
+    };
+
+    const migratedPayments: PaymentRecord[] = [
+      {
+        id: 'pay_m1',
+        organizationId: 'org_1',
+        loanId: 'loan_app_1',
+        loanNumber: 'LN-APP-001',
+        customerId: 'cust_m1',
+        customerName: 'Carlos Migrado',
+        paymentDate: '2026-02-10',
+        amount: 12500,
+        currency: 'DOP',
+        method: 'TRANSFERENCIA',
+        referenceNumber: 'APP-001',
+        idempotencyKey: 'k_m1',
+        reportedByUserId: 'u1',
+        reportedByName: 'Migración',
+        status: 'APLICADO',
+        // Classic AppSheet fallback: dumped 100% into principal with interest=0
+        appliedBreakdown: { otherCharges: 0, lateFee: 0, interest: 0, principal: 12500 },
+      },
+      {
+        id: 'pay_m2',
+        organizationId: 'org_1',
+        loanId: 'loan_app_1',
+        loanNumber: 'LN-APP-001',
+        customerId: 'cust_m1',
+        customerName: 'Carlos Migrado',
+        paymentDate: '2026-03-10',
+        amount: 12500,
+        currency: 'DOP',
+        method: 'TRANSFERENCIA',
+        referenceNumber: 'APP-002',
+        idempotencyKey: 'k_m2',
+        reportedByUserId: 'u1',
+        reportedByName: 'Migración',
+        status: 'APLICADO',
+        appliedBreakdown: { otherCharges: 0, lateFee: 0, interest: 0, principal: 12500 },
+      },
+    ];
+
+    const report = computeFinancialStatements({
+      currency: 'DOP',
+      year: 2026,
+      loans: [migratedLoan],
+      disbursements: [],
+      collectionReceipts: [],
+      payments: migratedPayments,
+      operatingExpenses: [],
+      investors: [],
+      investorTransactions: [],
+    });
+
+    const cum = report.cumulativeAllYearsColumn;
+    expect(cum.incomeStatement.interestIncome).toBe(5000);
+    expect(cum.incomeStatement.totalRevenue).toBe(5000);
+    expect(cum.cashFlow.principalRecovered).toBe(20000);
+    expect(cum.balanceSheet.loanPortfolioReceivable).toBe(80000);
+    expect(report.reconciliationMeta.portfolioDiff).toBe(0);
+    expect(cum.balanceSheet.balanceDiff).toBe(0);
+    expect(report.reconciliationMeta.inferredRevenuePaymentsCount).toBe(2);
+  });
+
+  it('reconciles historical paid installments, ignores reversed allocations, and skips voided CANCELADO loans', () => {
+    const activeLoan: LoanRecord = {
+      id: 'loan_hist',
+      organizationId: 'org_1',
+      loanNumber: 'LN-HIST-001',
+      applicationId: 'app_h1',
+      disbursementId: 'disb_h1',
+      customerId: 'cust_h1',
+      applicantDisplayName: 'María Histórica',
+      productCode: 'PERSONAL_DOP',
+      currency: 'DOP',
+      approvedPrincipal: 60000,
+      financedExpenses: 0,
+      totalFinancedPrincipal: 60000,
+      currentPrincipalBalance: 40000,
+      contractualRateMonthly: 3,
+      termMonths: 6,
+      frequency: 'MENSUAL',
+      amortizationMethod: 'SALDO_INSOLUTO',
+      disbursementDate: '2026-01-05',
+      firstPaymentDate: '2026-02-05',
+      maturityDate: '2026-07-05',
+      totalContractualInterest: 10800,
+      totalContractualPayable: 70800,
+      status: 'ACTIVO',
+      createdBy: 'u1',
+    };
+
+    const voidedLoan: LoanRecord = {
+      ...activeLoan,
+      id: 'loan_void',
+      loanNumber: 'LN-VOID-001',
+      totalFinancedPrincipal: 90000,
+      currentPrincipalBalance: 0,
+      status: 'CANCELADO',
+    };
+
+    const installments: LoanInstallmentRecord[] = [
+      {
+        id: 'inst_1',
+        organizationId: 'org_1',
+        loanId: 'loan_hist',
+        installmentNumber: 1,
+        dueDate: '2026-02-05',
+        principalAmount: 10000,
+        interestAmount: 1800,
+        otherCharges: 0,
+        totalAmount: 11800,
+        remainingPrincipalBalance: 50000,
+        paidPrincipal: 0, // Migrated PAGADA installment without paidPrincipal populated
+        paidInterest: 0,
+        paidOtherCharges: 0,
+        paidLateFee: 0,
+        status: 'PAGADA',
+      },
+      {
+        id: 'inst_2',
+        organizationId: 'org_1',
+        loanId: 'loan_hist',
+        installmentNumber: 2,
+        dueDate: '2026-03-05',
+        principalAmount: 10000,
+        interestAmount: 1500,
+        otherCharges: 0,
+        totalAmount: 11500,
+        remainingPrincipalBalance: 40000,
+        paidPrincipal: 10000,
+        paidInterest: 1500,
+        paidOtherCharges: 0,
+        paidLateFee: 0,
+        status: 'PAGADA',
+      },
+    ];
+
+    const reversedAlloc: PaymentAllocationRecord = {
+      id: 'alloc_rev',
+      organizationId: 'org_1',
+      paymentId: 'pay_rev',
+      loanId: 'loan_hist',
+      installmentId: 'inst_1',
+      installmentNumber: 1,
+      currency: 'DOP',
+      appliedToCharges: 0,
+      appliedToLateFee: 0,
+      appliedToInterest: 9999,
+      appliedToPrincipal: 9999,
+      totalAllocated: 19998,
+      reversed: true,
+    };
+
+    const report = computeFinancialStatements({
+      currency: 'DOP',
+      year: 2026,
+      loans: [activeLoan, voidedLoan],
+      loanInstallments: installments,
+      disbursements: [],
+      collectionReceipts: [],
+      payments: [],
+      paymentAllocations: [reversedAlloc],
+      operatingExpenses: [],
+      investors: [],
+      investorTransactions: [],
+    });
+
+    const cum = report.cumulativeAllYearsColumn;
+    // Voided loan (90,000) must NOT inflate portfolio; activeLoan balance must equal 40,000
+    expect(cum.balanceSheet.loanPortfolioReceivable).toBe(40000);
+    expect(cum.incomeStatement.interestIncome).toBe(3300); // 1800 + 1500
+    expect(cum.balanceSheet.balanceDiff).toBe(0);
+    expect(report.reconciliationMeta.portfolioDiff).toBe(0);
+  });
+
+  it('integrates persisted e-CF/manual journal entries and ties General Ledger 100% to Financial Statements', () => {
+    const ecfSaleEntry: JournalEntryRecord = {
+      id: 'je_ecf_1',
+      organizationId: 'org_1',
+      entryNumber: 'ECF-202602-0001',
+      entryDate: '2026-02-20',
+      sourceType: 'ECF_EMITIDO',
+      sourceId: 'ecf_1',
+      idempotencyKey: 'ecf_1',
+      currency: 'DOP',
+      description: 'Emisión e-CF E310000000001',
+      referenceDoc: 'E310000000001',
+      lines: [
+        { accountId: 'a_cxc', accountCode: '1103', accountName: 'CxC Clientes', debit: 11800, credit: 0 },
+        { accountId: 'a_ing', accountCode: '4101', accountName: 'Ingresos por Servicios', debit: 0, credit: 10000 },
+        { accountId: 'a_itbis', accountCode: '2103', accountName: 'ITBIS por Pagar', debit: 0, credit: 1800 },
+      ],
+      totalDebit: 11800,
+      totalCredit: 11800,
+      status: 'CONTABILIZADO',
+      createdBy: 'u1',
+      createdByName: 'Admin',
+    };
+
+    const reversedOrig: JournalEntryRecord = {
+      id: 'je_man_orig',
+      organizationId: 'org_1',
+      entryNumber: 'MAN-0001',
+      entryDate: '2026-02-21',
+      sourceType: 'MANUAL',
+      sourceId: 'man_1',
+      idempotencyKey: 'man_1',
+      currency: 'DOP',
+      description: 'Ajuste erróneo',
+      lines: [
+        { accountId: 'a_b', accountCode: '1102', accountName: 'Bancos', debit: 5000, credit: 0 },
+        { accountId: 'a_c', accountCode: '3101', accountName: 'Capital Social', debit: 0, credit: 5000 },
+      ],
+      totalDebit: 5000,
+      totalCredit: 5000,
+      status: 'REVERTIDO',
+      createdBy: 'u1',
+      createdByName: 'Admin',
+    };
+
+    const reversalEntry: JournalEntryRecord = {
+      id: 'je_man_rev',
+      organizationId: 'org_1',
+      entryNumber: 'REV-MAN-0001',
+      entryDate: '2026-02-21',
+      sourceType: 'REVERSO',
+      sourceId: 'je_man_orig',
+      idempotencyKey: 'rev_man_1',
+      currency: 'DOP',
+      description: 'Reverso ajuste erróneo',
+      lines: [
+        { accountId: 'a_b', accountCode: '1102', accountName: 'Bancos', debit: 0, credit: 5000 },
+        { accountId: 'a_c', accountCode: '3101', accountName: 'Capital Social', debit: 5000, credit: 0 },
+      ],
+      totalDebit: 5000,
+      totalCredit: 5000,
+      status: 'CONTABILIZADO',
+      createdBy: 'u1',
+      createdByName: 'Admin',
+    };
+
+    const report = computeFinancialStatements({
+      currency: 'DOP',
+      year: 2026,
+      loans: sampleLoans,
+      disbursements: sampleDisbursements,
+      collectionReceipts: sampleReceipts,
+      payments: samplePayments,
+      operatingExpenses: sampleExpenses,
+      investors: sampleInvestors,
+      investorTransactions: sampleInvestorTxs,
+      journalEntries: [ecfSaleEntry, reversedOrig, reversalEntry],
+    });
+
+    const cum = report.cumulativeAllYearsColumn;
+    expect(cum.incomeStatement.otherOperatingIncome).toBe(10000);
+    expect(cum.incomeStatement.totalRevenue).toBe(17500); // 7500 loan rev + 10000 e-CF
+    expect(cum.balanceSheet.otherCurrentAssets).toBe(11800);
+    expect(cum.balanceSheet.otherLiabilities).toBe(1800);
+    expect(cum.balanceSheet.paidInCapital).toBe(0); // Reversed + Reversal cancel out to 0!
+    expect(cum.balanceSheet.balanceDiff).toBe(0);
+
+    // Verify consolidated journal entries + General Ledger (even with empty chart of accounts!)
+    const consolidated = buildConsolidatedJournalEntries({
+      organizationId: 'org_1',
+      accounts: [],
+      loans: sampleLoans,
+      disbursements: sampleDisbursements,
+      collectionReceipts: sampleReceipts,
+      payments: samplePayments,
+      operatingExpenses: sampleExpenses,
+      investors: sampleInvestors,
+      investorTransactions: sampleInvestorTxs,
+      persistedJournalEntries: [ecfSaleEntry, reversedOrig, reversalEntry],
+    });
+
+    const dopEntries = consolidated.filter((e) => e.currency === 'DOP');
+    const gl = computeGeneralLedger([], dopEntries);
+
+    const totalDebits = Math.round(gl.reduce((s, r) => s + r.totalDebit, 0) * 100) / 100;
+    const totalCredits = Math.round(gl.reduce((s, r) => s + r.totalCredit, 0) * 100) / 100;
+    expect(totalDebits).toBe(totalCredits);
+
+    // Account 4102 (Ingresos financieros) must have POSITIVE credit balance = 7,500
+    const revLoansRow = gl.find((r) => r.accountCode === '4102');
+    expect(revLoansRow?.accountType).toBe('INGRESO');
+    expect(revLoansRow?.balance).toBe(7500);
+
+    // Account 4101 (Ingresos e-CF) must have POSITIVE credit balance = 10,000
+    const revEcfRow = gl.find((r) => r.accountCode === '4101');
+    expect(revEcfRow?.accountType).toBe('INGRESO');
+    expect(revEcfRow?.balance).toBe(10000);
+
+    // Account 1201 (Cartera de Préstamos) must tie out exactly to Balance Sheet loanPortfolioReceivable = 125,000
+    const portfolioRow = gl.find((r) => r.accountCode === '1201');
+    expect(portfolioRow?.balance).toBe(cum.balanceSheet.loanPortfolioReceivable);
+
+    // Account 3101 (Capital Social) from reversed pair must net to 0
+    const capitalRow = gl.find((r) => r.accountCode === '3101');
+    expect(capitalRow?.balance).toBe(0);
   });
 });

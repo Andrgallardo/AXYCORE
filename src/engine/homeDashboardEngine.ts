@@ -247,6 +247,7 @@ function getBucketRangeForGranularity(
 
 export function buildPanoramaSeriesAndKpis(params: {
   currency: CurrencyCode;
+  consolidateUsdToDopRate?: number;
   granularity: PanoramaGranularity;
   todayIso: string;
   bounds: PeriodBounds;
@@ -263,6 +264,7 @@ export function buildPanoramaSeriesAndKpis(params: {
 } {
   const {
     currency,
+    consolidateUsdToDopRate,
     granularity,
     todayIso,
     bounds,
@@ -274,9 +276,23 @@ export function buildPanoramaSeriesAndKpis(params: {
     snapshots,
   } = params;
 
-  const currencyLoans = loans.filter((l) => l.currency === currency);
+  const isConsolidated =
+    currency === 'DOP' &&
+    typeof consolidateUsdToDopRate === 'number' &&
+    Number.isFinite(consolidateUsdToDopRate) &&
+    consolidateUsdToDopRate > 0;
+  const fxRate = isConsolidated ? consolidateUsdToDopRate : 1;
+  const scaleMoney = (amount: number, recCurrency: CurrencyCode) =>
+    isConsolidated && recCurrency === 'USD' ? amount * fxRate : amount;
+
+  const currencyLoans = isConsolidated
+    ? loans
+    : loans.filter((l) => l.currency === currency);
   const activeLoans = currencyLoans.filter((l) => l.status === 'ACTIVO' || l.status === 'VENCIDO');
-  const appliedPayments = payments.filter((p) => p.currency === currency && p.status === 'APLICADO');
+  const appliedPayments = isConsolidated
+    ? payments.filter((p) => p.status === 'APLICADO')
+    : payments.filter((p) => p.currency === currency && p.status === 'APLICADO');
+  const loanCurrencyById = new Map(currencyLoans.map((l) => [l.id, l.currency]));
   const buckets = getBucketRangeForGranularity(granularity, todayIso);
 
   const series: PanoramaSeriesPoint[] = buckets.map((b, idx) => {
@@ -286,28 +302,36 @@ export function buildPanoramaSeriesAndKpis(params: {
         const dt = l.disbursementDate || extractIsoDateFromTimestamp(l.createdAt) || '';
         return dt >= b.startIso && dt <= b.endIso;
       })
-      .reduce((s, l) => s + Number(l.approvedPrincipal || 0), 0);
+      .reduce((s, l) => s + scaleMoney(Number(l.approvedPrincipal || 0), l.currency), 0);
 
     const recInBucket = appliedPayments
       .filter((p) => {
         const dt = p.appliedDate || p.paymentDate || extractIsoDateFromTimestamp(p.createdAt) || '';
         return dt >= b.startIso && dt <= b.endIso;
       })
-      .reduce((s, p) => s + Number(p.amount || 0), 0);
+      .reduce((s, p) => s + scaleMoney(Number(p.amount || 0), p.currency), 0);
 
     const issuedUpToEnd = currencyLoans
       .filter((l) => {
         const dt = l.disbursementDate || extractIsoDateFromTimestamp(l.createdAt) || '9999-99-99';
         return dt <= b.endIso;
       })
-      .reduce((s, l) => s + Number(l.totalFinancedPrincipal || l.approvedPrincipal || 0), 0);
+      .reduce(
+        (s, l) =>
+          s + scaleMoney(Number(l.totalFinancedPrincipal || l.approvedPrincipal || 0), l.currency),
+        0
+      );
 
     const principalPaidUpToEnd = appliedPayments
       .filter((p) => {
         const dt = p.appliedDate || p.paymentDate || extractIsoDateFromTimestamp(p.createdAt) || '9999-99-99';
         return dt <= b.endIso;
       })
-      .reduce((s, p) => s + Number(p.appliedBreakdown?.principal ?? p.amount ?? 0), 0);
+      .reduce(
+        (s, p) =>
+          s + scaleMoney(Number(p.appliedBreakdown?.principal ?? p.amount ?? 0), p.currency),
+        0
+      );
 
     const total = isCurrentBucket
       ? Math.round(metrics.activePortfolioCapital)
@@ -320,7 +344,14 @@ export function buildPanoramaSeriesAndKpis(params: {
     const vencido = isCurrentBucket
       ? Math.round(metrics.par1Exposure)
       : snapAtBucket
-      ? Math.round(currency === 'DOP' ? snapAtBucket.overdueAmountDop : snapAtBucket.overdueAmountUsd)
+      ? Math.round(
+          isConsolidated
+            ? Number(snapAtBucket.overdueAmountDop || 0) +
+              Number(snapAtBucket.overdueAmountUsd || 0) * fxRate
+            : currency === 'DOP'
+            ? snapAtBucket.overdueAmountDop
+            : snapAtBucket.overdueAmountUsd
+        )
       : 0;
 
     return {
@@ -338,10 +369,18 @@ export function buildPanoramaSeriesAndKpis(params: {
   const prevMonthEnd = monthlyBuckets[monthlyBuckets.length - 2]?.endIso || todayIso;
   const prevIssued = currencyLoans
     .filter((l) => (l.disbursementDate || extractIsoDateFromTimestamp(l.createdAt) || '9999-99-99') <= prevMonthEnd)
-    .reduce((s, l) => s + Number(l.totalFinancedPrincipal || l.approvedPrincipal || 0), 0);
+    .reduce(
+      (s, l) =>
+        s + scaleMoney(Number(l.totalFinancedPrincipal || l.approvedPrincipal || 0), l.currency),
+      0
+    );
   const prevPaid = appliedPayments
     .filter((p) => (p.appliedDate || p.paymentDate || extractIsoDateFromTimestamp(p.createdAt) || '9999-99-99') <= prevMonthEnd)
-    .reduce((s, p) => s + Number(p.appliedBreakdown?.principal ?? p.amount ?? 0), 0);
+    .reduce(
+      (s, p) =>
+        s + scaleMoney(Number(p.appliedBreakdown?.principal ?? p.amount ?? 0), p.currency),
+      0
+    );
   const prevMonthPortfolio = Math.max(0, prevIssued - prevPaid);
   const portfolioGrowthPct =
     prevMonthPortfolio > 0
@@ -352,7 +391,21 @@ export function buildPanoramaSeriesAndKpis(params: {
   const priorSnapshot = snapshots
     .filter((sn) => sn.cutoffDate < todayIso)
     .sort((a, b) => b.cutoffDate.localeCompare(a.cutoffDate))[0];
-  const prevPar1 = priorSnapshot ? (currency === 'DOP' ? priorSnapshot.par1Dop : priorSnapshot.par1Usd) : null;
+  let prevPar1: number | null = null;
+  if (priorSnapshot) {
+    if (isConsolidated) {
+      const capDop = Math.max(0, Number(priorSnapshot.principalBalanceDop || 0));
+      const capUsdInDop = Math.max(0, Number(priorSnapshot.principalBalanceUsd || 0)) * fxRate;
+      const totalSnapCap = capDop + capUsdInDop;
+      if (totalSnapCap > 0) {
+        const par1ExpDop = (capDop * Number(priorSnapshot.par1Dop || 0)) / 100;
+        const par1ExpUsdInDop = (capUsdInDop * Number(priorSnapshot.par1Usd || 0)) / 100;
+        prevPar1 = Number((((par1ExpDop + par1ExpUsdInDop) / totalSnapCap) * 100).toFixed(2));
+      }
+    } else {
+      prevPar1 = currency === 'DOP' ? priorSnapshot.par1Dop : priorSnapshot.par1Usd;
+    }
+  }
   const parVariationPts =
     metrics.par1Pct !== null && prevPar1 !== null
       ? Number((metrics.par1Pct - prevPar1).toFixed(2))
@@ -362,12 +415,22 @@ export function buildPanoramaSeriesAndKpis(params: {
   const ym = todayIso.slice(0, 7);
   const activeTargetsSum = collectorTargets
     .filter((t) => t.active && t.periodYm === ym)
-    .reduce((s, t) => s + Number(currency === 'DOP' ? t.targetAmountDop : t.targetAmountUsd), 0);
+    .reduce(
+      (s, t) =>
+        s +
+        (isConsolidated
+          ? Number(t.targetAmountDop || 0) + Number(t.targetAmountUsd || 0) * fxRate
+          : Number(currency === 'DOP' ? t.targetAmountDop : t.targetAmountUsd)),
+      0
+    );
 
   const activeLoanIds = new Set(activeLoans.map((l) => l.id));
   const scheduledInBounds = loanInstallments
     .filter((i) => activeLoanIds.has(i.loanId) && i.dueDate >= bounds.startIso && i.dueDate <= bounds.endIso)
-    .reduce((s, i) => s + Number(i.totalAmount || 0), 0);
+    .reduce((s, i) => {
+      const lCur = loanCurrencyById.get(i.loanId) ?? currency;
+      return s + scaleMoney(Number(i.totalAmount || 0), lCur);
+    }, 0);
 
   let recoveryTargetAmount: number | null = null;
   let recoveryTargetSourceLabel = 'Sin meta configurada en el período';
@@ -384,13 +447,16 @@ export function buildPanoramaSeriesAndKpis(params: {
       ? Number(((metrics.recoveryPeriodTotal / recoveryTargetAmount) * 100).toFixed(1))
       : null;
 
-  // Distribution by product (active loans in currency)
-  const totalCap = activeLoans.reduce((s, l) => s + Number(l.currentPrincipalBalance || 0), 0);
+  // Distribution by product (active loans in currency or consolidated DOP)
+  const totalCap = activeLoans.reduce(
+    (s, l) => s + scaleMoney(Number(l.currentPrincipalBalance || 0), l.currency),
+    0
+  );
   const productMap = new Map<ProductCode, { amount: number; count: number }>();
   activeLoans.forEach((l) => {
     const cur = productMap.get(l.productCode) ?? { amount: 0, count: 0 };
     productMap.set(l.productCode, {
-      amount: cur.amount + Number(l.currentPrincipalBalance || 0),
+      amount: cur.amount + scaleMoney(Number(l.currentPrincipalBalance || 0), l.currency),
       count: cur.count + 1,
     });
   });
@@ -851,6 +917,7 @@ export function buildInstitutionalPerformance(params: {
 
 export function buildCollectionsOverviewSummary(params: {
   currency: CurrencyCode;
+  consolidateUsdToDopRate?: number;
   todayIso: string;
   bounds: PeriodBounds;
   metrics: ExecutiveCurrencyMetrics;
@@ -862,6 +929,7 @@ export function buildCollectionsOverviewSummary(params: {
 }): CollectionsOverviewSummary {
   const {
     currency,
+    consolidateUsdToDopRate,
     todayIso,
     bounds,
     metrics,
@@ -872,10 +940,26 @@ export function buildCollectionsOverviewSummary(params: {
     collectorTargets,
   } = params;
 
+  const isConsolidated =
+    currency === 'DOP' &&
+    typeof consolidateUsdToDopRate === 'number' &&
+    Number.isFinite(consolidateUsdToDopRate) &&
+    consolidateUsdToDopRate > 0;
+  const fxRate = isConsolidated ? consolidateUsdToDopRate : 1;
+  const scaleMoney = (amount: number, recCurrency: CurrencyCode) =>
+    isConsolidated && recCurrency === 'USD' ? amount * fxRate : amount;
+
   const ym = todayIso.slice(0, 7);
   const monthlyTarget = collectorTargets
     .filter((t) => t.active && t.periodYm === ym)
-    .reduce((s, t) => s + Number(currency === 'DOP' ? t.targetAmountDop : t.targetAmountUsd), 0);
+    .reduce(
+      (s, t) =>
+        s +
+        (isConsolidated
+          ? Number(t.targetAmountDop || 0) + Number(t.targetAmountUsd || 0) * fxRate
+          : Number(currency === 'DOP' ? t.targetAmountDop : t.targetAmountUsd)),
+      0
+    );
 
   // Meta diaria: cuotas exigibles hoy o meta mensual prorrateada a 22 días hábiles
   const dailyTargetAmount =
@@ -903,11 +987,22 @@ export function buildCollectionsOverviewSummary(params: {
   );
 
   const activePromises = paymentPromises.filter(
-    (p) => p.currency === currency && (p.status === 'VIGENTE' || p.status === 'PENDIENTE_VERIFICACION')
+    (p) =>
+      (isConsolidated || p.currency === currency) &&
+      (p.status === 'VIGENTE' || p.status === 'PENDIENTE_VERIFICACION')
   );
-  const activePromisesAmount = activePromises.reduce(
-    (s, p) => s + Math.max(0, Number(p.promisedAmount || 0) - Number(p.fulfilledAmount || 0)),
-    0
+  const activePromisesAmount = Number(
+    activePromises
+      .reduce(
+        (s, p) =>
+          s +
+          scaleMoney(
+            Math.max(0, Number(p.promisedAmount || 0) - Number(p.fulfilledAmount || 0)),
+            p.currency
+          ),
+        0
+      )
+      .toFixed(2)
   );
 
   const stageMeta: Array<{ stage: Exclude<CollectionStage, 'CANCELADO'>; label: string }> = [
@@ -920,11 +1015,13 @@ export function buildCollectionsOverviewSummary(params: {
   ];
 
   const accountByLoan = new Map(
-    collectionAccounts.filter((a) => a.currency === currency).map((a) => [a.loanId, a])
+    collectionAccounts
+      .filter((a) => isConsolidated || a.currency === currency)
+      .map((a) => [a.loanId, a])
   );
 
   const periodAppliedPayments = payments.filter((p) => {
-    if (p.currency !== currency || p.status !== 'APLICADO') return false;
+    if ((!isConsolidated && p.currency !== currency) || p.status !== 'APLICADO') return false;
     const dt = p.appliedDate || p.paymentDate || extractIsoDateFromTimestamp(p.createdAt) || '';
     return dt >= bounds.startIso && dt <= bounds.endIso;
   });
@@ -939,7 +1036,9 @@ export function buildCollectionsOverviewSummary(params: {
     return {
       stage,
       label,
-      amount: Math.round(matchedPays.reduce((s, p) => s + Number(p.amount || 0), 0)),
+      amount: Math.round(
+        matchedPays.reduce((s, p) => s + scaleMoney(Number(p.amount || 0), p.currency), 0)
+      ),
       paymentsCount: matchedPays.length,
       accountsCount: accCount,
     };
@@ -1194,6 +1293,7 @@ export function buildEnrichedRecentActivity(params: {
 
 export function buildAxyCoreIntelligenceInsights(params: {
   currency: CurrencyCode;
+  consolidateUsdToDopRate?: number;
   metrics: ExecutiveCurrencyMetrics;
   enhancements: ExecutiveKpiEnhancements;
   alerts: HomeSmartAlert[];
@@ -1204,6 +1304,7 @@ export function buildAxyCoreIntelligenceInsights(params: {
 }): IntelligenceInsightItem[] {
   const {
     currency,
+    consolidateUsdToDopRate,
     metrics,
     enhancements,
     alerts,
@@ -1213,6 +1314,15 @@ export function buildAxyCoreIntelligenceInsights(params: {
     canAccessSection,
   } = params;
 
+  const isConsolidated =
+    currency === 'DOP' &&
+    typeof consolidateUsdToDopRate === 'number' &&
+    Number.isFinite(consolidateUsdToDopRate) &&
+    consolidateUsdToDopRate > 0;
+  const scopeLabel = isConsolidated
+    ? `DOP consolidado (incl. USD a RD$${consolidateUsdToDopRate!.toFixed(2)} BCRD)`
+    : currency;
+
   const insights: IntelligenceInsightItem[] = [];
 
   // 1. Morosidad vs snapshot / estado de cartera en riesgo
@@ -1221,9 +1331,9 @@ export function buildAxyCoreIntelligenceInsights(params: {
       id: 'int_empty_portfolio',
       severity: 'OPORTUNIDAD',
       area: 'Cartera Activa',
-      headline: `Sin cartera activa desembolsada en ${currency}`,
+      headline: `Sin cartera activa desembolsada en ${scopeLabel}`,
       detail:
-        'Aún no existen préstamos vigentes en esta moneda para medir tendencias de morosidad. Al completar el primer desembolso el monitor calculará PAR 1/30/60/90 automáticamente.',
+        'Aún no existen préstamos vigentes en esta vista para medir tendencias de morosidad. Al completar el primer desembolso el monitor calculará PAR 1/30/60/90 automáticamente.',
       evidenceMetric: `0 préstamos activos (${currency})`,
       actionLabel: canAccessSection('new_application') ? 'Originar solicitud' : undefined,
       targetSection: canAccessSection('new_application') ? 'new_application' : undefined,
@@ -1260,7 +1370,7 @@ export function buildAxyCoreIntelligenceInsights(params: {
       id: 'int_par_clean',
       severity: 'OPTIMA',
       area: 'Salud de Cartera',
-      headline: `Cartera ${currency} 100% al día sin atrasos registrados`,
+      headline: `Cartera ${scopeLabel} 100% al día sin atrasos registrados`,
       detail: `Los ${metrics.activeLoansCount} préstamos vigentes suman ${formatMoney(metrics.activePortfolioCapital, currency)} con 0 días de atraso promedio.`,
       evidenceMetric: 'PAR 1: 0.00% · PAR 30: 0.00%',
     });
@@ -1290,9 +1400,9 @@ export function buildAxyCoreIntelligenceInsights(params: {
       severity: drop ? 'ATENCION' : gain ? 'OPTIMA' : 'OPORTUNIDAD',
       area: 'Recuperación',
       headline: drop
-        ? `Caída de ${metrics.recoveryDeltaPct}% en recuperación aplicada (${currency})`
+        ? `Caída de ${metrics.recoveryDeltaPct}% en recuperación aplicada (${scopeLabel})`
         : gain
-        ? `Crecimiento de +${metrics.recoveryDeltaPct}% en recuperación aplicada (${currency})`
+        ? `Crecimiento de +${metrics.recoveryDeltaPct}% en recuperación aplicada (${scopeLabel})`
         : `Recuperación estable (${metrics.recoveryDeltaPct >= 0 ? `+${metrics.recoveryDeltaPct}%` : `${metrics.recoveryDeltaPct}%`})`,
       detail: `Se han aplicado ${metrics.recoveryPaymentsCount} pago(s) por ${formatMoney(metrics.recoveryPeriodTotal, currency)} frente a ${formatMoney(metrics.recoveryPrevTotal, currency)} del período anterior.`,
       evidenceMetric: `Capital ${formatMoney(metrics.recoveryPrincipal, currency)} · Interés ${formatMoney(metrics.recoveryInterest, currency)}`,
@@ -1326,7 +1436,9 @@ export function buildAxyCoreIntelligenceInsights(params: {
 
   // 5. Oportunidades operativas: pagos sin aplicar / documentos observados / promesas incumplidas
   const unappliedCount = payments.filter(
-    (p) => p.currency === currency && ['REPORTADO', 'RECIBIDO_PENDIENTE_VERIFICACION', 'VERIFICADO'].includes(p.status)
+    (p) =>
+      (isConsolidated || p.currency === currency) &&
+      ['REPORTADO', 'RECIBIDO_PENDIENTE_VERIFICACION', 'VERIFICADO'].includes(p.status)
   ).length;
   const observedDocs = documents.filter((d) => d.reviewStatus === 'OBSERVADO').length;
   const criticalAlertsCount = alerts.filter((a) => a.priority === 'CRITICA').length;

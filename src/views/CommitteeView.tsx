@@ -164,27 +164,48 @@ export function CommitteeView() {
         .filter(Boolean)
         .map((text) => ({ text, fulfilled: false }));
 
+      const voterName =
+        (userProfile.displayName || userProfile.email || 'Miembro de Comité').trim().slice(0, 160);
+      const parsedAmount = Number(approvedAmount);
+      const parsedRatePct = Number(approvedRatePct);
+      const parsedTerm = Number(approvedTerm);
+      const isApproval = ['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision);
+
       const result = await submitCommitteeDecision({
         application: activeApp,
         evaluation: activeEval,
         policy: activeOrTestPolicy,
-        user: userProfile,
+        user: {
+          ...userProfile,
+          displayName: voterName,
+        },
         decisionInput: {
           id: generateId('dec'),
           organizationId: activeApp.organizationId,
           applicationId: activeApp.id,
           decision,
-          approvedAmount: ['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision)
-            ? Number(approvedAmount)
+          approvedAmount: isApproval
+            ? Number.isFinite(parsedAmount) && parsedAmount > 0
+              ? parsedAmount
+              : activeEval?.recommendedAmount ?? activeApp.recommendedAmount ?? activeApp.requestedAmount
             : null,
-          approvedRateMonthly: ['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision)
-            ? Number(approvedRatePct) / 100
+          approvedRateMonthly: isApproval
+            ? Number.isFinite(parsedRatePct) && parsedRatePct >= 0
+              ? parsedRatePct / 100
+              : normalizeMonthlyRateDecimal(
+                  activeEval?.recommendedRateMonthly ?? activeApp.recommendedRateMonthly,
+                  0.04
+                )
             : null,
-          approvedTermMonths: ['APROBADO', 'APROBADO_CONDICIONADO'].includes(decision)
-            ? Number(approvedTerm)
+          approvedTermMonths: isApproval
+            ? Number.isFinite(parsedTerm) && parsedTerm >= 1
+              ? Math.round(parsedTerm)
+              : activeEval?.recommendedTermMonths ??
+                activeApp.recommendedTermMonths ??
+                activeApp.requestedTermMonths
             : null,
-          approvedFrequency: activeApp.paymentFrequency,
-          approvedAmortizationMethod: activeApp.amortizationMethod,
+          approvedFrequency: activeApp.paymentFrequency || 'MENSUAL',
+          approvedAmortizationMethod: activeApp.amortizationMethod || 'SALDO_INSOLUTO',
           conditions: conditionsList,
           conditionsFulfilled: decision === 'APROBADO' || conditionsList.length === 0,
           rejectionReason: decision === 'RECHAZADO' ? rejectionReason.trim() : null,
@@ -192,14 +213,14 @@ export function CommitteeView() {
           collegialVotes: [
             {
               userId: userProfile.uid,
-              userName: userProfile.displayName,
+              userName: voterName,
               role: userProfile.role,
               vote: decision,
               votedAt: new Date().toISOString(),
             },
           ],
           decidedBy: userProfile.uid,
-          decidedByName: userProfile.displayName,
+          decidedByName: voterName,
           decidedByRole: userProfile.role,
         },
       });
@@ -288,13 +309,13 @@ export function CommitteeView() {
             <div className="lg:col-span-8 space-y-5">
               {feedback && (
                 <div
-                  className={`p-3.5 rounded-xl border text-xs flex flex-wrap items-center justify-between gap-2 ${
+                  className={`p-3.5 rounded-xl border text-xs flex flex-wrap items-center justify-between gap-2 overflow-hidden ${
                     feedback.type === 'ok'
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
                       : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300'
                   }`}
                 >
-                  <span>{feedback.msg}</span>
+                  <span className="min-w-0 flex-1 break-words">{feedback.msg}</span>
                   {feedback.movedToFormalization && (
                     <button
                       type="button"

@@ -7,12 +7,15 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  FilePlus2,
   Fingerprint,
   Globe,
   KeyRound,
+  Landmark,
   Lock,
   LogOut,
   MailCheck,
+  Phone,
   RefreshCw,
   ScanFace,
   ShieldCheck,
@@ -21,8 +24,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
+import { PublicCreditApplicationForm } from './PublicCreditApplicationForm';
 import { authenticateWithBiometricCredential } from '../services/biometricAuth';
-import type { PortalAccessMode } from '../types/axycore';
+import type { ExternalPortalActionIntent, PortalAccessMode } from '../types/axycore';
 
 const REMEMBER_EMAIL_KEY = 'axycore_remember_email';
 
@@ -112,6 +116,13 @@ export function LoginGate() {
     clearCorporateAccessSelection,
     portalAccessError,
     clearPortalAccessError,
+    parsedExternalPortalLink,
+    externalInstitutionPortal,
+    externalPortalLoading,
+    externalPortalError,
+    externalPortalIntent,
+    setExternalPortalIntent,
+    exitExternalInstitutionLink,
     biometricSupported,
     biometricLabel,
     biometricLocked,
@@ -144,9 +155,17 @@ export function LoginGate() {
   );
   const [verifyingCorpCode, setVerifyingCorpCode] = useState(false);
 
-  const [mode, setMode] = useState<'login' | 'register' | 'reset'>(() =>
-    pendingInviteLinkInfo.isInvitationLink ? 'register' : 'login'
-  );
+  const [mode, setMode] = useState<'login' | 'register' | 'reset'>(() => {
+    if (pendingInviteLinkInfo.isInvitationLink) return 'register';
+    if (
+      parsedExternalPortalLink.isExternalInstitutionLink &&
+      (parsedExternalPortalLink.actionIntent === 'registro' ||
+        parsedExternalPortalLink.actionIntent === 'solicitud')
+    ) {
+      return 'register';
+    }
+    return 'login';
+  });
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [bioLoading, setBioLoading] = useState(false);
@@ -495,22 +514,50 @@ export function LoginGate() {
     }
   };
 
+  const isExternalInstitutionMode = parsedExternalPortalLink.isExternalInstitutionLink;
+  const instPrimary = externalInstitutionPortal?.primaryColor || '#0f3d91';
+  const instAccent = externalInstitutionPortal?.accentColor || '#0284c7';
+
+  const handleSelectExternalIntent = (intent: ExternalPortalActionIntent) => {
+    setExternalPortalIntent(intent);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    if (intent === 'registro') {
+      setMode('register');
+    } else if (intent === 'ingresar') {
+      setMode('login');
+    }
+  };
+
   const isMobileSelectorStage =
+    !isExternalInstitutionMode &&
     !emailVerificationPending &&
     !biometricLocked &&
     !biometricSetupPending &&
     !(firebaseUser && portalAccessError) &&
     portalMode === null;
 
+  const isExternalInstitutionAuthStage =
+    isExternalInstitutionMode &&
+    !emailVerificationPending &&
+    !biometricLocked &&
+    !biometricSetupPending &&
+    !(firebaseUser && portalAccessError);
+
   const activePortalMeta = portalMode ? PORTAL_META[portalMode] : null;
   const ActivePortalIcon = activePortalMeta?.icon || ShieldCheck;
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#030816] text-slate-100 flex flex-col justify-between p-4 sm:p-8">
-      {/* Technological AxyCore ambient field: Cobalt, Infinity Cyan, and subtle Champagne Gold */}
+      {/* Ambient institutional field */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,102,255,0.24),transparent_52%),radial-gradient(ellipse_at_bottom_right,rgba(0,184,255,0.16),transparent_50%),radial-gradient(circle_at_75%_20%,rgba(226,179,94,0.06),transparent_40%)]"
+        className="pointer-events-none fixed inset-0"
+        style={{
+          backgroundImage: isExternalInstitutionMode
+            ? `radial-gradient(ellipse at top left, ${instPrimary}3d, transparent 54%), radial-gradient(ellipse at bottom right, ${instAccent}29, transparent 52%)`
+            : 'radial-gradient(ellipse at top left, rgba(0,102,255,0.24), transparent 52%), radial-gradient(ellipse at bottom right, rgba(0,184,255,0.16), transparent 50%), radial-gradient(circle at 75% 20%, rgba(226,179,94,0.06), transparent 40%)',
+        }}
       />
       <div
         aria-hidden="true"
@@ -524,43 +571,605 @@ export function LoginGate() {
 
       {/* Top institutional bar */}
       <header className="relative z-10 w-full max-w-6xl mx-auto flex items-center justify-between gap-4 py-1">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-white p-1.5 shadow-[0_0_20px_-4px_rgba(0,184,255,0.45)] ring-1 ring-[#00B8FF]/30 flex items-center justify-center shrink-0">
-            <img
-              src="/assets/aistudio/image_aea21874.png"
-              alt="AxyCore"
-              referrerPolicy="no-referrer"
-              className="h-full w-full object-contain"
-            />
+        {isExternalInstitutionMode && externalInstitutionPortal ? (
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-display font-bold text-sm shrink-0 border border-white/15"
+              style={{
+                background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})`,
+              }}
+            >
+              {(externalInstitutionPortal.tradeName || externalInstitutionPortal.name)
+                .slice(0, 2)
+                .toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <span className="font-display text-base font-bold tracking-tight text-white block leading-tight truncate">
+                {externalInstitutionPortal.tradeName || externalInstitutionPortal.name}
+              </span>
+              <span className="text-[11px] text-slate-400 block truncate">
+                Portal Oficial de Clientes · Código {externalInstitutionPortal.portalCode}
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="font-display text-base font-extrabold tracking-tight text-white block leading-tight">
-              Axy<span className="axy-wordmark-core">Core</span>
-            </span>
-            <span className="text-[11px] text-slate-400 hidden sm:block">
-              Ecosistema Financiero Multi-Tenant
-            </span>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-white p-1.5 shadow-[0_0_20px_-4px_rgba(0,184,255,0.45)] ring-1 ring-[#00B8FF]/30 flex items-center justify-center shrink-0">
+              <img
+                src="/assets/aistudio/image_aea21874.png"
+                alt="AxyCore"
+                referrerPolicy="no-referrer"
+                className="h-full w-full object-contain"
+              />
+            </div>
+            <div>
+              <span className="font-display text-base font-extrabold tracking-tight text-white block leading-tight">
+                Axy<span className="axy-wordmark-core">Core</span>
+              </span>
+              <span className="text-[11px] text-slate-400 hidden sm:block">
+                Ecosistema Financiero Multi-Tenant
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          {portalMode !== null && !biometricLocked && !biometricSetupPending && (
+        <div className="flex items-center gap-2 shrink-0">
+          {isExternalInstitutionMode ? (
             <button
               type="button"
-              onClick={() => selectPortal(null)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#00B8FF]/25 bg-[#071430]/75 hover:bg-[#0B1E47] hover:border-[#00B8FF]/45 text-xs font-semibold text-slate-100 transition-all cursor-pointer whitespace-nowrap"
+              onClick={exitExternalInstitutionLink}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/12 bg-white/[0.03] hover:bg-white/[0.07] text-[11px] font-medium text-slate-300 hover:text-white transition-colors cursor-pointer whitespace-nowrap"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-[#00B8FF]" />
-              <span>Cambiar portal</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Acceso general</span>
             </button>
+          ) : (
+            portalMode !== null &&
+            !biometricLocked &&
+            !biometricSetupPending && (
+              <button
+                type="button"
+                onClick={() => selectPortal(null)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#00B8FF]/25 bg-[#071430]/75 hover:bg-[#0B1E47] hover:border-[#00B8FF]/45 text-xs font-semibold text-slate-100 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-[#00B8FF]" />
+                <span>Cambiar portal</span>
+              </button>
+            )
           )}
         </div>
       </header>
 
       {/* Main Centered Container */}
       <main className="relative z-10 flex-1 flex items-center justify-center py-6 sm:py-8">
-        {/* STAGE 0: PRE-LOGIN 3-PORTAL ENTRY SELECTOR */}
-        {isMobileSelectorStage ? (
+        {/* INSTITUTION EXTERNAL PORTAL LANDING & CLIENT ONBOARDING */}
+        {isExternalInstitutionAuthStage ? (
+          externalPortalLoading ? (
+            <div className="w-full max-w-md rounded-2xl bg-[#07122B]/92 backdrop-blur-xl border border-white/12 p-8 text-center space-y-3">
+              <RefreshCw className="w-6 h-6 text-[#00D1FF] animate-spin mx-auto" />
+              <p className="text-sm font-semibold text-white">
+                Cargando portal oficial de la institución...
+              </p>
+              <p className="text-xs text-slate-400">
+                Verificando identidad institucional y enlace seguro ({parsedExternalPortalLink.portalCode}).
+              </p>
+            </div>
+          ) : externalPortalError || !externalInstitutionPortal ? (
+            <div className="w-full max-w-md rounded-2xl bg-[#07122B]/94 backdrop-blur-xl border border-rose-500/35 p-7 space-y-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h1 className="font-display text-lg font-bold text-white">
+                    Enlace institucional no disponible
+                  </h1>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    {externalPortalError ||
+                      'No pudimos identificar la institución asociada a este enlace.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={exitExternalInstitutionLink}
+                className="w-full py-2.5 px-4 rounded-xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.08] text-xs font-semibold text-white cursor-pointer transition-colors"
+              >
+                Volver al acceso principal
+              </button>
+            </div>
+          ) : (
+            <div
+              className={`axy-panel-in w-full grid grid-cols-1 lg:grid-cols-12 gap-7 items-start ${
+                externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal'
+                  ? 'max-w-7xl'
+                  : 'max-w-6xl'
+              }`}
+            >
+              {/* Left Column: Institution Identity & Client Capabilities */}
+              <div
+                className={`space-y-6 pt-1 ${
+                  externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal'
+                    ? 'lg:col-span-4'
+                    : 'lg:col-span-5'
+                }`}
+              >
+                <div className="space-y-3">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-[0.14em]"
+                    style={{ color: instAccent }}
+                  >
+                    Portal Exclusivo de Clientes · {externalInstitutionPortal.portalCode}
+                  </p>
+                  <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-[1.12]">
+                    {externalInstitutionPortal.welcomeHeadline ||
+                      `Bienvenido a ${externalInstitutionPortal.tradeName || externalInstitutionPortal.name}`}
+                  </h1>
+                  <p className="text-sm text-slate-300 leading-relaxed max-w-xl">
+                    {externalInstitutionPortal.welcomeSubtitle ||
+                      'Completa tu solicitud de crédito en línea o crea tu usuario de cliente para validar tus préstamos, cuotas, montos y realizar gestiones directamente.'}
+                  </p>
+                </div>
+
+                {/* Hairline-divided capability list (no clutter, clean institutional hierarchy) */}
+                <div className="border-t border-white/10 divide-y divide-white/10">
+                  <div className="py-4 flex items-start gap-3.5">
+                    <FilePlus2
+                      className="w-5 h-5 shrink-0 mt-0.5"
+                      style={{ color: instAccent }}
+                    />
+                    <div className="space-y-0.5">
+                      <h2 className="text-sm font-semibold text-white">
+                        1. Solicitud de crédito en línea
+                      </h2>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Completa el formulario oficial de {externalInstitutionPortal.tradeName || externalInstitutionPortal.name} con evaluación inmediata de condiciones y tabla de cuotas.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="py-4 flex items-start gap-3.5">
+                    <Wallet
+                      className="w-5 h-5 shrink-0 mt-0.5"
+                      style={{ color: instAccent }}
+                    />
+                    <div className="space-y-0.5">
+                      <h2 className="text-sm font-semibold text-white">
+                        2. Consulta tus préstamos, cuotas y montos
+                      </h2>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Crea tu cuenta y vincula tu cédula y teléfono registrado para ver tus préstamos activos, calendario de cuotas, saldos pendientes e historial de pagos.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="py-4 flex items-start gap-3.5">
+                    <Landmark
+                      className="w-5 h-5 shrink-0 mt-0.5"
+                      style={{ color: instAccent }}
+                    />
+                    <div className="space-y-0.5">
+                      <h2 className="text-sm font-semibold text-white">
+                        3. Solicita gestiones, pagos y cartas desde tu cuenta
+                      </h2>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Reporta comprobantes de pago, solicita renovaciones, cartas de saldo, estados de cuenta, acuerdos de prórroga o actualización de datos en un solo lugar.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Institution contact hairline footer */}
+                <div className="pt-1 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-400">
+                  <span>
+                    Moneda base:{' '}
+                    <strong className="text-slate-200 font-mono">
+                      {externalInstitutionPortal.currency || 'DOP'}
+                    </strong>
+                  </span>
+                  {externalInstitutionPortal.phone && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="font-mono text-slate-200">
+                        {externalInstitutionPortal.phone}
+                      </span>
+                    </span>
+                  )}
+                  {externalInstitutionPortal.corporateEmail && (
+                    <span className="font-mono text-slate-300">
+                      {externalInstitutionPortal.corporateEmail}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Public Credit Application Form OR Client Login / Registration */}
+              <div
+                className={
+                  externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal'
+                    ? 'lg:col-span-8'
+                    : 'lg:col-span-7'
+                }
+              >
+                <div className="relative overflow-hidden rounded-2xl bg-[#07122B]/94 backdrop-blur-2xl border border-white/14 shadow-[0_28px_80px_-15px_rgba(0,0,0,0.85)] p-6 sm:p-7 space-y-5">
+                  <div
+                    aria-hidden="true"
+                    className="absolute top-0 inset-x-0 h-[3px]"
+                    style={{
+                      background: `linear-gradient(90deg, ${instPrimary}, ${instAccent})`,
+                    }}
+                  />
+
+                  {/* Segmented Mode Selector */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      ¿Qué deseas realizar hoy?
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[#030816]/90 border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectExternalIntent('solicitud')}
+                        className={`py-2 px-2 rounded-lg text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                          externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal'
+                            ? 'text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        style={
+                          externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal'
+                            ? { background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})` }
+                            : undefined
+                        }
+                      >
+                        Solicitar Crédito
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectExternalIntent('ingresar')}
+                        className={`py-2 px-2 rounded-lg text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                          externalPortalIntent === 'ingresar'
+                            ? 'text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        style={
+                          externalPortalIntent === 'ingresar'
+                            ? { background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})` }
+                            : undefined
+                        }
+                      >
+                        Ingresar (Mis Préstamos)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectExternalIntent('registro')}
+                        className={`py-2 px-2 rounded-lg text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                          externalPortalIntent === 'registro'
+                            ? 'text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        style={
+                          externalPortalIntent === 'registro'
+                            ? { background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})` }
+                            : undefined
+                        }
+                      >
+                        Crear Cuenta
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-white/10 pb-3">
+                    <h2 className="font-display text-lg font-bold text-white">
+                      {externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal'
+                        ? 'Formulario Público de Solicitud de Crédito'
+                        : mode === 'reset'
+                        ? 'Recuperar contraseña'
+                        : externalPortalIntent === 'registro'
+                        ? 'Crea tu usuario de cliente'
+                        : 'Acceso de Clientes — Préstamos y Cuotas'}
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                      {externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal'
+                        ? `Completa y envía tu solicitud directamente a ${externalInstitutionPortal.tradeName || externalInstitutionPortal.name} sin necesidad de crear una cuenta previa.`
+                        : mode === 'reset'
+                        ? 'Ingresa tu correo para recibir un enlace seguro de restablecimiento.'
+                        : externalPortalIntent === 'registro'
+                        ? `Tu usuario quedará vinculado de forma privada a ${externalInstitutionPortal.tradeName || externalInstitutionPortal.name}.`
+                        : 'Inicia sesión para consultar el estado de tus préstamos, calendario de cuotas, saldos y solicitar gestiones.'}
+                    </p>
+                  </div>
+
+                  {externalPortalIntent === 'solicitud' || externalPortalIntent === 'portal' ? (
+                    <PublicCreditApplicationForm
+                      portal={externalInstitutionPortal}
+                      onSwitchToClientAuth={(targetIntent, prefill) => {
+                        if (prefill?.email) setEmail(prefill.email);
+                        if (prefill?.fullName) setFullName(prefill.fullName);
+                        handleSelectExternalIntent(targetIntent);
+                      }}
+                    />
+                  ) : (
+                    <>
+
+                  {errorMsg && (
+                    <div className="p-3 rounded-xl border border-rose-500/35 bg-rose-500/10 text-xs text-rose-200 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )}
+
+                  {successMsg && (
+                    <div className="p-3 rounded-xl border border-[#00B8FF]/35 bg-[#00B8FF]/10 text-xs text-sky-200 flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-[#00B8FF]" />
+                      <span>{successMsg}</span>
+                    </div>
+                  )}
+
+                  {mode === 'reset' ? (
+                    <form onSubmit={handleResetPassword} className="space-y-4">
+                      <div>
+                        <label
+                          htmlFor="ext-reset-email"
+                          className="block text-xs font-medium text-slate-300 mb-1.5"
+                        >
+                          Correo electrónico
+                        </label>
+                        <input
+                          id="ext-reset-email"
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="tu-correo@ejemplo.com"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-2.5 px-4 rounded-xl text-white text-sm font-semibold cursor-pointer disabled:opacity-50"
+                        style={{
+                          background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})`,
+                        }}
+                      >
+                        {loading ? 'Enviando enlace...' : 'Enviar enlace de recuperación'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode('login')}
+                        className="w-full text-xs text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        Volver al ingreso
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Primary 1-Click Google Auth */}
+                      <button
+                        type="button"
+                        disabled={googleLoading || loading}
+                        onClick={() => handleGoogleLogin(email.trim() || undefined)}
+                        className="w-full py-3 px-4 rounded-xl text-white text-xs sm:text-sm font-semibold shadow-lg hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2.5 cursor-pointer"
+                        style={{
+                          background: `linear-gradient(135deg, ${instPrimary}, ${instAccent})`,
+                        }}
+                      >
+                        <Globe className="w-4 h-4" />
+                        <span>
+                          {googleLoading
+                            ? 'Conectando...'
+                            : mode === 'register'
+                            ? 'Crear cuenta de cliente con Google (Inmediato)'
+                            : 'Ingresar con cuenta Google'}
+                        </span>
+                      </button>
+
+                      <div className="relative flex items-center py-0.5">
+                        <div className="flex-1 border-t border-white/10" />
+                        <span className="px-3 text-[11px] text-slate-400">
+                          {mode === 'register'
+                            ? 'o regístrate con tu correo y contraseña'
+                            : 'o ingresa con tu correo y contraseña'}
+                        </span>
+                        <div className="flex-1 border-t border-white/10" />
+                      </div>
+
+                      {mode === 'register' ? (
+                        <form onSubmit={handleEmailRegister} className="space-y-3">
+                          <div>
+                            <label
+                              htmlFor="ext-reg-name"
+                              className="block text-xs font-medium text-slate-300 mb-1"
+                            >
+                              Nombre completo *
+                            </label>
+                            <input
+                              id="ext-reg-name"
+                              type="text"
+                              required
+                              autoComplete="name"
+                              value={fullName}
+                              onChange={(e) => setFullName(e.target.value)}
+                              placeholder="Ej. María Rodríguez"
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label
+                              htmlFor="ext-reg-email"
+                              className="block text-xs font-medium text-slate-300 mb-1"
+                            >
+                              Correo electrónico *
+                            </label>
+                            <input
+                              id="ext-reg-email"
+                              type="email"
+                              required
+                              autoComplete="email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              placeholder="cliente@correo.com"
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label
+                                htmlFor="ext-reg-pass"
+                                className="block text-xs font-medium text-slate-300 mb-1"
+                              >
+                                Contraseña *
+                              </label>
+                              <input
+                                id="ext-reg-pass"
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                minLength={6}
+                                autoComplete="new-password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Mín. 6 caracteres"
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label
+                                htmlFor="ext-reg-confirm"
+                                className="block text-xs font-medium text-slate-300 mb-1"
+                              >
+                                Confirmar *
+                              </label>
+                              <input
+                                id="ext-reg-confirm"
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                minLength={6}
+                                autoComplete="new-password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder="Repite tu clave"
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full py-2.5 px-4 rounded-xl border border-white/18 bg-white/[0.06] hover:bg-white/[0.11] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            <span>
+                              {loading ? 'Creando usuario...' : 'Crear mi usuario de cliente'}
+                            </span>
+                          </button>
+
+                          <p className="text-center text-xs text-slate-400">
+                            ¿Ya tienes cuenta?{' '}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMode('login');
+                                setExternalPortalIntent('ingresar');
+                              }}
+                              className="text-[#00D1FF] hover:underline font-medium cursor-pointer"
+                            >
+                              Inicia sesión aquí
+                            </button>
+                          </p>
+                        </form>
+                      ) : (
+                        <form onSubmit={handleEmailLogin} className="space-y-3.5">
+                          <div>
+                            <label
+                              htmlFor="ext-login-email"
+                              className="block text-xs font-medium text-slate-300 mb-1"
+                            >
+                              Correo electrónico
+                            </label>
+                            <input
+                              id="ext-login-email"
+                              type="email"
+                              required
+                              autoComplete="email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              placeholder="cliente@correo.com"
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label
+                                htmlFor="ext-login-pass"
+                                className="block text-xs font-medium text-slate-300"
+                              >
+                                Contraseña
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => setMode('reset')}
+                                className="text-xs text-[#00D1FF] hover:underline cursor-pointer"
+                              >
+                                Recuperar contraseña
+                              </button>
+                            </div>
+                            <div className="relative">
+                              <input
+                                ref={passwordInputRef}
+                                id="ext-login-pass"
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                autoComplete="current-password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="••••••••••••"
+                                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((prev) => !prev)}
+                                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white cursor-pointer"
+                              >
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={loading || secondsLeft > 0}
+                            className="w-full py-2.5 px-4 rounded-xl border border-white/18 bg-white/[0.06] hover:bg-white/[0.11] text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <span>
+                              {loading ? 'Validando...' : 'Ingresar a mis préstamos'}
+                            </span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+
+                          <p className="text-center text-xs text-slate-400">
+                            ¿Aún no tienes usuario?{' '}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMode('register');
+                                setExternalPortalIntent('registro');
+                              }}
+                              className="text-[#00D1FF] hover:underline font-medium cursor-pointer"
+                            >
+                              Crear cuenta de cliente
+                            </button>
+                          </p>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        ) : /* STAGE 0: PRE-LOGIN 3-PORTAL ENTRY SELECTOR */
+        isMobileSelectorStage ? (
           <div className="axy-panel-in w-full max-w-5xl space-y-8">
             <div className="text-center space-y-3">
               <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-white shadow-[0_14px_40px_-8px_rgba(0,102,255,0.55),0_0_24px_-6px_rgba(0,184,255,0.35)] ring-1 ring-[#00B8FF]/35 p-2.5 mx-auto">

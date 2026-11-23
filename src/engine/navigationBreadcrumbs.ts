@@ -68,7 +68,7 @@ const GROUP_DEFAULT_LANDING_ORDER: Record<NavigationGroupKey, NavSectionId[]> = 
     'register_investor',
   ],
   reportes: ['reports', 'cobranza_reports'],
-  inteligencia: ['director', 'intelligence_dashboard', 'cobranza_sentinel', 'cobranza_anticipate', 'intelligence_altera', 'regula', 'system_sitemap'],
+  inteligencia: ['director', 'intelligence_dashboard', 'cobranza_sentinel', 'cobranza_anticipate', 'intelligence_altera', 'intelligence_impulsa', 'regula', 'system_sitemap'],
   administracion: [
     'admin_users',
     'policies',
@@ -125,6 +125,19 @@ export const SECTION_HIERARCHY: Record<NavSectionId, SectionHierarchyNode> = {
   cobranza_daily: { sectionId: 'cobranza_daily', label: 'Cobros del día', groupKey: 'cartera' },
   cobranza_urgent: { sectionId: 'cobranza_urgent', label: 'Cobros Urgentes', groupKey: 'cartera' },
   cobranza_legal: { sectionId: 'cobranza_legal', label: 'Cobros en Legal', groupKey: 'cartera' },
+  cobranza_discounts: { sectionId: 'cobranza_discounts', label: 'Descuentos', groupKey: 'cartera' },
+  cobranza_discounts_mora: {
+    sectionId: 'cobranza_discounts_mora',
+    label: 'Mora',
+    groupKey: 'cartera',
+    parentSectionId: 'cobranza_discounts',
+  },
+  cobranza_discounts_payoff: {
+    sectionId: 'cobranza_discounts_payoff',
+    label: 'Saldos',
+    groupKey: 'cartera',
+    parentSectionId: 'cobranza_discounts',
+  },
   cobranza_actions: { sectionId: 'cobranza_actions', label: 'Gestiones de Cobros', groupKey: 'cartera' },
   cobranza_agreements_today: {
     sectionId: 'cobranza_agreements_today',
@@ -415,6 +428,11 @@ const ECF_SUBMENU_SECTIONS: NavSectionId[] = [
   'ecf_audit',
 ];
 
+const COBRANZA_DISCOUNTS_SUBMENU_SECTIONS: NavSectionId[] = [
+  'cobranza_discounts_mora',
+  'cobranza_discounts_payoff',
+];
+
 export function isAdministrationSection(sectionId: NavSectionId): boolean {
   return SECTION_HIERARCHY[sectionId]?.groupKey === 'administracion';
 }
@@ -512,6 +530,8 @@ export function buildBreadcrumbsForSection(params: {
         ? getPermittedSiblings(ACCOUNTING_SUBMENU_SECTIONS, canAccessSection)
         : parentNode.sectionId === 'ecf_dashboard'
         ? getPermittedSiblings(ECF_SUBMENU_SECTIONS, canAccessSection)
+        : parentNode.sectionId === 'cobranza_discounts'
+        ? getPermittedSiblings(COBRANZA_DISCOUNTS_SUBMENU_SECTIONS, canAccessSection)
         : undefined;
 
     segments.push({
@@ -531,6 +551,8 @@ export function buildBreadcrumbsForSection(params: {
       ? getPermittedSiblings(ECF_SUBMENU_SECTIONS, canAccessSection)
       : node.sectionId === 'accounting' || node.parentSectionId === 'accounting'
       ? getPermittedSiblings(ACCOUNTING_SUBMENU_SECTIONS, canAccessSection)
+      : node.sectionId === 'cobranza_discounts' || node.parentSectionId === 'cobranza_discounts'
+      ? getPermittedSiblings(COBRANZA_DISCOUNTS_SUBMENU_SECTIONS, canAccessSection)
       : node.groupKey === 'administracion'
       ? getPermittedSiblings(ADMIN_TOP_LEVEL_SECTIONS, canAccessSection)
       : undefined;

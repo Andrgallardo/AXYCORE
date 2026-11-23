@@ -197,7 +197,12 @@ export function computeInstallmentRemaining(inst: LoanInstallmentRecord): {
   const pCents = Math.max(0, toCents(inst.principalAmount) - toCents(inst.paidPrincipal ?? 0));
   const iCents = Math.max(0, toCents(inst.interestAmount) - toCents(inst.paidInterest ?? 0));
   const cCents = Math.max(0, toCents(inst.otherCharges) - toCents(inst.paidOtherCharges ?? 0));
-  const mCents = Math.max(0, toCents(inst.accruedLateFee ?? 0) - toCents(inst.paidLateFee ?? 0));
+  const mCents = Math.max(
+    0,
+    toCents(inst.accruedLateFee ?? 0) -
+      toCents(inst.paidLateFee ?? 0) -
+      toCents(inst.waivedLateFee ?? 0)
+  );
   const totalCents = pCents + iCents + cCents + mCents;
   return {
     remPrincipal: fromCents(pCents),
@@ -214,8 +219,12 @@ export function computeLateFeeForInstallment(params: {
   asOfDateIso: string;
   graceDays: number;
   lateFeeRateMonthlyPct: number;
+  lateFeeExempt?: boolean;
 }): number {
-  const { installment, asOfDateIso, graceDays, lateFeeRateMonthlyPct } = params;
+  const { installment, asOfDateIso, graceDays, lateFeeRateMonthlyPct, lateFeeExempt = false } = params;
+  if (lateFeeExempt) {
+    return fromCents(toCents(installment.paidLateFee ?? 0));
+  }
   const rem = computeInstallmentRemaining(installment);
   if (rem.isPaid || installment.dueDate >= asOfDateIso) {
     return installment.accruedLateFee ?? 0;
@@ -302,8 +311,16 @@ export function evaluateLoanDelinquency(params: {
         asOfDateIso,
         graceDays: policy.graceDays,
         lateFeeRateMonthlyPct: policy.lateFeeRateMonthlyPct,
+        lateFeeExempt: Boolean(loan.lateFeeExempt),
       });
-      const remLateCents = Math.max(0, toCents(accruedLateFee) - toCents(inst.paidLateFee ?? 0));
+      const remLateCents = loan.lateFeeExempt
+        ? 0
+        : Math.max(
+            0,
+            toCents(accruedLateFee) -
+              toCents(inst.paidLateFee ?? 0) -
+              toCents(inst.waivedLateFee ?? 0)
+          );
 
       overduePrincipalCents += toCents(remBefore.remPrincipal);
       overdueInterestCents += toCents(remBefore.remInterest);
@@ -431,16 +448,26 @@ export function evaluateLoanDelinquency(params: {
   const resolvedOverdueInterest = preserveFallbackOverdue
     ? existingAccount?.overdueInterest ?? 0
     : fromCents(overdueInterestCents);
-  const resolvedOverdueLateFee = preserveFallbackOverdue
-    ? existingAccount?.overdueLateFee ?? 0
+  const resolvedOverdueLateFee = loan.lateFeeExempt
+    ? 0
+    : preserveFallbackOverdue
+    ? Math.max(
+        0,
+        fromCents(
+          toCents(existingAccount?.overdueLateFee ?? 0) - toCents(loan.waivedLateFeeTotal ?? 0)
+        )
+      )
     : fromCents(overdueLateFeeCents);
   const resolvedOverdueCharges = preserveFallbackOverdue
     ? existingAccount?.overdueCharges ?? 0
     : fromCents(overdueChargesCents);
   const resolvedOverdueTotal = preserveFallbackOverdue
-    ? existingAccount?.overdueTotalAmount && existingAccount.overdueTotalAmount > 0
-      ? existingAccount.overdueTotalAmount
-      : fromCents(toCents(loan.currentPrincipalBalance))
+    ? fromCents(
+        toCents(resolvedOverduePrincipal) +
+          toCents(resolvedOverdueInterest) +
+          toCents(resolvedOverdueCharges) +
+          toCents(resolvedOverdueLateFee)
+      )
     : fromCents(overdueTotalCents);
   const resolvedOverdueInstallmentsCount = preserveFallbackOverdue
     ? Math.max(existingAccount?.overdueInstallmentsCount ?? 0, 1)
@@ -496,6 +523,8 @@ export function evaluateLoanDelinquency(params: {
     behaviorBand,
     isRestructured: existingAccount?.isRestructured ?? false,
     hasOpenDispute: openDisputes.length > 0,
+    lateFeeExempt: Boolean(loan.lateFeeExempt),
+    waivedLateFeeTotal: fromCents(toCents(loan.waivedLateFeeTotal ?? 0)),
     consentWhatsAppOptIn: existingAccount?.consentWhatsAppOptIn ?? true,
     closedAt: loan.closedAt ?? existingAccount?.closedAt ?? null,
     closureCertificateNumber: loan.closureCertificateNumber ?? existingAccount?.closureCertificateNumber ?? null,
@@ -659,12 +688,29 @@ export function reconcileLiveCollectionAccounts(params: {
         cutoffDate: asOfDateIso,
       });
     } else {
+      const effectiveOverdueLateFee = loan.lateFeeExempt
+        ? 0
+        : existingAcc.overdueLateFee ?? 0;
+      const effectiveOverdueTotal = loan.lateFeeExempt
+        ? fromCents(
+            Math.max(
+              0,
+              toCents(existingAcc.overduePrincipal ?? 0) +
+                toCents(existingAcc.overdueInterest ?? 0) +
+                toCents(existingAcc.overdueCharges ?? 0)
+            )
+          )
+        : existingAcc.overdueTotalAmount;
       result.push({
         ...existingAcc,
         customerPhone: customer?.phone || existingAcc.customerPhone || '',
         customerEmail: customer?.email || existingAcc.customerEmail || '',
         province: customer?.province || existingAcc.province || '',
         municipality: customer?.municipality || existingAcc.municipality || '',
+        overdueLateFee: effectiveOverdueLateFee,
+        overdueTotalAmount: effectiveOverdueTotal,
+        lateFeeExempt: Boolean(loan.lateFeeExempt),
+        waivedLateFeeTotal: fromCents(toCents(loan.waivedLateFeeTotal ?? 0)),
         totalOutstandingPrincipal: fromCents(toCents(loan.currentPrincipalBalance)),
         pendingVerificationAmount: fromCents(pendingVerificationCents),
         lastPaymentDate: appliedPays[0]?.paymentDate ?? existingAcc.lastPaymentDate ?? null,

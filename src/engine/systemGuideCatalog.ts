@@ -837,12 +837,14 @@ export const SYSTEM_GUIDE_AREAS: GuideFunctionalArea[] = [
       },
       {
         sectionId: 'intelligence_impulsa',
-        title: 'Impulsa (Próximamente)',
-        summary: 'Motor en hoja de ruta para renovación preventiva y crecimiento sano de cartera.',
-        mechanism: 'Identificará clientes con historial impecable (>75% amortizado y 0 atraso) para pre-evaluación en Motor V2.',
-        outcome: 'Crecimiento seguro de cartera reteniendo a los mejores pagadores.',
-        tags: ['Hoja de Ruta', 'Renovación'],
-        comingSoon: true,
+        title: 'Impulsa — Motor Inteligente de Crecimiento Crediticio',
+        summary:
+          'Detecta oportunidades reales de renovación anticipada, crecimiento crediticio, recuperación de clientes inactivos, venta cruzada y refinanciamiento responsable.',
+        mechanism:
+          'Analiza clientes, préstamos, cuotas, pagos, capacidad de pago, políticas vigentes y alertas Centinela; gestiona 14 estados CRM y convierte directamente a solicitudes evaluadas por Motor V2.',
+        outcome:
+          'Mayor colocación crediticia responsable, retención de mejores pagadores y trazabilidad comercial hasta desembolso.',
+        tags: ['Crecimiento', 'Renovación', 'CRM Comercial', 'IA'],
       },
     ],
   },

@@ -621,6 +621,324 @@ export function computeExecutiveCurrencyMetrics(params: {
   };
 }
 
+/**
+ * Consolida los indicadores ejecutivos de DOP y USD en una sola realidad financiera
+ * expresada en Pesos Dominicanos (DOP / RD$), convirtiendo todos los montos en dólares
+ * estadounidenses (USD) mediante la tasa oficial de venta del Banco Central (BCRD).
+ *
+ * Todos los porcentajes (PAR 1/30/60/90, variaciones inter-período y tasa de aprobación)
+ * se recalculan matemáticamente sobre las bases consolidadas en RD$.
+ */
+export function consolidateExecutiveMetricsToDop(
+  dopMetrics: ExecutiveCurrencyMetrics,
+  usdMetrics: ExecutiveCurrencyMetrics,
+  usdToDopRate: number
+): ExecutiveCurrencyMetrics {
+  const rate =
+    Number.isFinite(usdToDopRate) && usdToDopRate > 0 ? usdToDopRate : 60.0;
+  const r2 = (n: number) => Number(n.toFixed(2));
+  const mergeMoney = (dopVal: number, usdVal: number) =>
+    r2((Number(dopVal) || 0) + (Number(usdVal) || 0) * rate);
+
+  const activePortfolioCapital = mergeMoney(
+    dopMetrics.activePortfolioCapital,
+    usdMetrics.activePortfolioCapital
+  );
+  const activeLoansCount =
+    (dopMetrics.activeLoansCount || 0) + (usdMetrics.activeLoansCount || 0);
+
+  const disbursedPeriodTotal = mergeMoney(
+    dopMetrics.disbursedPeriodTotal,
+    usdMetrics.disbursedPeriodTotal
+  );
+  const disbursedPeriodCount =
+    (dopMetrics.disbursedPeriodCount || 0) + (usdMetrics.disbursedPeriodCount || 0);
+  const disbursedPrevTotal = mergeMoney(
+    dopMetrics.disbursedPrevTotal,
+    usdMetrics.disbursedPrevTotal
+  );
+  const disbursedDeltaPct =
+    disbursedPrevTotal > 0
+      ? Number(
+          (
+            ((disbursedPeriodTotal - disbursedPrevTotal) / disbursedPrevTotal) *
+            100
+          ).toFixed(1)
+        )
+      : null;
+
+  const recoveryPeriodTotal = mergeMoney(
+    dopMetrics.recoveryPeriodTotal,
+    usdMetrics.recoveryPeriodTotal
+  );
+  const recoveryPrincipal = mergeMoney(
+    dopMetrics.recoveryPrincipal,
+    usdMetrics.recoveryPrincipal
+  );
+  const recoveryInterest = mergeMoney(
+    dopMetrics.recoveryInterest,
+    usdMetrics.recoveryInterest
+  );
+  const recoveryOther = mergeMoney(
+    dopMetrics.recoveryOther,
+    usdMetrics.recoveryOther
+  );
+  const recoveryPaymentsCount =
+    (dopMetrics.recoveryPaymentsCount || 0) +
+    (usdMetrics.recoveryPaymentsCount || 0);
+  const recoveryPrevTotal = mergeMoney(
+    dopMetrics.recoveryPrevTotal,
+    usdMetrics.recoveryPrevTotal
+  );
+  const recoveryDeltaPct =
+    recoveryPrevTotal > 0
+      ? Number(
+          (
+            ((recoveryPeriodTotal - recoveryPrevTotal) / recoveryPrevTotal) *
+            100
+          ).toFixed(1)
+        )
+      : null;
+
+  const par1Exposure = mergeMoney(dopMetrics.par1Exposure, usdMetrics.par1Exposure);
+  const par30Exposure = mergeMoney(dopMetrics.par30Exposure, usdMetrics.par30Exposure);
+  const par60Exposure = mergeMoney(dopMetrics.par60Exposure, usdMetrics.par60Exposure);
+  const par90Exposure = mergeMoney(dopMetrics.par90Exposure, usdMetrics.par90Exposure);
+
+  const calcParPct = (exposure: number) =>
+    activePortfolioCapital > 0
+      ? Number(((exposure / activePortfolioCapital) * 100).toFixed(2))
+      : null;
+
+  const par1Pct = calcParPct(par1Exposure);
+  const par30Pct = calcParPct(par30Exposure);
+  const par60Pct = calcParPct(par60Exposure);
+  const par90Pct = calcParPct(par90Exposure);
+
+  const pendingApplicationsCount =
+    (dopMetrics.pendingApplicationsCount || 0) +
+    (usdMetrics.pendingApplicationsCount || 0);
+  const pendingEvaluationCount =
+    (dopMetrics.pendingEvaluationCount || 0) +
+    (usdMetrics.pendingEvaluationCount || 0);
+  const pendingCommitteeCount =
+    (dopMetrics.pendingCommitteeCount || 0) +
+    (usdMetrics.pendingCommitteeCount || 0);
+  const pendingFormalizationCount =
+    (dopMetrics.pendingFormalizationCount || 0) +
+    (usdMetrics.pendingFormalizationCount || 0);
+
+  const dailyDueAmount = mergeMoney(
+    dopMetrics.dailyDueAmount,
+    usdMetrics.dailyDueAmount
+  );
+  const dailyDueCount =
+    (dopMetrics.dailyDueCount || 0) + (usdMetrics.dailyDueCount || 0);
+
+  const dailyConfirmedReceivedAmount = mergeMoney(
+    dopMetrics.dailyConfirmedReceivedAmount,
+    usdMetrics.dailyConfirmedReceivedAmount
+  );
+  const dailyConfirmedCount =
+    (dopMetrics.dailyConfirmedCount || 0) +
+    (usdMetrics.dailyConfirmedCount || 0);
+
+  const brokenPromisesCount =
+    (dopMetrics.brokenPromisesCount || 0) +
+    (usdMetrics.brokenPromisesCount || 0);
+  const brokenPromisesAmount = mergeMoney(
+    dopMetrics.brokenPromisesAmount,
+    usdMetrics.brokenPromisesAmount
+  );
+
+  const approvalsCount =
+    (dopMetrics.approvalsCount || 0) + (usdMetrics.approvalsCount || 0);
+  const approvalsDenominator =
+    (dopMetrics.approvalsDenominator || 0) +
+    (usdMetrics.approvalsDenominator || 0);
+  const approvalsTotalReceived =
+    (dopMetrics.approvalsTotalReceived || 0) +
+    (usdMetrics.approvalsTotalReceived || 0);
+  const approvalsRatePct =
+    approvalsDenominator > 0
+      ? Number(((approvalsCount / approvalsDenominator) * 100).toFixed(1))
+      : null;
+
+  const portfolioAtRiskBalance = mergeMoney(
+    dopMetrics.portfolioAtRiskBalance,
+    usdMetrics.portfolioAtRiskBalance
+  );
+  const portfolioAtRiskCount =
+    (dopMetrics.portfolioAtRiskCount || 0) +
+    (usdMetrics.portfolioAtRiskCount || 0);
+
+  // Merge portfolioEvolutionSeries aligned by period
+  const usdEvoByPeriod = new Map(
+    usdMetrics.portfolioEvolutionSeries.map((pt) => [pt.period, pt])
+  );
+  const portfolioEvolutionSeries = dopMetrics.portfolioEvolutionSeries.map((dPt) => {
+    const uPt = usdEvoByPeriod.get(dPt.period);
+    const vigente = Math.round(dPt.vigente + (uPt?.vigente || 0) * rate);
+    const vencido = Math.round(dPt.vencido + (uPt?.vencido || 0) * rate);
+    const total = Math.round(dPt.total + (uPt?.total || 0) * rate);
+    return {
+      period: dPt.period,
+      vigente,
+      vencido,
+      total,
+    };
+  });
+
+  // Merge disbursementsVsRecoverySeries aligned by month
+  const usdDrByMonth = new Map(
+    usdMetrics.disbursementsVsRecoverySeries.map((pt) => [pt.month, pt])
+  );
+  const disbursementsVsRecoverySeries = dopMetrics.disbursementsVsRecoverySeries.map(
+    (dPt) => {
+      const uPt = usdDrByMonth.get(dPt.month);
+      return {
+        month: dPt.month,
+        desembolsos: Math.round(
+          dPt.desembolsos + (uPt?.desembolsos || 0) * rate
+        ),
+        recuperacion: Math.round(
+          dPt.recuperacion + (uPt?.recuperacion || 0) * rate
+        ),
+      };
+    }
+  );
+
+  // Merge delinquencyBuckets aligned by bucket name
+  const usdBucketMap = new Map(
+    usdMetrics.delinquencyBuckets.map((b) => [b.bucket, b])
+  );
+  const delinquencyBuckets = dopMetrics.delinquencyBuckets.map((dB) => {
+    const uB = usdBucketMap.get(dB.bucket);
+    return {
+      bucket: dB.bucket,
+      count: dB.count + (uB?.count || 0),
+      exposure: Math.round(dB.exposure + (uB?.exposure || 0) * rate),
+    };
+  });
+
+  // Merge applicationsByStatus aligned by status
+  const usdAppStatusMap = new Map(
+    usdMetrics.applicationsByStatus.map((s) => [s.status, s])
+  );
+  const seenStatuses = new Set<string>();
+  const applicationsByStatus: Array<{
+    status: string;
+    label: string;
+    count: number;
+    amount: number;
+  }> = [];
+  dopMetrics.applicationsByStatus.forEach((dS) => {
+    seenStatuses.add(dS.status);
+    const uS = usdAppStatusMap.get(dS.status);
+    applicationsByStatus.push({
+      status: dS.status,
+      label: dS.label,
+      count: dS.count + (uS?.count || 0),
+      amount: Math.round(dS.amount + (uS?.amount || 0) * rate),
+    });
+  });
+  usdMetrics.applicationsByStatus.forEach((uS) => {
+    if (!seenStatuses.has(uS.status)) {
+      applicationsByStatus.push({
+        status: uS.status,
+        label: uS.label,
+        count: uS.count,
+        amount: Math.round(uS.amount * rate),
+      });
+    }
+  });
+
+  // Merge recoveryByAgent converting USD amounts to DOP
+  const agentMap = new Map<
+    string,
+    { agentId: string; agentName: string; recoveredAmount: number; paymentsCount: number }
+  >();
+  dopMetrics.recoveryByAgent.forEach((a) => {
+    const key = a.agentId || a.agentName;
+    agentMap.set(key, {
+      agentId: a.agentId,
+      agentName: a.agentName,
+      recoveredAmount: a.recoveredAmount,
+      paymentsCount: a.paymentsCount,
+    });
+  });
+  usdMetrics.recoveryByAgent.forEach((a) => {
+    const key = a.agentId || a.agentName;
+    const prev = agentMap.get(key) ?? {
+      agentId: a.agentId,
+      agentName: a.agentName,
+      recoveredAmount: 0,
+      paymentsCount: 0,
+    };
+    agentMap.set(key, {
+      agentId: prev.agentId || a.agentId,
+      agentName: prev.agentName || a.agentName,
+      recoveredAmount: prev.recoveredAmount + a.recoveredAmount * rate,
+      paymentsCount: prev.paymentsCount + a.paymentsCount,
+    });
+  });
+  const recoveryByAgent = Array.from(agentMap.values())
+    .map((val) => ({
+      agentId: val.agentId,
+      agentName: val.agentName,
+      recoveredAmount: Math.round(val.recoveredAmount),
+      paymentsCount: val.paymentsCount,
+    }))
+    .sort((a, b) => b.recoveredAmount - a.recoveredAmount)
+    .slice(0, 6);
+
+  return {
+    currency: 'DOP',
+    activePortfolioCapital,
+    activeLoansCount,
+    disbursedPeriodTotal,
+    disbursedPeriodCount,
+    disbursedPrevTotal,
+    disbursedDeltaPct,
+    recoveryPeriodTotal,
+    recoveryPrincipal,
+    recoveryInterest,
+    recoveryOther,
+    recoveryPaymentsCount,
+    recoveryPrevTotal,
+    recoveryDeltaPct,
+    par1Exposure,
+    par30Exposure,
+    par60Exposure,
+    par90Exposure,
+    par1Pct,
+    par30Pct,
+    par60Pct,
+    par90Pct,
+    pendingApplicationsCount,
+    pendingEvaluationCount,
+    pendingCommitteeCount,
+    pendingFormalizationCount,
+    dailyDueAmount,
+    dailyDueCount,
+    dailyConfirmedReceivedAmount,
+    dailyConfirmedCount,
+    brokenPromisesCount,
+    brokenPromisesAmount,
+    approvalsCount,
+    approvalsDenominator,
+    approvalsTotalReceived,
+    approvalsRatePct,
+    portfolioAtRiskBalance,
+    portfolioAtRiskCount,
+    portfolioEvolutionSeries,
+    disbursementsVsRecoverySeries,
+    delinquencyBuckets,
+    applicationsByStatus,
+    recoveryByAgent,
+  };
+}
+
 export function buildOperationalDaySummary(params: {
   todayIso: string;
   applications: ApplicationRecord[];
@@ -861,6 +1179,7 @@ export function buildScopedAiContext(params: {
   currencyFilter: 'DOP' | 'USD' | 'SEPARATED';
   dopMetrics: ExecutiveCurrencyMetrics;
   usdMetrics: ExecutiveCurrencyMetrics;
+  usdToDopRate?: number;
   operationalItems: OperationalDayItem[];
   recentActivity: RecentActivityItem[];
   applications: ApplicationRecord[];
@@ -877,6 +1196,7 @@ export function buildScopedAiContext(params: {
     currencyFilter,
     dopMetrics,
     usdMetrics,
+    usdToDopRate,
     operationalItems,
     recentActivity,
     applications,
@@ -934,6 +1254,16 @@ export function buildScopedAiContext(params: {
     indicadoresPorMoneda: {
       ...(currencyFilter !== 'USD' ? { DOP: summarizeCurrency(dopMetrics) } : {}),
       ...(currencyFilter !== 'DOP' ? { USD: summarizeCurrency(usdMetrics) } : {}),
+      ...(currencyFilter === 'SEPARATED' && usdToDopRate && usdToDopRate > 0
+        ? {
+            CONSOLIDADO_EN_DOP_BCRD: {
+              tasaCambioBcrdUsdADop: usdToDopRate,
+              ...summarizeCurrency(
+                consolidateExecutiveMetricsToDop(dopMetrics, usdMetrics, usdToDopRate)
+              ),
+            },
+          }
+        : {}),
     },
     resumenOperativoHoy: operationalItems.map((i) => ({
       concepto: i.label,

@@ -96,6 +96,8 @@ export const TENANT_SCOPED_COLLECTIONS = new Set<string>([
   'altera_outcomes',
   'altera_analyses',
   'altera_configs',
+  'impulsa_opportunities',
+  'impulsa_configs',
 ]);
 
 export interface TenantContext {

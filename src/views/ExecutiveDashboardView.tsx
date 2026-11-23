@@ -56,7 +56,10 @@ import {
   type DashboardSectionId,
   type ExecutiveKpiWidgetId,
 } from '../engine/dashboardWidgetConfig';
-import type { ExecutiveCurrencyMetrics } from '../engine/executiveAnalytics';
+import {
+  consolidateExecutiveMetricsToDop,
+  type ExecutiveCurrencyMetrics,
+} from '../engine/executiveAnalytics';
 import {
   buildAxyCoreIntelligenceInsights,
   buildCollectionsOverviewSummary,
@@ -68,6 +71,7 @@ import {
   type HomeSmartAlert,
   type PanoramaGranularity,
 } from '../engine/homeDashboardEngine';
+import { useBcrdExchangeRate } from '../hooks/useBcrdExchangeRate';
 import { useDashboardWidgetConfig } from '../hooks/useDashboardWidgetConfig';
 import type {
   CurrencyCode,
@@ -106,8 +110,19 @@ const GRANULARITY_OPTIONS: Array<{
 const CURRENCY_OPTIONS: Array<{ value: ExecutiveCurrencyMode; label: string }> = [
   { value: 'DOP', label: 'DOP (RD$)' },
   { value: 'USD', label: 'USD (US$)' },
-  { value: 'SEPARATED', label: 'DOP y USD' },
+  { value: 'SEPARATED', label: 'DOP y USD (RD$)' },
 ];
+
+interface ConsolidatedBcrdInfo {
+  rate: number;
+  fecha: string | null;
+  fuente: string;
+  respaldo: boolean;
+  loading: boolean;
+  onRefresh: () => void;
+  dopMetrics: ExecutiveCurrencyMetrics;
+  usdMetrics: ExecutiveCurrencyMetrics;
+}
 
 const PRODUCT_PIE_COLORS = ['#0066FF', '#00B8FF', '#041B4E', '#E2B35E'];
 
@@ -199,6 +214,7 @@ function MiniSparkBars({
 
 function CurrencyExecutiveBlock({
   metrics,
+  consolidatedInfo,
   granularity,
   onChangeGranularity,
   darkMode,
@@ -221,6 +237,7 @@ function CurrencyExecutiveBlock({
   onInspectIndicator,
 }: {
   metrics: ExecutiveCurrencyMetrics;
+  consolidatedInfo?: ConsolidatedBcrdInfo;
   granularity: PanoramaGranularity;
   onChangeGranularity: (g: PanoramaGranularity) => void;
   darkMode: boolean;
@@ -256,6 +273,8 @@ function CurrencyExecutiveBlock({
   const [draggingKpi, setDraggingKpi] = useState<ExecutiveKpiWidgetId | null>(null);
   const [dropTargetKpi, setDropTargetKpi] = useState<ExecutiveKpiWidgetId | null>(null);
   const cur = metrics.currency;
+  const isConsolidated = Boolean(consolidatedInfo);
+  const currencyTag = isConsolidated ? 'DOP + USD en RD$' : cur;
 
   const clearKpiDrag = () => {
     setDraggingKpi(null);
@@ -266,6 +285,7 @@ function CurrencyExecutiveBlock({
     () =>
       buildPanoramaSeriesAndKpis({
         currency: cur,
+        consolidateUsdToDopRate: consolidatedInfo?.rate,
         granularity,
         todayIso: clockInfo.todayIso,
         bounds: periodBounds,
@@ -278,6 +298,7 @@ function CurrencyExecutiveBlock({
       }),
     [
       cur,
+      consolidatedInfo?.rate,
       granularity,
       clockInfo.todayIso,
       periodBounds,
@@ -313,6 +334,22 @@ function CurrencyExecutiveBlock({
       ? 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
       : 'grid-cols-1 sm:grid-cols-2';
 
+  const renderConsolidatedBreakdown = (dopAmount: number, usdAmount: number) => {
+    if (!consolidatedInfo) return null;
+    const usdConverted = usdAmount * consolidatedInfo.rate;
+    return (
+      <p
+        className="mt-1 font-mono tabular-nums text-[10px] leading-snug text-slate-500 dark:text-slate-400"
+        title={`DOP nativo: ${formatMoney(dopAmount, 'DOP')} + USD convertido: ${formatMoney(usdAmount, 'USD')} × RD$${consolidatedInfo.rate.toFixed(4)} = ${formatMoney(usdConverted, 'DOP')}`}
+      >
+        {formatMoney(dopAmount, 'DOP')} + {formatMoney(usdAmount, 'USD')}{' '}
+        <span className="text-[#0052CC] dark:text-[#00D1FF]">
+          (×{consolidatedInfo.rate.toFixed(2)})
+        </span>
+      </p>
+    );
+  };
+
   const renderKpiCardBody = (kpiId: ExecutiveKpiWidgetId) => {
     switch (kpiId) {
       case 'CARTERA_TOTAL':
@@ -321,7 +358,7 @@ function CurrencyExecutiveBlock({
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  Cartera Total · {cur}
+                  Cartera Total · {currencyTag}
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-[#0066FF]/10 dark:bg-[#0066FF]/18 text-[#0052CC] dark:text-[#00B8FF] flex items-center justify-center shrink-0">
                   <Landmark className="w-4 h-4" />
@@ -332,6 +369,11 @@ function CurrencyExecutiveBlock({
                 <p className="font-display tabular-nums text-2xl sm:text-[26px] font-bold text-slate-950 dark:text-white tracking-tight">
                   {formatMoney(metrics.activePortfolioCapital, cur)}
                 </p>
+                {consolidatedInfo &&
+                  renderConsolidatedBreakdown(
+                    consolidatedInfo.dopMetrics.activePortfolioCapital,
+                    consolidatedInfo.usdMetrics.activePortfolioCapital
+                  )}
                 <div className="mt-1.5">
                   <TrendIndicator
                     delta={enhancements.portfolioGrowthPct}
@@ -367,7 +409,7 @@ function CurrencyExecutiveBlock({
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  Cartera Vencida · {cur}
+                  Cartera Vencida · {currencyTag}
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-rose-500/10 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-4 h-4" />
@@ -383,6 +425,11 @@ function CurrencyExecutiveBlock({
                     {metrics.par1Pct !== null ? `${metrics.par1Pct.toFixed(2)}% mora` : '0.00%'}
                   </span>
                 </div>
+                {consolidatedInfo &&
+                  renderConsolidatedBreakdown(
+                    consolidatedInfo.dopMetrics.par1Exposure,
+                    consolidatedInfo.usdMetrics.par1Exposure
+                  )}
                 <div className="mt-1.5">
                   <TrendIndicator
                     delta={enhancements.parVariationPts}
@@ -424,7 +471,7 @@ function CurrencyExecutiveBlock({
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  Desembolsos · {cur}
+                  Desembolsos · {currencyTag}
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-[#00B8FF]/12 dark:bg-[#00B8FF]/18 text-[#0052CC] dark:text-[#00D1FF] flex items-center justify-center shrink-0">
                   <DollarSign className="w-4 h-4" />
@@ -435,6 +482,11 @@ function CurrencyExecutiveBlock({
                 <p className="font-display tabular-nums text-2xl sm:text-[26px] font-bold text-slate-950 dark:text-white tracking-tight">
                   {formatMoney(metrics.disbursedPeriodTotal, cur)}
                 </p>
+                {consolidatedInfo &&
+                  renderConsolidatedBreakdown(
+                    consolidatedInfo.dopMetrics.disbursedPeriodTotal,
+                    consolidatedInfo.usdMetrics.disbursedPeriodTotal
+                  )}
                 <div className="mt-1.5">
                   <TrendIndicator
                     delta={metrics.disbursedDeltaPct}
@@ -474,7 +526,7 @@ function CurrencyExecutiveBlock({
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  Recuperación · {cur}
+                  Recuperación · {currencyTag}
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-4 h-4" />
@@ -492,6 +544,11 @@ function CurrencyExecutiveBlock({
                     </span>
                   )}
                 </div>
+                {consolidatedInfo &&
+                  renderConsolidatedBreakdown(
+                    consolidatedInfo.dopMetrics.recoveryPeriodTotal,
+                    consolidatedInfo.usdMetrics.recoveryPeriodTotal
+                  )}
 
                 {enhancements.recoveryTargetAmount !== null ? (
                   <div className="mt-2 space-y-1">
@@ -544,12 +601,12 @@ function CurrencyExecutiveBlock({
     <div className="space-y-6">
       {/* BLOQUE 2: RESUMEN EJECUTIVO (Tarjetas configurables por rol) */}
       {showExecutiveSummary && (
-        <section className="space-y-3" aria-label={`Resumen Ejecutivo ${cur}`}>
+        <section className="space-y-3" aria-label={`Resumen Ejecutivo ${currencyTag}`}>
           {isPrimaryCurrency && (
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-display text-sm font-bold text-slate-950 dark:text-white tracking-tight">
-                  Resumen Ejecutivo · {cur}
+                  Resumen Ejecutivo · {currencyTag}
                 </h3>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">
                   Rol: <strong className="text-[#0052CC] dark:text-[#00D1FF]">{roleLabel}</strong> ·{' '}
@@ -584,6 +641,58 @@ function CurrencyExecutiveBlock({
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {isPrimaryCurrency && consolidatedInfo && (
+            <div className="rounded-xl px-4 py-2.5 bg-[#0066FF]/[0.05] dark:bg-[#0066FF]/10 border border-[#0066FF]/20 dark:border-[#00B8FF]/25 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-slate-700 dark:text-slate-200">
+                <Landmark className="w-3.5 h-3.5 text-[#0052CC] dark:text-[#00D1FF] shrink-0" />
+                <span className="font-semibold text-slate-950 dark:text-white">
+                  Consolidado real en RD$ (BCRD):
+                </span>
+                <span className="font-mono tabular-nums text-[11px] text-[#0052CC] dark:text-[#00D1FF] font-bold">
+                  1 USD = RD${consolidatedInfo.rate.toFixed(4)}
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {consolidatedInfo.fecha
+                    ? `· Corte BCRD ${consolidatedInfo.fecha}`
+                    : consolidatedInfo.respaldo
+                    ? '· Tasa de respaldo'
+                    : '· Tasa oficial de venta'}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 font-mono tabular-nums text-[11px]">
+                <span className="text-slate-600 dark:text-slate-300">
+                  DOP:{' '}
+                  <strong className="text-slate-950 dark:text-white">
+                    {formatMoney(consolidatedInfo.dopMetrics.activePortfolioCapital, 'DOP')}
+                  </strong>
+                </span>
+                <span className="text-slate-400">+</span>
+                <span className="text-slate-600 dark:text-slate-300">
+                  USD:{' '}
+                  <strong className="text-slate-950 dark:text-white">
+                    {formatMoney(consolidatedInfo.usdMetrics.activePortfolioCapital, 'USD')}
+                  </strong>{' '}
+                  <span className="text-[#0052CC] dark:text-[#00D1FF]">
+                    ({formatMoney(
+                      consolidatedInfo.usdMetrics.activePortfolioCapital * consolidatedInfo.rate,
+                      'DOP'
+                    )})
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={consolidatedInfo.onRefresh}
+                  disabled={consolidatedInfo.loading}
+                  className="inline-flex items-center gap-1 font-sans text-[11px] font-semibold text-[#0052CC] dark:text-[#00D1FF] hover:underline cursor-pointer disabled:opacity-50"
+                  title="Actualizar tasa oficial del Banco Central de la República Dominicana"
+                >
+                  <RefreshCw className={`w-3 h-3 ${consolidatedInfo.loading ? 'animate-spin' : ''}`} />
+                  <span>{consolidatedInfo.loading ? 'Consultando...' : 'Actualizar BCRD'}</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -755,10 +864,12 @@ function CurrencyExecutiveBlock({
             <div>
               <h3 className="font-display text-lg font-bold text-slate-950 dark:text-white flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
-                <span>Panorama financiero ({cur})</span>
+                <span>Panorama financiero ({currencyTag})</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Analítica interactiva de evolución de cartera, colocación, morosidad y mezcla de productos
+                {consolidatedInfo
+                  ? `Analítica consolidada en RD$ convirtiendo cartera USD a tasa oficial BCRD (RD$${consolidatedInfo.rate.toFixed(4)})`
+                  : 'Analítica interactiva de evolución de cartera, colocación, morosidad y mezcla de productos'}
               </p>
             </div>
 
@@ -1179,6 +1290,7 @@ export function ExecutiveDashboardView() {
     periodBounds,
     dopMetrics,
     usdMetrics,
+    activeOrTestPolicy,
     applications,
     documents,
     loans,
@@ -1206,6 +1318,35 @@ export function ExecutiveDashboardView() {
     setSelectedCollectionLoanId,
     rbac,
   } = useAxyCore();
+
+  // Tasa oficial de cambio USD -> DOP del Banco Central de la República Dominicana (BCRD)
+  const bcrd = useBcrdExchangeRate(activeOrTestPolicy.exchangeRateConfig?.dopPerUsd || 60.0);
+  const isConsolidated = executiveCurrency === 'SEPARATED';
+  const consolidateRate = isConsolidated ? bcrd.rate : undefined;
+
+  const consolidatedMetrics = useMemo(
+    () => consolidateExecutiveMetricsToDop(dopMetrics, usdMetrics, bcrd.rate),
+    [dopMetrics, usdMetrics, bcrd.rate]
+  );
+
+  const consolidatedInfo: ConsolidatedBcrdInfo | undefined = useMemo(
+    () =>
+      isConsolidated
+        ? {
+            rate: bcrd.rate,
+            fecha: bcrd.fecha,
+            fuente: bcrd.fuente,
+            respaldo: bcrd.respaldo,
+            loading: bcrd.loading,
+            onRefresh: () => {
+              void bcrd.refresh();
+            },
+            dopMetrics,
+            usdMetrics,
+          }
+        : undefined,
+    [isConsolidated, bcrd, dopMetrics, usdMetrics]
+  );
 
   const [granularity, setGranularity] = useState<PanoramaGranularity>(() => {
     if (executivePeriod === 'TODAY') return 'DIARIO';
@@ -1283,8 +1424,8 @@ export function ExecutiveDashboardView() {
   const activeCurrencyBlocks: ExecutiveCurrencyMetrics[] = useMemo(() => {
     if (executiveCurrency === 'DOP') return [dopMetrics];
     if (executiveCurrency === 'USD') return [usdMetrics];
-    return [dopMetrics, usdMetrics];
-  }, [executiveCurrency, dopMetrics, usdMetrics]);
+    return [consolidatedMetrics];
+  }, [executiveCurrency, dopMetrics, usdMetrics, consolidatedMetrics]);
 
   const primaryMetrics = activeCurrencyBlocks[0] ?? dopMetrics;
   const primaryCurrency = primaryMetrics.currency;
@@ -1293,6 +1434,7 @@ export function ExecutiveDashboardView() {
     () =>
       buildPanoramaSeriesAndKpis({
         currency: primaryCurrency,
+        consolidateUsdToDopRate: consolidateRate,
         granularity,
         todayIso: clockInfo.todayIso,
         bounds: periodBounds,
@@ -1305,6 +1447,7 @@ export function ExecutiveDashboardView() {
       }).enhancements,
     [
       primaryCurrency,
+      consolidateRate,
       granularity,
       clockInfo.todayIso,
       periodBounds,
@@ -1394,6 +1537,7 @@ export function ExecutiveDashboardView() {
     () =>
       buildCollectionsOverviewSummary({
         currency: primaryCurrency,
+        consolidateUsdToDopRate: consolidateRate,
         todayIso: clockInfo.todayIso,
         bounds: periodBounds,
         metrics: primaryMetrics,
@@ -1405,6 +1549,7 @@ export function ExecutiveDashboardView() {
       }),
     [
       primaryCurrency,
+      consolidateRate,
       clockInfo.todayIso,
       periodBounds,
       primaryMetrics,
@@ -1451,6 +1596,7 @@ export function ExecutiveDashboardView() {
     () =>
       buildAxyCoreIntelligenceInsights({
         currency: primaryCurrency,
+        consolidateUsdToDopRate: consolidateRate,
         metrics: primaryMetrics,
         enhancements: primaryEnhancements,
         alerts: smartAlerts,
@@ -1461,6 +1607,7 @@ export function ExecutiveDashboardView() {
       }),
     [
       primaryCurrency,
+      consolidateRate,
       primaryMetrics,
       primaryEnhancements,
       smartAlerts,
@@ -1687,7 +1834,7 @@ export function ExecutiveDashboardView() {
             })}
           </div>
 
-          {/* Controles de moneda y personalización */}
+          {/* Controles de moneda, tasa oficial BCRD y personalización */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <div className="inline-flex p-0.5 rounded-xl bg-slate-100 dark:bg-[#040C1E] border border-slate-200/80 dark:border-white/10">
               {CURRENCY_OPTIONS.map((c) => (
@@ -1705,6 +1852,27 @@ export function ExecutiveDashboardView() {
                 </button>
               ))}
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                void bcrd.refresh();
+              }}
+              disabled={bcrd.loading}
+              title={
+                bcrd.fecha
+                  ? `${bcrd.fuente} · Corte ${bcrd.fecha} · Clic para actualizar`
+                  : `${bcrd.fuente} · Clic para actualizar tasa oficial`
+              }
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-mono tabular-nums transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 ${
+                isConsolidated
+                  ? 'border-[#0066FF]/40 bg-[#0066FF]/[0.07] dark:bg-[#0066FF]/15 text-[#0052CC] dark:text-[#00D1FF] font-semibold'
+                  : 'border-slate-200/85 dark:border-white/12 bg-white dark:bg-[#040C1E] text-slate-600 dark:text-slate-300 hover:border-[#0066FF]/40'
+              }`}
+            >
+              <RefreshCw className={`w-3 h-3 shrink-0 ${bcrd.loading ? 'animate-spin' : ''}`} />
+              <span>BCRD: RD${bcrd.rate.toFixed(2)}/USD</span>
+            </button>
 
             {widgetState.policy.canConfigure && (
               <>
@@ -1743,8 +1911,9 @@ export function ExecutiveDashboardView() {
               <div key="executiveSummary" className="space-y-6">
                 {activeCurrencyBlocks.map((block, idx) => (
                   <CurrencyExecutiveBlock
-                    key={`exec_${block.currency}`}
+                    key={`exec_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
                     metrics={block}
+                    consolidatedInfo={consolidatedInfo}
                     granularity={granularity}
                     onChangeGranularity={handleGranularityChange}
                     darkMode={darkMode}
@@ -1775,8 +1944,14 @@ export function ExecutiveDashboardView() {
               <div key="performanceOverview" className="space-y-6">
                 {activeCurrencyBlocks.map((block) => (
                   <PerformanceOverviewWidget
-                    key={`perf_overview_${block.currency}`}
+                    key={`perf_overview_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
                     currency={block.currency}
+                    consolidateUsdToDopRate={consolidateRate}
+                    consolidatedRateLabel={
+                      isConsolidated
+                        ? `DOP + USD consolidado en RD$ (tasa BCRD RD$${bcrd.rate.toFixed(4)}${bcrd.fecha ? ` · ${bcrd.fecha}` : ''})`
+                        : undefined
+                    }
                     todayIso={clockInfo.todayIso}
                     darkMode={darkMode}
                     metrics={block}
@@ -1796,8 +1971,9 @@ export function ExecutiveDashboardView() {
               <div key="panorama" className="space-y-6">
                 {activeCurrencyBlocks.map((block, idx) => (
                   <CurrencyExecutiveBlock
-                    key={`pano_${block.currency}`}
+                    key={`pano_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
                     metrics={block}
+                    consolidatedInfo={consolidatedInfo}
                     granularity={granularity}
                     onChangeGranularity={handleGranularityChange}
                     darkMode={darkMode}
@@ -1833,8 +2009,11 @@ export function ExecutiveDashboardView() {
                 directorAnalysis={directorAnalysis}
                 directorLoading={directorLoading}
                 onRunDeepDiagnosis={() => {
+                  const currencyNote = isConsolidated
+                    ? `DOP consolidado (incluyendo USD convertido a RD$${bcrd.rate.toFixed(4)} según BCRD)`
+                    : primaryCurrency;
                   void runDirectorAnalysis(
-                    `Diagnóstico ejecutivo integral para ${organization.name} (${periodBounds.label}): Cartera activa ${primaryCurrency} ${formatMoney(primaryMetrics.activePortfolioCapital, primaryCurrency)}, PAR 30 ${primaryMetrics.par30Pct ?? 0}%, Desembolsos ${formatMoney(primaryMetrics.disbursedPeriodTotal, primaryCurrency)}, Recuperación ${formatMoney(primaryMetrics.recoveryPeriodTotal, primaryCurrency)}.`
+                    `Diagnóstico ejecutivo integral para ${organization.name} (${periodBounds.label}) en ${currencyNote}: Cartera activa ${formatMoney(primaryMetrics.activePortfolioCapital, primaryCurrency)}, PAR 30 ${primaryMetrics.par30Pct ?? 0}%, Desembolsos ${formatMoney(primaryMetrics.disbursedPeriodTotal, primaryCurrency)}, Recuperación ${formatMoney(primaryMetrics.recoveryPeriodTotal, primaryCurrency)}.`
                   );
                 }}
                 onNavigate={setActiveSection}
@@ -1892,6 +2071,7 @@ export function ExecutiveDashboardView() {
                 key="collections"
                 summary={collectionsSummary}
                 currency={primaryCurrency}
+                currencyLabel={isConsolidated ? 'DOP + USD en RD$' : undefined}
                 canViewCollections={
                   rbac.hasPermission('VIEW_COLLECTIONS_PORTFOLIO') ||
                   rbac.canAccessSection('cobranza_daily')
@@ -1966,6 +2146,9 @@ export function ExecutiveDashboardView() {
         <IndicatorDetailDrawer
           detailKey={detailModal.key}
           currency={detailModal.currency}
+          consolidateRate={consolidateRate}
+          consolidatedRateDate={bcrd.fecha}
+          consolidatedMetrics={isConsolidated ? consolidatedMetrics : undefined}
           onClose={() => setDetailModal(null)}
           onOpenLoan={(loanId) => {
             setDetailModal(null);
@@ -1984,24 +2167,51 @@ export function ExecutiveDashboardView() {
 function IndicatorDetailDrawer({
   detailKey,
   currency,
+  consolidateRate,
+  consolidatedRateDate,
+  consolidatedMetrics,
   onClose,
   onOpenLoan,
   onNavigate,
 }: {
   detailKey: DetailIndicatorKey;
   currency: CurrencyCode;
+  consolidateRate?: number;
+  consolidatedRateDate?: string | null;
+  consolidatedMetrics?: ExecutiveCurrencyMetrics;
   onClose: () => void;
   onOpenLoan: (loanId: string) => void;
   onNavigate: (sec: NavSectionId) => void;
 }) {
   const { loans, collectionAccounts, payments, dopMetrics, usdMetrics, rbac, isPlatformAdminPortal } = useAxyCore();
   const [drawerSearch, setDrawerSearch] = useState('');
-  const metrics = currency === 'USD' ? usdMetrics : dopMetrics;
 
-  const allCurrencyLoans = loans.filter((l) => l.currency === currency);
+  const isConsolidated =
+    currency === 'DOP' &&
+    typeof consolidateRate === 'number' &&
+    Number.isFinite(consolidateRate) &&
+    consolidateRate > 0;
+  const fxRate = isConsolidated ? consolidateRate! : 1;
+  const toDisplayAmount = (amount: number, recCurrency: CurrencyCode) =>
+    isConsolidated && recCurrency === 'USD' ? Number((amount * fxRate).toFixed(2)) : amount;
+
+  const metrics = isConsolidated && consolidatedMetrics
+    ? consolidatedMetrics
+    : currency === 'USD'
+    ? usdMetrics
+    : dopMetrics;
+  const scopeLabel = isConsolidated ? 'DOP + USD en RD$' : currency;
+
+  const allCurrencyLoans = isConsolidated
+    ? loans
+    : loans.filter((l) => l.currency === currency);
   const allActiveOrOverdueLoans = allCurrencyLoans
     .filter((l) => l.status === 'ACTIVO' || l.status === 'VENCIDO')
-    .sort((a, b) => Number(b.currentPrincipalBalance || 0) - Number(a.currentPrincipalBalance || 0));
+    .sort(
+      (a, b) =>
+        toDisplayAmount(Number(b.currentPrincipalBalance || 0), b.currency) -
+        toDisplayAmount(Number(a.currentPrincipalBalance || 0), a.currency)
+    );
 
   const filteredActiveLoans = allActiveOrOverdueLoans.filter((l) => {
     if (!drawerSearch.trim()) return true;
@@ -2009,7 +2219,8 @@ function IndicatorDetailDrawer({
     return (
       l.applicantDisplayName.toLowerCase().includes(q) ||
       l.loanNumber.toLowerCase().includes(q) ||
-      l.status.toLowerCase().includes(q)
+      l.status.toLowerCase().includes(q) ||
+      l.currency.toLowerCase().includes(q)
     );
   });
 
@@ -2018,12 +2229,24 @@ function IndicatorDetailDrawer({
     const overdueOnly = allCurrencyLoans.filter((l) => l.status === 'VENCIDO');
     const paidOnly = allCurrencyLoans.filter((l) => l.status === 'PAGADO');
     const cancelledOnly = allCurrencyLoans.filter((l) => l.status === 'CANCELADO');
-    const activePrincipal = activeOnly.reduce((s, l) => s + Number(l.currentPrincipalBalance || 0), 0);
-    const overduePrincipal = overdueOnly.reduce((s, l) => s + Number(l.currentPrincipalBalance || 0), 0);
-    const totalApprovedActive = allActiveOrOverdueLoans.reduce((s, l) => s + Number(l.approvedPrincipal || 0), 0);
+    const activePrincipal = activeOnly.reduce(
+      (s, l) => s + toDisplayAmount(Number(l.currentPrincipalBalance || 0), l.currency),
+      0
+    );
+    const overduePrincipal = overdueOnly.reduce(
+      (s, l) => s + toDisplayAmount(Number(l.currentPrincipalBalance || 0), l.currency),
+      0
+    );
+    const totalApprovedActive = allActiveOrOverdueLoans.reduce(
+      (s, l) => s + toDisplayAmount(Number(l.approvedPrincipal || 0), l.currency),
+      0
+    );
     const collAccCapital = collectionAccounts
-      .filter((a) => a.currency === currency && a.stage !== 'CANCELADO')
-      .reduce((s, a) => s + Number(a.totalOutstandingPrincipal || 0), 0);
+      .filter((a) => (isConsolidated || a.currency === currency) && a.stage !== 'CANCELADO')
+      .reduce(
+        (s, a) => s + toDisplayAmount(Number(a.totalOutstandingPrincipal || 0), a.currency),
+        0
+      );
     const missingCollAcc = allActiveOrOverdueLoans.filter(
       (l) => !collectionAccounts.some((a) => a.loanId === l.id)
     ).length;
@@ -2042,25 +2265,24 @@ function IndicatorDetailDrawer({
   })();
 
   const overdueAccounts = collectionAccounts
-    .filter((a) => a.currency === currency && a.stage !== 'CANCELADO' && a.dpd >= 1)
+    .filter((a) => (isConsolidated || a.currency === currency) && a.stage !== 'CANCELADO' && a.dpd >= 1)
     .sort((a, b) => b.dpd - a.dpd)
     .slice(0, 20);
 
-  const recentLoans = [...loans]
-    .filter((l) => l.currency === currency)
+  const recentLoans = [...allCurrencyLoans]
     .sort((a, b) => (b.disbursementDate || '').localeCompare(a.disbursementDate || ''))
     .slice(0, 15);
 
   const appliedPayments = payments
-    .filter((p) => p.currency === currency && p.status === 'APLICADO')
+    .filter((p) => (isConsolidated || p.currency === currency) && p.status === 'APLICADO')
     .sort((a, b) => (b.appliedDate || b.paymentDate || '').localeCompare(a.appliedDate || a.paymentDate || ''))
     .slice(0, 15);
 
   const titleMap: Record<DetailIndicatorKey, string> = {
-    CARTERA_TOTAL: `Auditoría y Desglose de Cartera Total (${currency})`,
-    CARTERA_VENCIDA: `Cuentas con Morosidad Activa (${currency})`,
-    DESEMBOLSOS: `Detalle de Desembolsos (${currency})`,
-    RECUPERACION: `Composición de Recuperación Aplicada (${currency})`,
+    CARTERA_TOTAL: `Auditoría y Desglose de Cartera Total (${scopeLabel})`,
+    CARTERA_VENCIDA: `Cuentas con Morosidad Activa (${scopeLabel})`,
+    DESEMBOLSOS: `Detalle de Desembolsos (${scopeLabel})`,
+    RECUPERACION: `Composición de Recuperación Aplicada (${scopeLabel})`,
   };
 
   return (
@@ -2090,6 +2312,24 @@ function IndicatorDetailDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {isConsolidated && (
+            <div className="p-3 rounded-xl bg-[#0066FF]/[0.06] dark:bg-[#0066FF]/15 border border-[#0066FF]/20 text-[11px] text-slate-700 dark:text-slate-200 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-[#0052CC] dark:text-[#00D1FF]">
+                  Conversión oficial BCRD aplicada (USD → DOP)
+                </span>
+                <span className="font-mono font-bold text-slate-950 dark:text-white">
+                  1 USD = RD${fxRate.toFixed(4)}
+                </span>
+              </div>
+              {consolidatedRateDate && (
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Fuente: Banco Central de la República Dominicana · Corte {consolidatedRateDate}
+                </p>
+              )}
+            </div>
+          )}
+
           {detailKey === 'CARTERA_TOTAL' && (
             <>
               <div className="p-4 rounded-xl bg-[#F4F7FB] dark:bg-[#040C1E] space-y-3">
@@ -2106,6 +2346,30 @@ function IndicatorDetailDrawer({
                     {formatMoney(metrics.activePortfolioCapital, currency)}
                   </strong>
                 </div>
+
+                {isConsolidated && (
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-white/10 text-[11px]">
+                    <div className="p-2 rounded-lg bg-white dark:bg-[#08132B]">
+                      <span className="text-slate-500 block">
+                        Cartera en DOP ({dopMetrics.activeLoansCount})
+                      </span>
+                      <strong className="font-mono text-slate-900 dark:text-white">
+                        {formatMoney(dopMetrics.activePortfolioCapital, 'DOP')}
+                      </strong>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white dark:bg-[#08132B]">
+                      <span className="text-slate-500 block">
+                        Cartera en USD ({usdMetrics.activeLoansCount})
+                      </span>
+                      <strong className="font-mono text-[#0052CC] dark:text-[#00D1FF] block">
+                        {formatMoney(usdMetrics.activePortfolioCapital * fxRate, 'DOP')}
+                      </strong>
+                      <span className="font-mono text-[10px] text-slate-400">
+                        Orig: {formatMoney(usdMetrics.activePortfolioCapital, 'USD')}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-white/10 text-[11px]">
                   <div className="p-2 rounded-lg bg-white dark:bg-[#08132B]">
@@ -2162,7 +2426,7 @@ function IndicatorDetailDrawer({
                   type="text"
                   value={drawerSearch}
                   onChange={(e) => setDrawerSearch(e.target.value)}
-                  placeholder="Filtrar cliente, número o estado..."
+                  placeholder="Filtrar cliente, número, moneda o estado..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-[#040C1E] text-xs text-slate-900 dark:text-white"
                 />
               </div>
@@ -2170,34 +2434,40 @@ function IndicatorDetailDrawer({
               <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">
                 {filteredActiveLoans.length === 0 ? (
                   <p className="py-6 text-center text-xs text-slate-500">
-                    Sin préstamos vigentes en {currency}.
+                    Sin préstamos vigentes en {scopeLabel}.
                   </p>
                 ) : (
-                  filteredActiveLoans.map((l) => (
-                    <button
-                      key={l.id}
-                      type="button"
-                      onClick={() => onOpenLoan(l.id)}
-                      className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
-                          {l.applicantDisplayName}
-                        </p>
-                        <p className="text-[11px] font-mono text-slate-500">
-                          {l.loanNumber} · {l.status} · Desemb. {l.disbursementDate}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-mono tabular-nums text-xs font-bold text-[#168BFF] block">
-                          {formatMoney(l.currentPrincipalBalance, currency)}
-                        </span>
-                        <span className="font-mono text-[10px] text-slate-400">
-                          Orig: {formatMoney(l.approvedPrincipal, currency)}
-                        </span>
-                      </div>
-                    </button>
-                  ))
+                  filteredActiveLoans.map((l) => {
+                    const convertedBal = toDisplayAmount(l.currentPrincipalBalance, l.currency);
+                    const isUsdConverted = isConsolidated && l.currency === 'USD';
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => onOpenLoan(l.id)}
+                        className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
+                            {l.applicantDisplayName}
+                          </p>
+                          <p className="text-[11px] font-mono text-slate-500">
+                            {l.loanNumber} · {l.currency} · {l.status} · Desemb. {l.disbursementDate}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono tabular-nums text-xs font-bold text-[#168BFF] block">
+                            {formatMoney(convertedBal, currency)}
+                          </span>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            {isUsdConverted
+                              ? `${formatMoney(l.currentPrincipalBalance, 'USD')} × ${fxRate.toFixed(2)}`
+                              : `Orig: ${formatMoney(l.approvedPrincipal, l.currency)}`}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </>
@@ -2222,29 +2492,40 @@ function IndicatorDetailDrawer({
               <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">
                 {overdueAccounts.length === 0 ? (
                   <p className="py-6 text-center text-xs text-slate-500">
-                    No hay cuentas vencidas en {currency}.
+                    No hay cuentas vencidas en {scopeLabel}.
                   </p>
                 ) : (
-                  overdueAccounts.map((a) => (
-                    <button
-                      key={a.loanId}
-                      type="button"
-                      onClick={() => onOpenLoan(a.loanId)}
-                      className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
-                          {a.applicantDisplayName}
-                        </p>
-                        <p className="text-[11px] font-mono text-rose-600 dark:text-rose-400">
-                          {a.loanNumber} · {a.dpd} día(s) de atraso
-                        </p>
-                      </div>
-                      <span className="font-mono tabular-nums text-xs font-bold text-rose-700 dark:text-rose-400 shrink-0">
-                        {formatMoney(a.overdueTotalAmount, currency)}
-                      </span>
-                    </button>
-                  ))
+                  overdueAccounts.map((a) => {
+                    const convertedOverdue = toDisplayAmount(a.overdueTotalAmount, a.currency);
+                    const isUsdConverted = isConsolidated && a.currency === 'USD';
+                    return (
+                      <button
+                        key={a.loanId}
+                        type="button"
+                        onClick={() => onOpenLoan(a.loanId)}
+                        className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
+                            {a.applicantDisplayName}
+                          </p>
+                          <p className="text-[11px] font-mono text-rose-600 dark:text-rose-400">
+                            {a.loanNumber} · {a.currency} · {a.dpd} día(s) de atraso
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono tabular-nums text-xs font-bold text-rose-700 dark:text-rose-400 block">
+                            {formatMoney(convertedOverdue, currency)}
+                          </span>
+                          {isUsdConverted && (
+                            <span className="font-mono text-[10px] text-slate-400">
+                              {formatMoney(a.overdueTotalAmount, 'USD')} × {fxRate.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </>
@@ -2261,29 +2542,40 @@ function IndicatorDetailDrawer({
               <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">
                 {recentLoans.length === 0 ? (
                   <p className="py-6 text-center text-xs text-slate-500">
-                    Sin desembolsos registrados en {currency}.
+                    Sin desembolsos registrados en {scopeLabel}.
                   </p>
                 ) : (
-                  recentLoans.map((l) => (
-                    <button
-                      key={l.id}
-                      type="button"
-                      onClick={() => onOpenLoan(l.id)}
-                      className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
-                          {l.applicantDisplayName}
-                        </p>
-                        <p className="text-[11px] font-mono text-slate-500">
-                          {l.loanNumber} · {l.disbursementDate}
-                        </p>
-                      </div>
-                      <span className="font-mono tabular-nums text-xs font-bold text-[#0B1F3A] dark:text-[#20C4E8] shrink-0">
-                        {formatMoney(l.approvedPrincipal, currency)}
-                      </span>
-                    </button>
-                  ))
+                  recentLoans.map((l) => {
+                    const convertedAmt = toDisplayAmount(l.approvedPrincipal, l.currency);
+                    const isUsdConverted = isConsolidated && l.currency === 'USD';
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => onOpenLoan(l.id)}
+                        className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
+                            {l.applicantDisplayName}
+                          </p>
+                          <p className="text-[11px] font-mono text-slate-500">
+                            {l.loanNumber} · {l.currency} · {l.disbursementDate}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono tabular-nums text-xs font-bold text-[#0B1F3A] dark:text-[#20C4E8] block">
+                            {formatMoney(convertedAmt, currency)}
+                          </span>
+                          {isUsdConverted && (
+                            <span className="font-mono text-[10px] text-slate-400">
+                              {formatMoney(l.approvedPrincipal, 'USD')} × {fxRate.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </>
@@ -2314,29 +2606,40 @@ function IndicatorDetailDrawer({
               <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">
                 {appliedPayments.length === 0 ? (
                   <p className="py-6 text-center text-xs text-slate-500">
-                    Sin pagos aplicados en {currency}.
+                    Sin pagos aplicados en {scopeLabel}.
                   </p>
                 ) : (
-                  appliedPayments.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => onOpenLoan(p.loanId)}
-                      className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
-                          {p.customerName}
-                        </p>
-                        <p className="text-[11px] font-mono text-slate-500">
-                          {p.loanNumber} · {p.appliedDate || p.paymentDate} · {p.method}
-                        </p>
-                      </div>
-                      <span className="font-mono tabular-nums text-xs font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
-                        {formatMoney(p.amount, currency)}
-                      </span>
-                    </button>
-                  ))
+                  appliedPayments.map((p) => {
+                    const convertedAmt = toDisplayAmount(p.amount, p.currency);
+                    const isUsdConverted = isConsolidated && p.currency === 'USD';
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onOpenLoan(p.loanId)}
+                        className="w-full py-3 flex items-center justify-between gap-3 text-left hover:bg-[#F4F7FB] dark:hover:bg-white/[0.04] px-2 rounded-lg cursor-pointer"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#0B1F3A] dark:text-white truncate">
+                            {p.customerName}
+                          </p>
+                          <p className="text-[11px] font-mono text-slate-500">
+                            {p.loanNumber} · {p.currency} · {p.appliedDate || p.paymentDate} · {p.method}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono tabular-nums text-xs font-bold text-emerald-700 dark:text-emerald-400 block">
+                            {formatMoney(convertedAmt, currency)}
+                          </span>
+                          {isUsdConverted && (
+                            <span className="font-mono text-[10px] text-slate-400">
+                              {formatMoney(p.amount, 'USD')} × {fxRate.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </>

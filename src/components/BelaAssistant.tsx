@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
+  GripVertical,
   Maximize2,
   MessageSquare,
   Minimize2,
@@ -14,6 +15,17 @@ import {
 } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import type { BelaActionSuggestion, BelaChatMessage } from '../types/axycore';
+import {
+  anchorPositionOnResize,
+  BELA_POSITION_STORAGE_KEY,
+  BELA_PREFS_CHANGE_EVENT,
+  BELA_PREFS_STORAGE_KEY,
+  clampFloatingPosition,
+  getStoredBelaPreferences,
+  resolveDockedCornerPosition,
+  type BelaUserPreferences,
+  type FloatingPos,
+} from '../utils/belaPreferences';
 import belaAvatarImg from '../assets/images/bela_robot_avatar_1795011684572.jpg';
 
 const BELA_QUICK_SUGGESTIONS: Array<{ label: string; prompt: string }> = [
@@ -356,18 +368,280 @@ export function BelaDedicatedView() {
   );
 }
 
+const BELA_DRAG_THRESHOLD_PX = 6;
+
+const CORNER_LABELS: Record<BelaUserPreferences['corner'], string> = {
+  'top-left': 'Superior izq.',
+  'top-right': 'Superior der.',
+  'bottom-left': 'Inferior izq.',
+  'bottom-right': 'Inferior der.',
+};
+
+function loadSavedBelaPosition(): FloatingPos | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(BELA_POSITION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<FloatingPos>;
+    if (
+      typeof parsed.x === 'number' &&
+      Number.isFinite(parsed.x) &&
+      typeof parsed.y === 'number' &&
+      Number.isFinite(parsed.y)
+    ) {
+      return { x: parsed.x, y: parsed.y };
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return null;
+}
+
+function persistBelaPosition(pos: FloatingPos): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(BELA_POSITION_STORAGE_KEY, JSON.stringify(pos));
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
 export function BelaFloatingWidget() {
   const { belaOpen, setBelaOpen, rbac } = useAxyCore();
   const [minimized, setMinimized] = useState(false);
   const [expandedPanel, setExpandedPanel] = useState(false);
+  const [belaPrefs, setBelaPrefs] = useState<BelaUserPreferences>(() => getStoredBelaPreferences());
+  const [position, setPosition] = useState<FloatingPos | null>(() => loadSavedBelaPosition());
+  const [isDragging, setIsDragging] = useState(false);
+
+  const isFloatingMode = belaPrefs.mode === 'floating';
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const dragStateRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    originX: number;
+    originY: number;
+    width: number;
+    height: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  useEffect(() => {
+    const onPrefsEvent = (e: Event) => {
+      const custom = e as CustomEvent<BelaUserPreferences>;
+      const next = custom.detail ?? getStoredBelaPreferences();
+      setBelaPrefs(next);
+      if (next.mode === 'floating') {
+        setPosition(loadSavedBelaPosition());
+      }
+    };
+    const onStorageEvent = (e: StorageEvent) => {
+      if (e.key === BELA_PREFS_STORAGE_KEY || e.key === BELA_POSITION_STORAGE_KEY) {
+        const next = getStoredBelaPreferences();
+        setBelaPrefs(next);
+        if (next.mode === 'floating') {
+          setPosition(loadSavedBelaPosition());
+        }
+      }
+    };
+    window.addEventListener(BELA_PREFS_CHANGE_EVENT, onPrefsEvent);
+    window.addEventListener('storage', onStorageEvent);
+    return () => {
+      window.removeEventListener(BELA_PREFS_CHANGE_EVENT, onPrefsEvent);
+      window.removeEventListener('storage', onStorageEvent);
+    };
+  }, []);
+
+  const syncToViewport = useCallback(
+    (preserveAnchor: boolean) => {
+      if (typeof window === 'undefined' || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const width = Math.ceil(rect.width);
+      const height = Math.ceil(rect.height);
+      if (width <= 0 || height <= 0) return;
+
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      if (belaPrefs.mode === 'docked') {
+        const dockedPos = resolveDockedCornerPosition(
+          belaPrefs.corner,
+          width,
+          height,
+          vw,
+          vh
+        );
+        lastSizeRef.current = { width, height };
+        setPosition((prev) =>
+          prev && prev.x === dockedPos.x && prev.y === dockedPos.y ? prev : dockedPos
+        );
+        return;
+      }
+
+      setPosition((prev) => {
+        if (!prev) {
+          const defaultPos = resolveDockedCornerPosition(
+            belaPrefs.corner,
+            width,
+            height,
+            vw,
+            vh
+          );
+          lastSizeRef.current = { width, height };
+          return defaultPos;
+        }
+
+        const prevSize = lastSizeRef.current;
+        const nextPos =
+          preserveAnchor && prevSize && (prevSize.width !== width || prevSize.height !== height)
+            ? anchorPositionOnResize(prev, prevSize.width, prevSize.height, width, height, vw, vh)
+            : clampFloatingPosition(prev, width, height, vw, vh);
+
+        lastSizeRef.current = { width, height };
+        if (nextPos.x === prev.x && nextPos.y === prev.y) return prev;
+        return nextPos;
+      });
+    },
+    [belaPrefs.mode, belaPrefs.corner]
+  );
+
+  useLayoutEffect(() => {
+    if (rbac.role === 'EXTERNAL_CLIENT') return;
+    syncToViewport(true);
+  }, [belaOpen, minimized, expandedPanel, belaPrefs.mode, belaPrefs.corner, rbac.role, syncToViewport]);
+
+  useEffect(() => {
+    if (rbac.role === 'EXTERNAL_CLIENT') return;
+    const handleResize = () => syncToViewport(false);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [rbac.role, syncToViewport]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>, ignoreChildButtons: boolean) => {
+    if (!isFloatingMode) return;
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    if (ignoreChildButtons && (e.target as HTMLElement).closest('button')) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const currentPos = position ?? { x: rect.left, y: rect.top };
+
+    dragStateRef.current = {
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      originX: currentPos.x,
+      originY: currentPos.y,
+      width: Math.ceil(rect.width),
+      height: Math.ceil(rect.height),
+      moved: false,
+    };
+    suppressClickRef.current = false;
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Some synthetic environments may not support pointer capture
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startClientX;
+    const dy = e.clientY - drag.startClientY;
+
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < BELA_DRAG_THRESHOLD_PX) return;
+      drag.moved = true;
+      suppressClickRef.current = true;
+      setIsDragging(true);
+    }
+
+    const nextPos = clampFloatingPosition(
+      { x: drag.originX + dx, y: drag.originY + dy },
+      drag.width,
+      drag.height,
+      window.innerWidth,
+      window.innerHeight
+    );
+    setPosition(nextPos);
+  };
+
+  const finishDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const drag = dragStateRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore release errors
+    }
+
+    if (drag.moved) {
+      const dx = e.clientX - drag.startClientX;
+      const dy = e.clientY - drag.startClientY;
+      const finalPos = clampFloatingPosition(
+        { x: drag.originX + dx, y: drag.originY + dy },
+        drag.width,
+        drag.height,
+        window.innerWidth,
+        window.innerHeight
+      );
+      setPosition(finalPos);
+      persistBelaPosition(finalPos);
+      lastSizeRef.current = { width: drag.width, height: drag.height };
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 80);
+    }
+
+    dragStateRef.current = null;
+    setIsDragging(false);
+  };
 
   if (rbac.role === 'EXTERNAL_CLIENT') return null;
 
+  const fallbackCornerStyle: React.CSSProperties =
+    belaPrefs.corner === 'top-left'
+      ? { top: 76, left: 20 }
+      : belaPrefs.corner === 'top-right'
+      ? { top: 76, right: 20 }
+      : belaPrefs.corner === 'bottom-left'
+      ? { bottom: 20, left: 20 }
+      : { bottom: 20, right: 20 };
+
+  const positionStyle: React.CSSProperties = position
+    ? {
+        top: 0,
+        left: 0,
+        transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+      }
+    : fallbackCornerStyle;
+
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-2">
-      {belaOpen && (
+    <div
+      ref={containerRef}
+      style={positionStyle}
+      className={`fixed z-40 will-change-transform ${
+        isDragging ? 'select-none transition-none' : 'transition-transform duration-150 ease-out'
+      }`}
+    >
+      {belaOpen ? (
         <div
-          className={`axy-panel-in w-[calc(100vw-2rem)] ${
+          className={`axy-panel-in w-[calc(100vw-1.5rem)] ${
             expandedPanel ? 'sm:w-[520px]' : 'sm:w-[396px]'
           } ${
             minimized
@@ -375,17 +649,39 @@ export function BelaFloatingWidget() {
               : expandedPanel
               ? 'h-[620px] max-h-[84vh]'
               : 'h-[520px] max-h-[76vh]'
-          } rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200 dark:border-[#00B8FF]/25 shadow-2xl overflow-hidden flex flex-col transition-all duration-150`}
+          } rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200 dark:border-[#00B8FF]/25 shadow-2xl overflow-hidden flex flex-col ${
+            isDragging ? 'ring-2 ring-[#00B8FF]/50' : ''
+          }`}
         >
-          <div className="px-4 py-3 bg-[#040C1E] text-white flex items-center justify-between gap-3 shrink-0 border-b border-[#00B8FF]/18">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            onPointerDown={isFloatingMode ? (e) => handlePointerDown(e, true) : undefined}
+            onPointerMove={isFloatingMode ? handlePointerMove : undefined}
+            onPointerUp={isFloatingMode ? finishDrag : undefined}
+            onPointerCancel={isFloatingMode ? finishDrag : undefined}
+            title={
+              isFloatingMode
+                ? 'Arrastra para mover a Bela por la pantalla'
+                : `Bela anclada (${CORNER_LABELS[belaPrefs.corner]})`
+            }
+            className={`px-3.5 py-3 bg-[#040C1E] text-white flex items-center justify-between gap-2.5 shrink-0 border-b border-[#00B8FF]/18 select-none ${
+              isFloatingMode
+                ? `touch-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`
+                : ''
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {isFloatingMode && (
+                <GripVertical className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+              )}
               <BelaAvatar size="sm" />
               <div className="min-w-0">
                 <p className="font-display text-xs font-bold text-white truncate">
                   Bela · Axy<span className="text-[#00B8FF]">Core</span>
                 </p>
                 <p className="text-[11px] text-slate-300 truncate">
-                  Asistente virtual inteligente
+                  {isFloatingMode
+                    ? 'Arrastra para mover · Asistente IA'
+                    : `Anclado (${CORNER_LABELS[belaPrefs.corner]}) · Asistente IA`}
                 </p>
               </div>
             </div>
@@ -396,8 +692,8 @@ export function BelaFloatingWidget() {
                   setMinimized(false);
                   setExpandedPanel((v) => !v);
                 }}
-                title={expandedPanel ? 'Tamaño compacto' : 'Ampliar ventana en esquina'}
-                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
+                title={expandedPanel ? 'Tamaño compacto' : 'Ampliar ventana'}
+                className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
@@ -405,7 +701,7 @@ export function BelaFloatingWidget() {
                 type="button"
                 onClick={() => setMinimized((m) => !m)}
                 title={minimized ? 'Restaurar chat' : 'Minimizar chat'}
-                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
+                className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
               >
                 <Minimize2 className="w-3.5 h-3.5" />
               </button>
@@ -413,7 +709,7 @@ export function BelaFloatingWidget() {
                 type="button"
                 onClick={() => setBelaOpen(false)}
                 title="Cerrar ventana"
-                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
+                className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg text-slate-300 hover:text-white hover:bg-white/10 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -422,27 +718,60 @@ export function BelaFloatingWidget() {
 
           {!minimized && <BelaChatCore compact={!expandedPanel} />}
         </div>
-      )}
-
-      {!belaOpen && (
+      ) : (
         <button
           type="button"
-          onClick={() => {
+          onPointerDown={isFloatingMode ? (e) => handlePointerDown(e, false) : undefined}
+          onPointerMove={isFloatingMode ? handlePointerMove : undefined}
+          onPointerUp={isFloatingMode ? finishDrag : undefined}
+          onPointerCancel={isFloatingMode ? finishDrag : undefined}
+          onClick={(e) => {
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false;
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
             setMinimized(false);
             setBelaOpen(true);
           }}
-          className="group inline-flex items-center gap-2.5 pl-2 pr-4 py-2 rounded-2xl bg-[#040C1E] hover:bg-[#071430] text-white border border-[#00B8FF]/35 shadow-[0_14px_34px_-8px_rgba(0,102,255,0.52)] transition-all cursor-pointer"
-          aria-label="Abrir asistente virtual Bela"
+          className={`group min-h-[52px] inline-flex items-center gap-2.5 pl-2 ${
+            isFloatingMode ? 'pr-3' : 'pr-4'
+          } py-2 rounded-2xl bg-[#040C1E] hover:bg-[#071430] text-white border border-[#00B8FF]/35 shadow-[0_14px_34px_-8px_rgba(0,102,255,0.52)] select-none ${
+            isFloatingMode
+              ? `touch-none ${
+                  isDragging
+                    ? 'cursor-grabbing scale-[1.03] ring-2 ring-[#00B8FF]/60'
+                    : 'cursor-grab active:cursor-grabbing transition-transform duration-150'
+                }`
+              : 'cursor-pointer transition-transform duration-150'
+          }`}
+          aria-label={
+            isFloatingMode
+              ? 'Abrir o arrastrar asistente virtual Bela'
+              : 'Abrir asistente virtual Bela'
+          }
+          title={
+            isFloatingMode
+              ? 'Toca para abrir o arrastra para mover a Bela'
+              : `Abrir Bela (anclada en ${CORNER_LABELS[belaPrefs.corner]})`
+          }
         >
           <BelaAvatar size="sm" />
           <div className="text-left">
-            <span className="font-display text-xs font-bold block leading-tight text-white">
+            <span className="font-display text-xs font-bold block leading-tight text-white whitespace-nowrap">
               Bela
             </span>
-            <span className="text-[11px] text-[#00D1FF] block leading-tight">
+            <span className="text-[11px] text-[#00D1FF] block leading-tight whitespace-nowrap">
               Asistente IA
             </span>
           </div>
+          {isFloatingMode && (
+            <GripVertical
+              className="w-4 h-4 text-slate-400 group-hover:text-[#00D1FF] shrink-0 ml-0.5 transition-colors"
+              aria-hidden="true"
+            />
+          )}
         </button>
       )}
     </div>

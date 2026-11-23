@@ -1,4 +1,5 @@
 import {
+  AmortizationMethod,
   ApplicantType,
   ApplicationRecord,
   BusinessFinancialInput,
@@ -100,7 +101,7 @@ export const DEFAULT_POLICY_V2: Omit<CreditPolicyRecord, 'createdBy' | 'createdA
         CRITICO: 0,
       },
       allowedFrequencies: ['MENSUAL'],
-      allowedAmortizationMethods: ['SALDO_INSOLUTO'],
+      allowedAmortizationMethods: ['INTERES_FIJO', 'SALDO_INSOLUTO'],
     },
     EMPRESARIAL_DOP: {
       productCode: 'EMPRESARIAL_DOP',
@@ -119,7 +120,7 @@ export const DEFAULT_POLICY_V2: Omit<CreditPolicyRecord, 'createdBy' | 'createdA
         CRITICO: 0,
       },
       allowedFrequencies: ['MENSUAL'],
-      allowedAmortizationMethods: ['SALDO_INSOLUTO'],
+      allowedAmortizationMethods: ['INTERES_FIJO', 'SALDO_INSOLUTO'],
     },
     PERSONAL_USD: {
       productCode: 'PERSONAL_USD',
@@ -138,7 +139,7 @@ export const DEFAULT_POLICY_V2: Omit<CreditPolicyRecord, 'createdBy' | 'createdA
         CRITICO: 0,
       },
       allowedFrequencies: ['MENSUAL'],
-      allowedAmortizationMethods: ['SALDO_INSOLUTO'],
+      allowedAmortizationMethods: ['INTERES_FIJO', 'SALDO_INSOLUTO'],
     },
     EMPRESARIAL_USD: {
       productCode: 'EMPRESARIAL_USD',
@@ -157,7 +158,7 @@ export const DEFAULT_POLICY_V2: Omit<CreditPolicyRecord, 'createdBy' | 'createdA
         CRITICO: 0,
       },
       allowedFrequencies: ['MENSUAL'],
-      allowedAmortizationMethods: ['SALDO_INSOLUTO'],
+      allowedAmortizationMethods: ['INTERES_FIJO', 'SALDO_INSOLUTO'],
     },
   },
   capacityConfig: {
@@ -214,6 +215,7 @@ export interface EngineEvaluationInput {
   >;
   policy: CreditPolicyRecord | typeof DEFAULT_POLICY_V2;
   useVerifiedData?: boolean;
+  evaluationRateMethod?: AmortizationMethod;
   executionTrigger: 'INITIAL_SUBMIT' | 'ANALYST_RECALC' | 'MANUAL_RERUN';
   executedBy: string;
   executedByName?: string;
@@ -265,10 +267,45 @@ function fmtMoney(amount: number, currency: CurrencyCode): string {
   })}`;
 }
 
+export function calculateEngineMonthlyInstallment(
+  principal: number,
+  monthlyRate: number,
+  termMonths: number,
+  method: AmortizationMethod = 'INTERES_FIJO'
+): number {
+  if (principal <= 0 || termMonths <= 0) return 0;
+  if (method === 'SALDO_INSOLUTO') {
+    return calculateMonthlyInstallment(principal, monthlyRate, termMonths);
+  }
+  return fromCents(Math.round(toCents(principal / termMonths + principal * Math.max(0, monthlyRate))));
+}
+
+export function calculateSustainablePrincipal(
+  maxInstallment: number,
+  monthlyRate: number,
+  termMonths: number,
+  method: AmortizationMethod = 'INTERES_FIJO'
+): number {
+  if (maxInstallment <= 0 || termMonths <= 0) return 0;
+  if (method === 'SALDO_INSOLUTO') {
+    if (monthlyRate <= 0) {
+      return fromCents(Math.floor(toCents(maxInstallment * termMonths)));
+    }
+    return fromCents(
+      Math.floor(toCents((maxInstallment * (1 - Math.pow(1 + monthlyRate, -termMonths))) / monthlyRate))
+    );
+  }
+  const factor = 1 / termMonths + Math.max(0, monthlyRate);
+  return factor > 0 ? fromCents(Math.floor(toCents(maxInstallment / factor))) : 0;
+}
+
 export function evaluateCreditDecisionV2(
   input: EngineEvaluationInput
 ): Omit<ScoringExecutionRecord, 'executedAt'> {
   const { application, customer, policy } = input;
+  const evalRateMethod: AmortizationMethod =
+    input.evaluationRateMethod === 'SALDO_INSOLUTO' ? 'SALDO_INSOLUTO' : 'INTERES_FIJO';
+  const evalRateLabel = evalRateMethod === 'SALDO_INSOLUTO' ? 'Saldo Insoluto' : 'Tasa Fija';
   const fin =
     input.useVerifiedData && application.verifiedFinancialData
       ? application.verifiedFinancialData
@@ -443,7 +480,7 @@ export function evaluateCreditDecisionV2(
   const reqAmount = application.requestedAmount > 0 ? application.requestedAmount : 0;
   const reqTerm = application.requestedTermMonths > 0 ? application.requestedTermMonths : 1;
   const simulatedRefInstallment =
-    reqAmount > 0 ? calculateMonthlyInstallment(reqAmount, refRate, reqTerm) : 0;
+    reqAmount > 0 ? calculateEngineMonthlyInstallment(reqAmount, refRate, reqTerm, evalRateMethod) : 0;
   const simulatedRefCoverage =
     simulatedRefInstallment > 0 ? availableFlow / simulatedRefInstallment : 0;
 
@@ -504,8 +541,8 @@ export function evaluateCreditDecisionV2(
     name: 'Cuota solicitada / ingreso',
     maxPoints: 8,
     awardedPoints: p3,
-    usedValue: `${pct(simInstallmentRatio)} (${fmtMoney(simulatedRefInstallment, loanCurrency)} ref. 5.5%)`,
-    explanation: 'Cuota simulada a tasa de referencia 5.5% mensual entre ingreso elegible.',
+    usedValue: `${pct(simInstallmentRatio)} (${fmtMoney(simulatedRefInstallment, loanCurrency)} ref. 5.5% · ${evalRateLabel})`,
+    explanation: `Cuota simulada a tasa de referencia 5.5% mensual (${evalRateLabel}) entre ingreso elegible.`,
   });
 
   // 04. Cobertura disponible / cuota simulada (6 pts)
@@ -524,7 +561,7 @@ export function evaluateCreditDecisionV2(
     maxPoints: 6,
     awardedPoints: p4,
     usedValue: `${simulatedRefCoverage.toFixed(2)}x`,
-    explanation: 'Veces que el flujo disponible cubre la cuota simulada al 5.5% mensual.',
+    explanation: `Veces que el flujo disponible cubre la cuota simulada al 5.5% mensual (${evalRateLabel}).`,
   });
 
   // 05. Gastos esenciales / ingreso (4 pts)
@@ -943,11 +980,7 @@ export function evaluateCreditDecisionV2(
       const effTerm = riskBand.maxTermMonths > 0 ? Math.min(reqTerm, riskBand.maxTermMonths) : reqTerm;
       const stressedPCap =
         stressedMaxInst > 0 && effTerm > 0
-          ? fromCents(
-              toCents(
-                (stressedMaxInst * (1 - Math.pow(1 + bandRate, -effTerm))) / bandRate
-              )
-            )
+          ? calculateSustainablePrincipal(stressedMaxInst, bandRate, effTerm, evalRateMethod)
           : 0;
       const remainsSustainable = stressedPCap >= product.minAmount;
       if (!remainsSustainable) {
@@ -1046,7 +1079,7 @@ export function evaluateCreditDecisionV2(
     const n = recommendedTermMonths;
     sustainablePrincipalAtBandRate =
       maxInstallmentAllowed > 0 && n > 0
-        ? fromCents(Math.floor(toCents((maxInstallmentAllowed * (1 - Math.pow(1 + r, -n))) / r)))
+        ? calculateSustainablePrincipal(maxInstallmentAllowed, r, n, evalRateMethod)
         : 0;
 
     const bandCap = product.bandCaps[riskBand.code as RiskBandCode] ?? 0;
@@ -1067,7 +1100,7 @@ export function evaluateCreditDecisionV2(
       );
     } else {
       status = 'PREOFERTA';
-      recommendedInstallment = calculateMonthlyInstallment(recommendedAmount, r, n);
+      recommendedInstallment = calculateEngineMonthlyInstallment(recommendedAmount, r, n, evalRateMethod);
       if (recommendedAmount < application.requestedAmount) {
         alerts.push(
           `Monto recomendado ajustado a ${fmtMoney(recommendedAmount, loanCurrency)} por límite de capacidad de pago o tope de banda.`
@@ -1128,6 +1161,7 @@ export function evaluateCreditDecisionV2(
       financialData: fin,
       businessFinancialData: bizFin ?? null,
       useVerifiedData: Boolean(input.useVerifiedData),
+      evaluationRateMethod: evalRateMethod,
     },
     capacityResult,
     totalScore,

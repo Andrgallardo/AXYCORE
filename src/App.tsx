@@ -9,6 +9,7 @@ import { ExecutiveDashboardView } from './views/ExecutiveDashboardView';
 import { CustomerLoan360Drawer } from './views/collections/CustomerLoan360Drawer';
 import { AXYCORE_MODULE_CATALOG } from './engine/multiTenantEngine';
 import { runPendingAutoPortfolioRemigrationIfNeeded } from './services/appsheetMigrationService';
+import { runPendingClientCurrencyCorrectionIfNeeded } from './services/loanCurrencyCorrectionService';
 import { formatMoney } from './utils/formatters';
 import type { AxyCoreModuleCode, NavSectionId } from './types/axycore';
 import type { DgiiEcfDocumentRecord } from './types/dgiiEcf';
@@ -72,6 +73,16 @@ const AuditView = React.lazy(() =>
 const CollectionsPortfolioAndQueuesView = React.lazy(() =>
   import('./views/collections/CollectionsPortfolioAndQueuesView').then((m) => ({
     default: m.CollectionsPortfolioAndQueuesView,
+  }))
+);
+const CollectionsDiscountsView = React.lazy(() =>
+  import('./views/collections/CollectionsDiscountsView').then((m) => ({
+    default: m.CollectionsDiscountsView,
+  }))
+);
+const CollectionsPayoffView = React.lazy(() =>
+  import('./views/collections/CollectionsPayoffView').then((m) => ({
+    default: m.CollectionsPayoffView,
   }))
 );
 const CollectionsActionsAndAgendaView = React.lazy(() =>
@@ -168,6 +179,11 @@ const IntelligenceDashboardView = React.lazy(() =>
 const AlteraIntelligenceView = React.lazy(() =>
   import('./views/intelligence/AlteraIntelligenceView').then((m) => ({
     default: m.AlteraIntelligenceView,
+  }))
+);
+const ImpulsaIntelligenceView = React.lazy(() =>
+  import('./views/intelligence/ImpulsaIntelligenceView').then((m) => ({
+    default: m.ImpulsaIntelligenceView,
   }))
 );
 const RegulaWorkspaceView = React.lazy(() =>
@@ -368,6 +384,7 @@ function AxyCoreRouter() {
   const [remigrationBusy, setRemigrationBusy] = useState(false);
   const [remigrationStage, setRemigrationStage] = useState<string>('');
   const [remigrationDoneBanner, setRemigrationDoneBanner] = useState<string | null>(null);
+  const [currencyFixBanner, setCurrencyFixBanner] = useState<string | null>(null);
 
   useEffect(() => {
     if (
@@ -408,6 +425,41 @@ function AxyCoreRouter() {
       } finally {
         setRemigrationBusy(false);
         setRemigrationStage('');
+      }
+
+      try {
+        const currencyRes = await runPendingClientCurrencyCorrectionIfNeeded({
+          firebaseUser,
+          actor: userProfile,
+        });
+        if (currencyRes.executed && currencyRes.totalDocumentsUpdated > 0) {
+          const detailText = currencyRes.items
+            .map((item) => {
+              const names = item.matchedCustomerNames.join(', ') || item.targetLabel;
+              const loansLabel =
+                item.loanNumbers.length > 0 ? ` (${item.loanNumbers.join(', ')})` : '';
+              return `${names}${loansLabel}: ${item.totalDocumentsUpdated} reg.`;
+            })
+            .join(' · ');
+          const unmatchedNote =
+            currencyRes.unmatchedTargetLabels.length > 0
+              ? ` · Pendiente verificar nombre exacto: ${currencyRes.unmatchedTargetLabels.join(', ')}.`
+              : '';
+          setCurrencyFixBanner(
+            `Moneda corregida a USD (US$) en toda la cadena operativa: ${detailText}${unmatchedNote}`
+          );
+        } else if (
+          currencyRes.reason === 'NO_MATCHING_CLIENTS' &&
+          (userProfile.role === 'ADMIN' || userProfile.isSuperAdmin)
+        ) {
+          // Non-blocking: admin can also use the "Corregir Moneda" action directly in Préstamos Desembolsados
+        }
+      } catch (err) {
+        setCurrencyFixBanner(
+          `No se pudo completar la corrección automática de moneda a USD: ${
+            err instanceof Error ? err.message : 'Intenta recargar la página.'
+          }`
+        );
       }
     })();
   }, [
@@ -533,6 +585,11 @@ function AxyCoreRouter() {
         return <CollectionsPortfolioAndQueuesView mode="urgent" />;
       case 'cobranza_legal':
         return <CollectionsPortfolioAndQueuesView mode="legal" />;
+      case 'cobranza_discounts':
+      case 'cobranza_discounts_mora':
+        return <CollectionsDiscountsView />;
+      case 'cobranza_discounts_payoff':
+        return <CollectionsPayoffView />;
       case 'cobranza_my_actions':
         return <CollectionsActionsAndAgendaView mode="my_actions" />;
       case 'cobranza_actions':
@@ -665,18 +722,7 @@ function AxyCoreRouter() {
       case 'system_sitemap':
         return <SystemSitemapView />;
       case 'intelligence_impulsa':
-        return (
-          <UpcomingIntelligenceModuleView
-            moduleName="Impulsa"
-            subtitle="Motor de Renovación Preventiva y Crecimiento de Cartera Sana"
-            description="Identifica clientes con historial de pago impecable y baja exposición para pre-calificar renovaciones o líneas adicionales sin deteriorar el riesgo."
-            capabilities={[
-              'Detección automática de clientes con >75% del capital amortizado y 0 días de atraso histórico.',
-              'Pre-evaluación instantánea con el Motor Determinístico V2.',
-              'Generación de campañas supervisadas para Oficiales de Negocios.',
-            ]}
-          />
-        );
+        return <ImpulsaIntelligenceView />;
       default:
         return <ExecutiveDashboardView />;
     }
@@ -729,6 +775,18 @@ function AxyCoreRouter() {
           <button
             type="button"
             onClick={() => setRemigrationDoneBanner(null)}
+            className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold shrink-0 cursor-pointer"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+      {currencyFixBanner && (
+        <div className="mx-4 mt-3 px-4 py-3 rounded-xl bg-emerald-950/85 border border-emerald-500/45 text-emerald-100 text-xs flex items-center justify-between gap-3">
+          <span>{currencyFixBanner}</span>
+          <button
+            type="button"
+            onClick={() => setCurrencyFixBanner(null)}
             className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold shrink-0 cursor-pointer"
           >
             Cerrar

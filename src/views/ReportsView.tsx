@@ -172,10 +172,10 @@ export function ReportsView() {
       .reduce((s, l) => s + l.totalFinancedPrincipal, 0);
 
     const activePrincipalDop = filteredLoans
-      .filter((l) => l.currency === 'DOP' && l.status === 'ACTIVO')
+      .filter((l) => l.currency === 'DOP' && (l.status === 'ACTIVO' || l.status === 'VENCIDO'))
       .reduce((s, l) => s + l.currentPrincipalBalance, 0);
     const activePrincipalUsd = filteredLoans
-      .filter((l) => l.currency === 'USD' && l.status === 'ACTIVO')
+      .filter((l) => l.currency === 'USD' && (l.status === 'ACTIVO' || l.status === 'VENCIDO'))
       .reduce((s, l) => s + l.currentPrincipalBalance, 0);
 
     return {
@@ -244,7 +244,7 @@ export function ReportsView() {
             const pLoans = filteredLoans.filter((l) => l.productCode === pk);
             const disbSum = pLoans.reduce((s, l) => s + l.totalFinancedPrincipal, 0);
             const activeBal = pLoans
-              .filter((l) => l.status === 'ACTIVO')
+              .filter((l) => l.status === 'ACTIVO' || l.status === 'VENCIDO')
               .reduce((s, l) => s + l.currentPrincipalBalance, 0);
             const curr = pk.endsWith('USD') ? 'USD' : 'DOP';
 
@@ -609,7 +609,8 @@ export function ReportsView() {
     reportTitle: activeMeta.title,
     reportSubtitle: activeMeta.subtitle,
     organizationName: organization.name,
-    organizationTaxId: organization.taxId,
+    organizationTaxId: organization.taxId || organization.rnc,
+    organizationPhone: organization.phone,
     primaryColor: organization.primaryColor,
     policyVersion: `${activeOrTestPolicy.version} (${activeOrTestPolicy.status})`,
     filtersSummary: filtersSummaryText,

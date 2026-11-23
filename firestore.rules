@@ -10,7 +10,7 @@ service cloud.firestore {
 
     // --- Hardened Primitives ---
     function isValidId(id) {
-      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return strLen(id, 1, 128) && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     function incoming() {
@@ -34,12 +34,14 @@ service cloud.firestore {
     }
 
     function hasValidInvitation(invId, expectedRole, expectedOrgId) {
+      let path = /databases/$(database)/documents/user_invitations/$(invId);
+      let inv = exists(path) ? get(path).data : null;
       return isValidId(invId)
-        && exists(/databases/$(database)/documents/user_invitations/$(invId))
-        && get(/databases/$(database)/documents/user_invitations/$(invId)).data.email.lower() == request.auth.token.email.lower()
-        && get(/databases/$(database)/documents/user_invitations/$(invId)).data.status == 'INVITACION_ENVIADA'
-        && get(/databases/$(database)/documents/user_invitations/$(invId)).data.role == expectedRole
-        && get(/databases/$(database)/documents/user_invitations/$(invId)).data.organizationId == expectedOrgId;
+        && inv != null
+        && inv.email.lower() == request.auth.token.email.lower()
+        && inv.status == 'INVITACION_ENVIADA'
+        && inv.role == expectedRole
+        && inv.organizationId == expectedOrgId;
     }
 
     function userExists() {
@@ -51,31 +53,50 @@ service cloud.firestore {
     }
 
     function isActiveStaffDoc() {
-      return isVerified() && userExists() && userDoc().status in ['ACTIVE', 'INVITED'];
+      let existsDoc = userExists();
+      let u = existsDoc ? userDoc() : null;
+      return isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'];
     }
 
     function isActiveUser() {
       return isBootstrappedAdmin() || isActiveStaffDoc();
     }
 
+    function hasOrgMembershipDoc(orgId) {
+      return exists(/databases/$(database)/documents/organization_memberships/$('mem_' + orgId + '_' + request.auth.uid)) ||
+        exists(/databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid));
+    }
+
+    function hasCommitteeMembership(orgId) {
+      let p1 = /databases/$(database)/documents/organization_memberships/$('mem_' + orgId + '_' + request.auth.uid);
+      let p2 = /databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid);
+      return (exists(p1) && get(p1).data.status in ['ACTIVE', 'INVITED'] && get(p1).data.role in ['ADMIN', 'COMMITTEE_MEMBER']) ||
+        (exists(p2) && get(p2).data.status in ['ACTIVE', 'INVITED'] && get(p2).data.role in ['ADMIN', 'COMMITTEE_MEMBER']);
+    }
+
     function currentRole() {
-      return isBootstrappedAdmin() ? 'ADMIN' : (userExists() ? userDoc().role : 'NONE');
+      return isBootstrappedAdmin()
+        ? 'ADMIN'
+        : (userExists() && 'role' in userDoc() ? userDoc().role : 'NONE');
     }
 
     function inSameOrg(orgId) {
       return isValidId(orgId) && (
         isBootstrappedAdmin() ||
         (isActiveStaffDoc() && (
-          userDoc().organizationId == orgId ||
-          userDoc().role == 'ADMIN' ||
+          ('organizationId' in userDoc() && userDoc().organizationId == orgId) ||
+          ('role' in userDoc() && userDoc().role == 'ADMIN') ||
           ('isSuperAdmin' in userDoc() && userDoc().isSuperAdmin == true) ||
-          exists(/databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid))
+          hasOrgMembershipDoc(orgId)
         ))
       );
     }
 
     function isAdmin() {
-      return isBootstrappedAdmin() || (isActiveStaffDoc() && userDoc().role == 'ADMIN');
+      return isBootstrappedAdmin() || (isActiveStaffDoc() && (
+        ('role' in userDoc() && userDoc().role == 'ADMIN') ||
+        ('isSuperAdmin' in userDoc() && userDoc().isSuperAdmin == true)
+      ));
     }
 
     function isInternalStaff(orgId) {
@@ -83,7 +104,7 @@ service cloud.firestore {
     }
 
     function hasOrgRole(orgId, roles) {
-      return inSameOrg(orgId) && currentRole() in roles;
+      return inSameOrg(orgId) && (currentRole() in roles || (isAdmin() && 'ADMIN' in roles));
     }
 
     function canOriginate(orgId) { return hasOrgRole(orgId, ['ADMIN', 'BUSINESS_OFFICER', 'EXTERNAL_CLIENT']); }
@@ -91,7 +112,7 @@ service cloud.firestore {
     function canAnalyze(orgId) { return hasOrgRole(orgId, ['ADMIN', 'CREDIT_ANALYST']); }
     function canReviewRisk(orgId) { return hasOrgRole(orgId, ['ADMIN', 'RISK_OFFICER']); }
     function canVerifyDocuments(orgId) { return hasOrgRole(orgId, ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FORMALIZATION']); }
-    function canDecideCommittee(orgId) { return hasOrgRole(orgId, ['ADMIN', 'COMMITTEE_MEMBER']); }
+    function canDecideCommittee(orgId) { return hasOrgRole(orgId, ['ADMIN', 'COMMITTEE_MEMBER']) || (isActiveStaffDoc() && isValidId(orgId) && hasCommitteeMembership(orgId)); }
     function canFormalize(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FORMALIZATION']); }
     function canDisburse(orgId) { return hasOrgRole(orgId, ['ADMIN', 'OPERATIONS', 'FINANCE']); }
     function canLogCollections(orgId) { return hasOrgRole(orgId, ['ADMIN', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR']); }
@@ -108,7 +129,11 @@ service cloud.firestore {
     function canManageEcfInfra(orgId) { return hasOrgRole(orgId, ['ADMIN', 'FINANCE']); }
 
     function isValidTimestampStr(val) {
-      return val is string && val.size() >= 10 && val.size() <= 40;
+      return strLen(val, 10, 40);
+    }
+
+    function strLen(v, a, b) {
+      return v is string && v.size() >= a && v.size() <= b;
     }
 
     function optStr(d, k, m) {
@@ -151,8 +176,7 @@ service cloud.firestore {
     // --- Validation Blueprints ---
 
     function isValidOrganization(data, orgId) {
-      return data.keys().hasAll(['id', 'name', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'tenantId', 'tenant_id', 'accessCode', 'name', 'legalName', 'tradeName', 'taxId', 'rnc', 'logoUrl',
           'country', 'province', 'city', 'address', 'phone', 'corporateEmail',
           'currency', 'timezone', 'status', 'onboardingDate', 'planCode',
@@ -163,11 +187,11 @@ service cloud.firestore {
         ])
         && data.id == orgId
         && isValidId(data.id)
-        && (!('organizationId' in data) || (data.organizationId is string && data.organizationId == orgId))
-        && data.name is string && data.name.size() >= 2 && data.name.size() <= 160
+        && (!('organizationId' in data) || data.organizationId == null || (data.organizationId is string && data.organizationId == orgId))
+        && strLen(data.name, 2, 160)
         && optStr(data, 'tenantId', 128) && optStr(data, 'tenant_id', 128) && optStr(data, 'accessCode', 40)
         && optStr(data, 'legalName', 200) && optStr(data, 'tradeName', 160) && optStr(data, 'taxId', 40)
-        && optStr(data, 'rnc', 40) && optStr(data, 'logoUrl', 600) && optStr(data, 'country', 80)
+        && optStr(data, 'rnc', 40) && optStr(data, 'logoUrl', 350000) && optStr(data, 'country', 80)
         && optStr(data, 'province', 80) && optStr(data, 'city', 80) && optStr(data, 'address', 300)
         && optStr(data, 'phone', 40) && optStr(data, 'corporateEmail', 254) && optStr(data, 'timezone', 64)
         && optStr(data, 'onboardingDate', 40) && optStr(data, 'licenseId', 128)
@@ -175,47 +199,190 @@ service cloud.firestore {
         && optStr(data, 'primaryAdminUid', 128) && optStr(data, 'primaryAdminName', 160)
         && optStr(data, 'primaryAdminEmail', 254) && optStr(data, 'primaryAdminPhone', 40)
         && optStr(data, 'notes', 1500) && optStr(data, 'primaryColor', 32) && optStr(data, 'accentColor', 32)
-        && (!('currency' in data) || data.currency in ['DOP', 'USD'])
-        && (!('status' in data) || data.status in ['ACTIVA', 'SUSPENDIDA', 'INACTIVA', 'PRUEBA', 'EN_REVISION', 'DESACTIVADA', 'PENDIENTE'])
-        && (!('planCode' in data) || data.planCode in ['BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'CORPORATIVO', 'PERSONALIZADO'])
-        && (!('licenseStatus' in data) || data.licenseStatus in ['PENDIENTE', 'ACTIVA', 'PROXIMA_A_VENCER', 'VENCIDA', 'SUSPENDIDA', 'CANCELADA'])
-        && (!('maxUsers' in data) || (data.maxUsers is number && data.maxUsers >= 1 && data.maxUsers <= 100000))
-        && (!('enabledModules' in data) || (data.enabledModules is list && data.enabledModules.size() <= 60))
-        && (!('modulesEnabled' in data) || (data.modulesEnabled is list && data.modulesEnabled.size() <= 60))
-        && data.createdAt is timestamp
+        && (!('currency' in data) || data.currency == null || data.currency in ['DOP', 'USD'])
+        && (!('status' in data) || data.status == null || data.status in ['ACTIVA', 'SUSPENDIDA', 'INACTIVA', 'PRUEBA', 'EN_REVISION', 'DESACTIVADA', 'PENDIENTE'])
+        && (!('planCode' in data) || data.planCode == null || data.planCode in ['BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'CORPORATIVO', 'PERSONALIZADO'])
+        && (!('licenseStatus' in data) || data.licenseStatus == null || data.licenseStatus in ['PENDIENTE', 'ACTIVA', 'PROXIMA_A_VENCER', 'VENCIDA', 'SUSPENDIDA', 'CANCELADA'])
+        && (!('maxUsers' in data) || data.maxUsers == null || (data.maxUsers is number && data.maxUsers >= 1 && data.maxUsers <= 100000))
+        && optList(data, 'enabledModules', 60) && optList(data, 'modulesEnabled', 60)
+        && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && data.updatedAt is timestamp;
     }
 
+    function isValidOrganizationBrandingPatch(data) {
+      let c = data.diff(existing()).affectedKeys();
+      return c.hasOnly(['name', 'tradeName', 'taxId', 'rnc', 'phone', 'primaryColor', 'accentColor', 'logoUrl', 'accessCode', 'updatedAt'])
+        && (!c.hasAny(['name']) || strLen(data.name, 2, 160))
+        && optStr(data, 'tradeName', 160) && optStr(data, 'taxId', 40) && optStr(data, 'rnc', 40)
+        && optStr(data, 'phone', 40)
+        && optStr(data, 'primaryColor', 32) && optStr(data, 'accentColor', 32)
+        && optStr(data, 'logoUrl', 350000) && optStr(data, 'accessCode', 40)
+        && data.updatedAt == request.time;
+    }
+
     function isValidUser(data, userId) {
-      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'organizationId', 'status', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'organizationId', 'isSuperAdmin', 'status', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'createdAt', 'updatedAt'])
+      return data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'role', 'organizationId', 'isSuperAdmin', 'status',
+          'linkedCustomerId', 'declaredDocumentKey', 'declaredPhone',
+          'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'createdAt', 'updatedAt'
+        ])
         && data.uid == userId && isValidId(data.uid)
-        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
-        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 160
+        && strLen(data.email, 3, 254)
+        && strLen(data.displayName, 1, 160)
         && isAllRole(data.role)
         && isValidId(data.organizationId)
         && (!('isSuperAdmin' in data) || (data.isSuperAdmin is bool && (!data.isSuperAdmin || isBootstrappedAdmin())))
         && data.status in ['ACTIVE', 'INACTIVE', 'INVITED']
+        && optId(data, 'linkedCustomerId')
+        && optStr(data, 'declaredDocumentKey', 180)
+        && optStr(data, 'declaredPhone', 40)
         && optId(data, 'invitationId')
         && (!('invitationStatus' in data) || data.invitationStatus in ['INVITACION_ENVIADA', 'ENVIADA', 'CONFIRMADA', 'PENDIENTE'])
         && optId(data, 'invitedBy') && optStr(data, 'invitedAt', 60)
         && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
-    function isValidUserInvitation(data, invitationId) {
-      return data.keys().hasAll([
-          'id', 'email', 'displayName', 'role', 'organizationId',
-          'status', 'invitedBy', 'invitedAt', 'createdAt', 'updatedAt'
+    function isLinkedCustomer(custId, orgId) {
+      let u = isActiveStaffDoc() ? userDoc() : null;
+      return u != null
+        && isValidId(custId)
+        && u.organizationId == orgId
+        && 'linkedCustomerId' in u
+        && u.linkedCustomerId is string
+        && u.linkedCustomerId == custId;
+    }
+
+    function matchesClientCustomerLookup(data) {
+      let u = isActiveStaffDoc() ? userDoc() : null;
+      return u != null
+        && data.organizationId == u.organizationId
+        && (
+          data.createdBy == request.auth.uid
+          || ('linkedCustomerId' in u && u.linkedCustomerId is string && u.linkedCustomerId == data.id)
+          || ('email' in data && data.email is string && data.email.lower() == request.auth.token.email.lower())
+          || (
+            'declaredDocumentKey' in u
+            && u.declaredDocumentKey is string
+            && data.documentKey == u.declaredDocumentKey
+            && 'declaredPhone' in u
+            && u.declaredPhone is string
+            && data.phone == u.declaredPhone
+          )
+        );
+    }
+
+    function canClientClaimCustomer(custId, orgId, userPayload) {
+      let path = /databases/$(database)/documents/customers/$(custId);
+      let c = isValidId(custId) && exists(path) ? get(path).data : null;
+      return c != null
+        && c.organizationId == orgId
+        && (
+          c.createdBy == request.auth.uid
+          || ('email' in c && c.email is string && c.email.lower() == request.auth.token.email.lower())
+          || (
+            'declaredDocumentKey' in userPayload
+            && userPayload.declaredDocumentKey is string
+            && c.documentKey == userPayload.declaredDocumentKey
+            && 'declaredPhone' in userPayload
+            && userPayload.declaredPhone is string
+            && c.phone == userPayload.declaredPhone
+          )
+        );
+    }
+
+    function canClientReadLoan(loanId, orgId) {
+      let p = /databases/$(database)/documents/loans/$(loanId);
+      let l = isActiveUser() && exists(p) ? get(p).data : null;
+      return l != null && (l.createdBy == request.auth.uid || isLinkedCustomer(l.customerId, orgId));
+    }
+
+    function isValidPublicPortal(data, portalCode) {
+      return data.keys().hasOnly(['id', 'portalCode', 'organizationId', 'name', 'tradeName', 'logoUrl', 'primaryColor', 'accentColor', 'currency', 'phone', 'corporateEmail', 'city', 'country', 'status', 'portalEnabled', 'welcomeHeadline', 'welcomeSubtitle', 'updatedAt'])
+        && data.id == portalCode && data.portalCode == portalCode && isValidId(portalCode) && isValidId(data.organizationId)
+        && strLen(data.name, 2, 160) && strLen(data.tradeName, 2, 160) && optStr(data, 'logoUrl', 350000)
+        && strLen(data.primaryColor, 3, 32) && strLen(data.accentColor, 3, 32)
+        && data.currency in ['DOP', 'USD'] && optStr(data, 'phone', 40) && optStr(data, 'corporateEmail', 254)
+        && optStr(data, 'city', 80) && optStr(data, 'country', 80)
+        && data.status in ['ACTIVA', 'SUSPENDIDA', 'INACTIVA', 'PRUEBA', 'EN_REVISION', 'DESACTIVADA', 'PENDIENTE']
+        && data.portalEnabled is bool && optStr(data, 'welcomeHeadline', 160) && optStr(data, 'welcomeSubtitle', 360)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClientServiceRequest(data, reqId) {
+      return data.keys().hasOnly(['id', 'ticketNumber', 'organizationId', 'clientUid', 'clientEmail', 'clientName', 'customerId', 'loanId', 'loanNumber', 'requestType', 'subject', 'details', 'requestedAmount', 'requestedDate', 'contactPhone', 'documentNumber', 'status', 'staffResponse', 'resolvedBy', 'resolvedByName', 'resolvedAt', 'createdAt', 'updatedAt'])
+        && data.id == reqId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.clientUid)
+        && strLen(data.ticketNumber, 4, 40) && strLen(data.clientEmail, 3, 254) && strLen(data.clientName, 1, 160)
+        && optId(data, 'customerId') && optId(data, 'loanId') && optStr(data, 'loanNumber', 64)
+        && data.requestType in ['CARTA_SALDO', 'ESTADO_CUENTA', 'ACUERDO_PRORROGA', 'ACTUALIZACION_DATOS', 'ABONO_EXTRAORDINARIO', 'VINCULACION_EXPEDIENTE', 'CONSULTA_RECLAMO']
+        && strLen(data.subject, 3, 160) && strLen(data.details, 5, 2000)
+        && optNonNeg(data, 'requestedAmount') && optStr(data, 'requestedDate', 30) && optStr(data, 'contactPhone', 40) && optStr(data, 'documentNumber', 40)
+        && data.status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'RECHAZADA']
+        && optStr(data, 'staffResponse', 2000) && optId(data, 'resolvedBy') && optStr(data, 'resolvedByName', 160) && optStr(data, 'resolvedAt', 40)
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
+    function isActivePublicPortalTarget(portalCode, orgId) {
+      let p = /databases/$(database)/documents/public_portals/$(portalCode);
+      return exists(p) && get(p).data.portalEnabled == true
+        && get(p).data.status == 'ACTIVA' && get(p).data.organizationId == orgId;
+    }
+
+    function isValidPublicCreditApplication(d, pubAppId) {
+      return d.keys().hasOnly([
+          'id', 'trackingNumber', 'organizationId', 'portalCode', 'institutionName',
+          'applicantType', 'applicantFullName', 'documentType', 'documentNumber', 'phone', 'email', 'address', 'province',
+          'productCode', 'currency', 'requestedAmount', 'requestedTermMonths', 'paymentFrequency', 'amortizationMethod',
+          'loanPurpose', 'loanPurposeDescription', 'proposedCollateral', 'monthlyIncome', 'monthlyExpenses', 'employerOrActivity',
+          'customerDetails', 'businessDetails', 'financialData', 'businessFinancialData',
+          'references', 'declaredDocumentsSummary', 'attachedDocuments', 'biometricSummary',
+          'indicativeInstallment', 'indicativeRateMonthly', 'consentVersion', 'consentAccepted', 'consentAcceptedAt',
+          'status', 'convertedApplicationId', 'convertedBy', 'convertedByName', 'convertedAt', 'reviewNotes',
+          'createdAt', 'updatedAt'
         ])
-        && data.keys().hasOnly([
+        && d.id == pubAppId && isValidId(d.organizationId) && isValidId(d.portalCode)
+        && strLen(d.trackingNumber, 6, 40) && strLen(d.institutionName, 2, 160)
+        && (!('applicantType' in d) || d.applicantType in ['INDIVIDUAL', 'BUSINESS'])
+        && strLen(d.applicantFullName, 3, 200)
+        && d.documentType in ['CEDULA', 'PASAPORTE'] && strLen(d.documentNumber, 5, 40) && strLen(d.phone, 7, 40)
+        && optStr(d, 'email', 254) && optStr(d, 'address', 300) && optStr(d, 'province', 100)
+        && d.productCode in ['PERSONAL_DOP', 'EMPRESARIAL_DOP', 'PERSONAL_USD', 'EMPRESARIAL_USD']
+        && d.currency in ['DOP', 'USD']
+        && d.requestedAmount is number && d.requestedAmount > 0 && d.requestedAmount <= 100000000
+        && d.requestedTermMonths is number && d.requestedTermMonths >= 1 && d.requestedTermMonths <= 360
+        && d.paymentFrequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL']
+        && (!('amortizationMethod' in d) || d.amortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO'])
+        && strLen(d.loanPurpose, 3, 120) && optStr(d, 'loanPurposeDescription', 1000) && optStr(d, 'proposedCollateral', 500)
+        && d.monthlyIncome is number && d.monthlyIncome >= 0 && d.monthlyIncome <= 100000000
+        && d.monthlyExpenses is number && d.monthlyExpenses >= 0 && d.monthlyExpenses <= 100000000
+        && optStr(d, 'employerOrActivity', 160)
+        && optMap(d, 'customerDetails') && optMap(d, 'businessDetails')
+        && optMap(d, 'financialData') && optMap(d, 'businessFinancialData')
+        && optList(d, 'references', 4) && optMap(d, 'declaredDocumentsSummary')
+        && optList(d, 'attachedDocuments', 3) && optMap(d, 'biometricSummary')
+        && d.indicativeInstallment is number && d.indicativeInstallment >= 0 && d.indicativeInstallment <= 100000000
+        && d.indicativeRateMonthly is number && d.indicativeRateMonthly >= 0 && d.indicativeRateMonthly <= 1
+        && optStr(d, 'consentVersion', 40) && d.consentAccepted == true && strLen(d.consentAcceptedAt, 10, 40)
+        && d.status in ['RECIBIDA_PUBLICA', 'INGRESADA_MOTOR', 'DESCARTADA']
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
+
+    function isValidPublicCreditAppReview(d) {
+      return d.status in ['INGRESADA_MOTOR', 'DESCARTADA']
+        && optId(d, 'convertedApplicationId') && optId(d, 'convertedBy')
+        && optStr(d, 'convertedByName', 160) && optStr(d, 'convertedAt', 40) && optStr(d, 'reviewNotes', 600)
+        && d.updatedAt == request.time;
+    }
+
+    function isValidUserInvitation(data, invitationId) {
+      return data.keys().hasOnly([
           'id', 'email', 'displayName', 'role', 'organizationId',
           'organizationName', 'accessCode', 'status', 'invitedBy', 'invitedByEmail',
           'invitedAt', 'invitationLink', 'authStatus', 'emailDeliveryChannel',
           'acceptedUid', 'acceptedAt', 'createdAt', 'updatedAt'
         ])
         && data.id == invitationId && isValidId(data.id)
-        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
-        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 160
+        && strLen(data.email, 3, 254)
+        && strLen(data.displayName, 1, 160)
         && isAllRole(data.role) && isValidId(data.organizationId)
         && optStr(data, 'organizationName', 160) && optStr(data, 'accessCode', 40)
         && data.status in ['INVITACION_ENVIADA', 'ACCEPTED', 'REVOKED']
@@ -227,8 +394,7 @@ service cloud.firestore {
     }
 
     function isValidCustomer(data, customerId) {
-      return data.keys().hasAll(['id', 'organizationId', 'documentType', 'documentNumber', 'documentKey', 'firstName', 'lastName', 'phone', 'createdBy', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'documentType', 'documentNumber', 'documentKey',
           'firstName', 'lastName', 'birthDate', 'nationality', 'maritalStatus',
           'phone', 'altPhone', 'email', 'address', 'municipality', 'province',
@@ -238,11 +404,11 @@ service cloud.firestore {
         ])
         && data.id == customerId && isValidId(data.id) && isValidId(data.organizationId)
         && data.documentType in ['CEDULA', 'PASAPORTE']
-        && data.documentNumber is string && data.documentNumber.size() >= 5 && data.documentNumber.size() <= 40
-        && data.documentKey is string && data.documentKey.size() >= 6 && data.documentKey.size() <= 180
-        && data.firstName is string && data.firstName.size() >= 1 && data.firstName.size() <= 120
-        && data.lastName is string && data.lastName.size() >= 1 && data.lastName.size() <= 120
-        && data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 40
+        && strLen(data.documentNumber, 5, 40)
+        && strLen(data.documentKey, 6, 180)
+        && strLen(data.firstName, 1, 120)
+        && strLen(data.lastName, 1, 120)
+        && strLen(data.phone, 7, 40)
         && optStr(data, 'birthDate', 20) && optStr(data, 'nationality', 80) && optStr(data, 'maritalStatus', 40)
         && optStr(data, 'altPhone', 40) && optStr(data, 'email', 254) && optStr(data, 'address', 300)
         && optStr(data, 'municipality', 100) && optStr(data, 'province', 100)
@@ -257,32 +423,25 @@ service cloud.firestore {
     }
 
     function isValidBusiness(data, businessId) {
-      return data.keys().hasAll(['id', 'organizationId', 'rnc', 'rncKey', 'legalName', 'authorizedRepName', 'createdBy', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'rnc', 'rncKey', 'legalName', 'tradeName',
           'companyType', 'economicActivity', 'operationsStartDate',
           'authorizedRepName', 'authorizedRepDoc', 'corporateDocsSummary',
           'createdBy', 'createdAt', 'updatedAt'
         ])
         && data.id == businessId && isValidId(data.id) && isValidId(data.organizationId)
-        && data.rnc is string && data.rnc.size() >= 6 && data.rnc.size() <= 40
-        && data.rncKey is string && data.rncKey.size() >= 7 && data.rncKey.size() <= 180
-        && data.legalName is string && data.legalName.size() >= 2 && data.legalName.size() <= 200
+        && strLen(data.rnc, 6, 40)
+        && strLen(data.rncKey, 7, 180)
+        && strLen(data.legalName, 2, 200)
         && optStr(data, 'tradeName', 200) && optStr(data, 'companyType', 80)
         && optStr(data, 'economicActivity', 160) && optStr(data, 'operationsStartDate', 20)
-        && data.authorizedRepName is string && data.authorizedRepName.size() >= 2 && data.authorizedRepName.size() <= 160
+        && strLen(data.authorizedRepName, 2, 160)
         && optStr(data, 'authorizedRepDoc', 40) && optStr(data, 'corporateDocsSummary', 500)
         && isValidId(data.createdBy) && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     function isValidApplication(data, applicationId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'applicationNumber', 'fileNumber', 'channel',
-          'applicantType', 'customerId', 'applicantDisplayName', 'productCode',
-          'currency', 'requestedAmount', 'requestedTermMonths', 'paymentFrequency',
-          'amortizationMethod', 'status', 'createdBy', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationNumber', 'fileNumber', 'channel',
           'applicantType', 'customerId', 'businessId', 'applicantDisplayName',
           'productCode', 'currency', 'requestedAmount', 'requestedTermMonths',
@@ -299,53 +458,33 @@ service cloud.firestore {
           'consentVersion', 'consentAcceptedAt', 'assignedTo', 'assignedToName',
           'movementHistory', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'
         ])
-        && data.id == applicationId && isValidId(data.id) && isValidId(data.organizationId)
-        && data.applicationNumber is string && data.applicationNumber.size() >= 3 && data.applicationNumber.size() <= 64
-        && data.fileNumber is string && data.fileNumber.size() >= 3 && data.fileNumber.size() <= 64
+        && data.id == applicationId && isValidId(data.organizationId) && isValidId(data.customerId) && isValidId(data.createdBy)
+        && strLen(data.applicationNumber, 3, 64) && strLen(data.fileNumber, 3, 64) && strLen(data.applicantDisplayName, 1, 200)
         && data.channel in ['INTERNAL', 'EXTERNAL']
         && data.applicantType in ['INDIVIDUAL', 'BUSINESS']
-        && isValidId(data.customerId) && optId(data, 'businessId')
-        && data.applicantDisplayName is string && data.applicantDisplayName.size() >= 1 && data.applicantDisplayName.size() <= 200
         && data.productCode in ['PERSONAL_DOP', 'EMPRESARIAL_DOP', 'PERSONAL_USD', 'EMPRESARIAL_USD']
         && data.currency in ['DOP', 'USD']
         && data.requestedAmount is number && data.requestedAmount >= 0 && data.requestedAmount <= 100000000
         && data.requestedTermMonths is number && data.requestedTermMonths >= 0 && data.requestedTermMonths <= 360
         && data.paymentFrequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL']
         && data.amortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO']
-        && optStr(data, 'loanPurpose', 120) && optStr(data, 'loanPurposeDescription', 1000) && optStr(data, 'proposedCollateral', 500)
-        && optMap(data, 'financialData') && optMap(data, 'businessFinancialData')
-        && optMap(data, 'verifiedFinancialData') && optMap(data, 'verifiedBusinessFinancialData')
-        && optList(data, 'references', 4) && optMap(data, 'declaredDocumentsSummary')
         && data.status in ['BORRADOR', 'RECIBIDA', 'EN_EVALUACION', 'EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'DEVUELTA', 'RECHAZADA', 'FORMALIZADA', 'DESEMBOLSADA']
-        && optStr(data, 'prequalificationStatus', 64) && optId(data, 'latestScoringExecutionId')
+        && optList(data, 'references', 4) && optList(data, 'movementHistory', 50)
         && (!('latestScore' in data) || data.latestScore == null || (data.latestScore is number && data.latestScore >= 0 && data.latestScore <= 100))
-        && optStr(data, 'latestRiskBand', 64) && optNum(data, 'recommendedAmount')
-        && optNum(data, 'recommendedRateMonthly') && optNum(data, 'recommendedTermMonths') && optNum(data, 'recommendedInstallment')
-        && optNum(data, 'authorizedAlternateAmount') && optStr(data, 'alternateAmountAuthorizedBy', 128)
-        && optMap(data, 'originalRequestedConditions') && optId(data, 'activeFinancialAnalysisId') && optId(data, 'approvedEvaluationAnalysisId')
-        && optBool(data, 'requiresHumanIntervention')
-        && (!('decisionQualificationStatus' in data) || data.decisionQualificationStatus == null || data.decisionQualificationStatus in ['CALIFICA_AUTO_EVALUACION', 'REQUIERE_INTERVENCION_HUMANA', 'REEVALUADA_APROBADA_EVALUACION', 'DATOS_INSUFICIENTES'])
-        && optNonNeg(data, 'financialAnalysisVersion')
-        && (!('legalFeeMode' in data) || data.legalFeeMode == null || data.legalFeeMode in ['DESCONTAR_DESEMBOLSO', 'FINANCIAR'])
-        && optNonNeg(data, 'interestOnlyPeriods') && optNonNeg(data, 'installmentCount')
-        && optStr(data, 'consentVersion', 40) && optStr(data, 'consentAcceptedAt', 40)
-        && optStr(data, 'assignedTo', 128) && optStr(data, 'assignedToName', 160)
-        && optList(data, 'movementHistory', 50)
-        && isValidId(data.createdBy) && optStr(data, 'createdByName', 160)
+        && optId(data, 'businessId') && optId(data, 'activeFinancialAnalysisId') && optId(data, 'latestScoringExecutionId')
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && data.updatedAt is timestamp;
     }
 
     function isValidApplicationDocument(data, docId) {
-      return data.keys().hasAll(['id', 'organizationId', 'applicationId', 'category', 'fileName', 'reviewStatus', 'uploadedBy', 'uploadedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'category', 'fileName', 'mimeType',
           'sizeBytes', 'fileDataUrl', 'reviewStatus', 'notes', 'uploadedBy', 'uploadedByName',
           'uploadedAt', 'reviewedBy', 'reviewedAt'
         ])
         && data.id == docId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.applicationId)
-        && data.category is string && data.category.size() >= 2 && data.category.size() <= 80
-        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 240
+        && strLen(data.category, 2, 80)
+        && strLen(data.fileName, 1, 240)
         && optStr(data, 'mimeType', 120)
         && (!('sizeBytes' in data) || (data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 10485760))
         && optStr(data, 'fileDataUrl', 700000)
@@ -356,22 +495,20 @@ service cloud.firestore {
     }
 
     function isValidApplicationConsent(data, consentId) {
-      return data.keys().hasAll(['id', 'organizationId', 'applicationId', 'customerId', 'consentVersion', 'acceptedText', 'accepted', 'acceptedBy', 'acceptedAt'])
-        && data.keys().hasOnly(['id', 'organizationId', 'applicationId', 'customerId', 'consentVersion', 'acceptedText', 'accepted', 'acceptedBy', 'acceptedAt'])
+      return data.keys().hasOnly(['id', 'organizationId', 'applicationId', 'customerId', 'consentVersion', 'acceptedText', 'accepted', 'acceptedBy', 'acceptedAt'])
         && data.id == consentId && isValidId(data.id)
         && isValidId(data.organizationId)
         && isValidId(data.applicationId)
         && isValidId(data.customerId)
-        && data.consentVersion is string && data.consentVersion.size() >= 1 && data.consentVersion.size() <= 40
-        && data.acceptedText is string && data.acceptedText.size() >= 10 && data.acceptedText.size() <= 2000
+        && strLen(data.consentVersion, 1, 40)
+        && strLen(data.acceptedText, 10, 2000)
         && data.accepted == true
         && isValidId(data.acceptedBy)
         && data.acceptedAt is timestamp;
     }
 
     function isValidCreditPolicy(data, policyId) {
-      return data.keys().hasAll(['id', 'organizationId', 'version', 'status', 'riskBands', 'products', 'capacityConfig', 'exchangeRateConfig', 'approvalAuthorities', 'createdBy', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'version', 'name', 'description', 'status',
           'riskBands', 'products', 'capacityConfig', 'exchangeRateConfig',
           'approvalAuthorities', 'workflowConfig', 'indicatorWeights', 'allowedExpenses', 'documentRequirements',
@@ -379,9 +516,8 @@ service cloud.firestore {
         ])
         && data.id == policyId && isValidId(data.id)
         && isValidId(data.organizationId)
-        && data.version is string && data.version.size() >= 1 && data.version.size() <= 40
-        && (!('name' in data) || (data.name is string && data.name.size() <= 160))
-        && (!('description' in data) || (data.description is string && data.description.size() <= 1000))
+        && strLen(data.version, 1, 40)
+        && optStr(data, 'name', 160) && optStr(data, 'description', 1000)
         && data.status in ['PROPUESTA', 'EN_PRUEBAS', 'APROBADA', 'ACTIVA', 'HISTORICA']
         && data.riskBands is list && data.riskBands.size() >= 1 && data.riskBands.size() <= 12
         && data.products is map
@@ -389,10 +525,8 @@ service cloud.firestore {
         && data.exchangeRateConfig is map
         && data.approvalAuthorities is list && data.approvalAuthorities.size() <= 20
         && (!('workflowConfig' in data) || (data.workflowConfig is map && data.workflowConfig.stages is list && data.workflowConfig.stages.size() <= 12 && data.workflowConfig.decisionThresholds is map))
-        && (!('indicatorWeights' in data) || data.indicatorWeights is map)
-        && (!('allowedExpenses' in data) || (data.allowedExpenses is list && data.allowedExpenses.size() <= 20))
-        && (!('documentRequirements' in data) || (data.documentRequirements is list && data.documentRequirements.size() <= 20))
-        && (!('approvedBy' in data) || data.approvedBy == null || isValidId(data.approvedBy))
+        && optMap(data, 'indicatorWeights') && optList(data, 'allowedExpenses', 20)
+        && optList(data, 'documentRequirements', 20) && optId(data, 'approvedBy')
         && (!('approvedAt' in data) || data.approvedAt == null || data.approvedAt is timestamp)
         && isValidId(data.createdBy)
         && data.createdAt is timestamp
@@ -400,8 +534,7 @@ service cloud.firestore {
     }
 
     function isValidScoringExecution(data, execId) {
-      return data.keys().hasAll(['id', 'organizationId', 'applicationId', 'policyVersion', 'policyStatus', 'executionTrigger', 'totalScore', 'status', 'indicatorDetails', 'capacityResult', 'executedBy', 'executedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'policyId', 'policyVersion', 'policyStatus',
           'executionTrigger', 'inputSnapshot', 'capacityResult', 'totalScore', 'riskBand',
           'status', 'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths',
@@ -410,7 +543,7 @@ service cloud.firestore {
         ])
         && data.id == execId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.applicationId)
         && optStr(data, 'policyId', 128)
-        && data.policyVersion is string && data.policyVersion.size() >= 1 && data.policyVersion.size() <= 40
+        && strLen(data.policyVersion, 1, 40)
         && data.policyStatus is string && data.policyStatus.size() <= 40
         && data.executionTrigger in ['INITIAL_SUBMIT', 'ANALYST_RECALC', 'MANUAL_RERUN']
         && optMap(data, 'inputSnapshot') && data.capacityResult is map
@@ -426,8 +559,7 @@ service cloud.firestore {
     }
 
     function isValidCreditEvaluation(data, evalId) {
-      return data.keys().hasAll(['id', 'organizationId', 'applicationId', 'analystId', 'analystName', 'recommendedDecision', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'analystId', 'analystName',
           'declaredSnapshot', 'verifiedSnapshot', 'preliminaryScoringId', 'updatedScoringId',
           'identityVerified', 'incomeVerified', 'obligationsVerified', 'referencesVerified',
@@ -455,8 +587,7 @@ service cloud.firestore {
     }
 
     function isValidCommitteeDecision(data, decId) {
-      return data.keys().hasAll(['id', 'organizationId', 'applicationId', 'decision', 'decidedBy', 'decidedByName', 'decidedByRole', 'decidedAt', 'isImmutable'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'decision', 'approvedAmount',
           'approvedRateMonthly', 'approvedTermMonths', 'approvedFrequency', 'approvedAmortizationMethod',
           'conditions', 'conditionsFulfilled', 'rejectionReason', 'observations',
@@ -479,8 +610,7 @@ service cloud.firestore {
     }
 
     function isValidFormalization(data, formId) {
-      return data.keys().hasAll(['id', 'organizationId', 'applicationId', 'decisionId', 'approvedCapital', 'totalFinanced', 'netDisbursementAmount', 'status', 'formalizedBy', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'decisionId', 'approvedFinancialAnalysisId', 'approvedCapital',
           'financedExpenses', 'totalFinanced', 'deductedExpenses', 'netDisbursementAmount',
           'contractualRateMonthly', 'termMonths', 'frequency', 'amortizationMethod',
@@ -497,8 +627,8 @@ service cloud.firestore {
         && optNonNeg(data, 'financedExpenses') && data.totalFinanced is number && data.totalFinanced >= data.approvedCapital
         && optNonNeg(data, 'deductedExpenses') && data.netDisbursementAmount is number && data.netDisbursementAmount > 0
         && optNum(data, 'contractualRateMonthly') && optNum(data, 'termMonths')
-        && (!('frequency' in data) || data.frequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL'])
-        && (!('amortizationMethod' in data) || data.amortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO'])
+        && (!('frequency' in data) || data.frequency == null || data.frequency in ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL'])
+        && (!('amortizationMethod' in data) || data.amortizationMethod == null || data.amortizationMethod in ['SALDO_INSOLUTO', 'INTERES_FIJO'])
         && optStr(data, 'disbursementTargetDate', 20) && optStr(data, 'firstPaymentDate', 20) && optStr(data, 'maturityDate', 20)
         && optNum(data, 'totalContractualPayable') && optStr(data, 'contractTemplateVersion', 40)
         && optStr(data, 'contractText', 20000) && optStr(data, 'promissoryNoteText', 15000)
@@ -507,17 +637,12 @@ service cloud.firestore {
         && optBool(data, 'legalReviewConfirmed') && optBool(data, 'promissoryNoteConfirmed') && optBool(data, 'contractConfirmed')
         && data.status in ['PENDIENTE', 'LISTA_PARA_DESEMBOLSO', 'DESEMBOLSADA']
         && isValidId(data.formalizedBy) && optStr(data, 'formalizedByName', 160)
-        && data.createdAt is timestamp && data.updatedAt is timestamp;
+        && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
+        && data.updatedAt is timestamp;
     }
 
     function isValidDisbursement(data, disbId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'disbursementNumber', 'applicationId', 'loanId', 'customerId',
-          'approvedAmount', 'totalFinanced', 'expenses', 'netDeliveredAmount', 'disbursementDate',
-          'paymentMethod', 'financialEntity', 'destinationAccountMasked', 'referenceNumber',
-          'idempotencyKey', 'responsibleUserId', 'authorizerUserId', 'status', 'createdAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'disbursementNumber', 'applicationId', 'loanId', 'customerId',
           'approvedAmount', 'totalFinanced', 'expenses', 'netDeliveredAmount', 'disbursementDate',
           'paymentMethod', 'financialEntity', 'destinationAccountMasked', 'referenceNumber',
@@ -527,33 +652,26 @@ service cloud.firestore {
         ])
         && data.id == disbId && isValidId(data.id) && data.id == data.applicationId
         && isValidId(data.organizationId) && isValidId(data.applicationId) && isValidId(data.loanId) && isValidId(data.customerId)
-        && data.disbursementNumber is string && data.disbursementNumber.size() >= 3 && data.disbursementNumber.size() <= 64
+        && strLen(data.disbursementNumber, 3, 64)
         && data.approvedAmount is number && data.approvedAmount > 0
         && data.totalFinanced is number && data.totalFinanced >= data.approvedAmount
         && data.expenses is number && data.expenses >= 0
         && data.netDeliveredAmount is number && data.netDeliveredAmount > 0
-        && data.disbursementDate is string && data.disbursementDate.size() >= 8 && data.disbursementDate.size() <= 20
+        && strLen(data.disbursementDate, 8, 20)
         && data.paymentMethod in ['TRANSFERENCIA', 'CHEQUE', 'EFECTIVO_CAJA', 'OTRO']
-        && data.financialEntity is string && data.financialEntity.size() >= 1 && data.financialEntity.size() <= 160
-        && data.destinationAccountMasked is string && data.destinationAccountMasked.size() >= 2 && data.destinationAccountMasked.size() <= 64
-        && data.referenceNumber is string && data.referenceNumber.size() >= 2 && data.referenceNumber.size() <= 100
+        && strLen(data.financialEntity, 1, 160)
+        && strLen(data.destinationAccountMasked, 2, 64)
+        && strLen(data.referenceNumber, 2, 100)
         && optStr(data, 'receiptNotes', 1000) && optStr(data, 'voucherFileName', 240)
         && optStr(data, 'voucherMimeType', 120) && optId(data, 'voucherDocumentId')
-        && data.idempotencyKey is string && data.idempotencyKey.size() >= 6 && data.idempotencyKey.size() <= 128
+        && strLen(data.idempotencyKey, 6, 128)
         && isValidId(data.responsibleUserId) && optStr(data, 'responsibleUserName', 160)
         && isValidId(data.authorizerUserId) && optStr(data, 'authorizerUserName', 160)
         && data.status == 'CONFIRMADO' && data.createdAt is timestamp;
     }
 
     function isValidLoan(data, loanId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'loanNumber', 'applicationId', 'disbursementId', 'customerId',
-          'productCode', 'currency', 'approvedPrincipal', 'totalFinancedPrincipal',
-          'currentPrincipalBalance', 'contractualRateMonthly', 'termMonths', 'frequency',
-          'amortizationMethod', 'disbursementDate', 'firstPaymentDate', 'maturityDate',
-          'status', 'createdBy', 'createdAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'loanNumber', 'applicationId', 'disbursementId', 'approvedFinancialAnalysisId', 'customerId',
           'businessId', 'applicantDisplayName', 'productCode', 'currency', 'approvedPrincipal',
           'financedExpenses', 'totalFinancedPrincipal', 'currentPrincipalBalance',
@@ -561,10 +679,11 @@ service cloud.firestore {
           'disbursementDate', 'firstPaymentDate', 'maturityDate',
           'totalContractualInterest', 'totalContractualPayable', 'status',
           'paidPrincipalTotal', 'paidInterestTotal', 'paidLateFeeTotal',
+          'waivedLateFeeTotal', 'lateFeeExempt', 'lateFeeExemptReason', 'lateFeeExemptBy', 'lateFeeExemptAt',
           'closedAt', 'closureCertificateNumber', 'createdBy', 'createdAt', 'updatedAt'
         ])
         && data.id == loanId && isValidId(data.id) && isValidId(data.organizationId)
-        && data.loanNumber is string && data.loanNumber.size() >= 1 && data.loanNumber.size() <= 64
+        && strLen(data.loanNumber, 1, 64)
         && isValidId(data.applicationId) && isValidId(data.disbursementId) && optId(data, 'approvedFinancialAnalysisId')
         && isValidId(data.customerId) && optId(data, 'businessId') && optStr(data, 'applicantDisplayName', 200)
         && data.productCode in ['PERSONAL_DOP', 'EMPRESARIAL_DOP', 'PERSONAL_USD', 'EMPRESARIAL_USD']
@@ -583,6 +702,8 @@ service cloud.firestore {
         && optNum(data, 'totalContractualInterest') && optNum(data, 'totalContractualPayable')
         && data.status in ['ACTIVO', 'PAGADO', 'VENCIDO', 'CANCELADO']
         && optNonNeg(data, 'paidPrincipalTotal') && optNonNeg(data, 'paidInterestTotal') && optNonNeg(data, 'paidLateFeeTotal')
+        && optNonNeg(data, 'waivedLateFeeTotal') && optBool(data, 'lateFeeExempt')
+        && optStr(data, 'lateFeeExemptReason', 500) && optId(data, 'lateFeeExemptBy') && optStr(data, 'lateFeeExemptAt', 40)
         && optStr(data, 'closedAt', 40) && optStr(data, 'closureCertificateNumber', 64)
         && isValidId(data.createdBy)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
@@ -590,21 +711,16 @@ service cloud.firestore {
     }
 
     function isValidInstallment(data, instId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'loanId', 'installmentNumber', 'dueDate',
-          'principalAmount', 'interestAmount', 'otherCharges', 'totalAmount',
-          'remainingPrincipalBalance', 'status', 'createdAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'loanId', 'installmentNumber', 'dueDate',
           'principalAmount', 'interestAmount', 'otherCharges', 'totalAmount',
           'remainingPrincipalBalance', 'status', 'paidPrincipal', 'paidInterest',
-          'paidOtherCharges', 'paidLateFee', 'accruedLateFee', 'paidAt',
+          'paidOtherCharges', 'paidLateFee', 'accruedLateFee', 'waivedLateFee', 'paidAt',
           'createdAt', 'updatedAt'
         ])
         && data.id == instId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.loanId)
         && data.installmentNumber is number && data.installmentNumber >= 1 && data.installmentNumber <= 360
-        && data.dueDate is string && data.dueDate.size() >= 8 && data.dueDate.size() <= 20
+        && strLen(data.dueDate, 8, 20)
         && data.principalAmount is number && data.principalAmount >= 0
         && data.interestAmount is number && data.interestAmount >= 0
         && data.otherCharges is number && data.otherCharges >= 0
@@ -613,51 +729,41 @@ service cloud.firestore {
         && data.status in ['PENDIENTE', 'PARCIAL', 'PAGADA', 'VENCIDA']
         && optNonNeg(data, 'paidPrincipal') && optNonNeg(data, 'paidInterest')
         && optNonNeg(data, 'paidOtherCharges') && optNonNeg(data, 'paidLateFee')
-        && optNonNeg(data, 'accruedLateFee') && optStr(data, 'paidAt', 40)
+        && optNonNeg(data, 'accruedLateFee') && optNonNeg(data, 'waivedLateFee') && optStr(data, 'paidAt', 40)
         && (data.createdAt is timestamp || isValidTimestampStr(data.createdAt))
         && (!('updatedAt' in data) || data.updatedAt is timestamp || isValidTimestampStr(data.updatedAt));
     }
 
     function isValidAuditLog(data, logId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'eventType', 'entityType', 'entityId',
-          'action', 'transactionId', 'userId', 'timestamp'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'eventType', 'entityType', 'entityId',
           'action', 'previousState', 'newState', 'justification',
           'transactionId', 'engineVersion', 'userId', 'userEmail', 'userRole', 'timestamp'
         ])
         && data.id == logId && isValidId(data.id) && isValidId(data.organizationId)
-        && data.eventType is string && data.eventType.size() >= 2 && data.eventType.size() <= 80
-        && data.entityType is string && data.entityType.size() >= 2 && data.entityType.size() <= 80
-        && data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128
-        && data.action is string && data.action.size() >= 2 && data.action.size() <= 200
+        && strLen(data.eventType, 2, 80)
+        && strLen(data.entityType, 2, 80)
+        && strLen(data.entityId, 1, 128)
+        && strLen(data.action, 2, 200)
         && optStr(data, 'previousState', 4000) && optStr(data, 'newState', 4000) && optStr(data, 'justification', 1000)
-        && data.transactionId is string && data.transactionId.size() >= 4 && data.transactionId.size() <= 128
+        && strLen(data.transactionId, 4, 128)
         && optStr(data, 'engineVersion', 40) && isValidId(data.userId)
         && optStr(data, 'userEmail', 254) && optStr(data, 'userRole', 64)
         && data.timestamp is timestamp;
     }
 
     function isValidSystemParameter(data, paramId) {
-      return data.keys().hasAll(['id', 'organizationId', 'key', 'value', 'updatedBy', 'updatedAt'])
-        && data.keys().hasOnly(['id', 'organizationId', 'key', 'value', 'updatedBy', 'updatedAt'])
+      return data.keys().hasOnly(['id', 'organizationId', 'key', 'value', 'updatedBy', 'updatedAt'])
         && data.id == paramId && isValidId(data.id)
         && isValidId(data.organizationId)
-        && data.key is string && data.key.size() >= 2 && data.key.size() <= 100
+        && strLen(data.key, 2, 100)
         && data.value is map
         && isValidId(data.updatedBy)
         && data.updatedAt is timestamp;
     }
 
     function isValidEmailNotification(data, notifId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'applicationId', 'applicationNumber', 'customerId', 'applicantUid',
-          'recipientEmail', 'recipientName', 'eventCode', 'toStatus', 'subject', 'bodyText', 'bodyHtml',
-          'deliveryChannel', 'status', 'idempotencyKey', 'triggeredBy', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'applicationNumber', 'customerId', 'applicantUid',
           'recipientEmail', 'recipientName', 'eventCode', 'fromStatus', 'toStatus', 'subject',
           'bodyText', 'bodyHtml', 'deliveryChannel', 'status', 'providerMessageId', 'errorMessage',
@@ -666,26 +772,26 @@ service cloud.firestore {
         && data.id == notifId && isValidId(data.id)
         && isValidId(data.organizationId)
         && isValidId(data.applicationId)
-        && data.applicationNumber is string && data.applicationNumber.size() >= 3 && data.applicationNumber.size() <= 64
+        && strLen(data.applicationNumber, 3, 64)
         && isValidId(data.customerId)
         && isValidId(data.applicantUid)
         && data.recipientEmail is string && data.recipientEmail.size() <= 254
-        && data.recipientName is string && data.recipientName.size() >= 1 && data.recipientName.size() <= 200
+        && strLen(data.recipientName, 1, 200)
         && data.eventCode in [
           'RECIBIDA', 'EN_EVALUACION', 'DEVUELTA', 'EN_COMITE',
           'APROBADA', 'APROBADA_CONDICIONADA', 'RECHAZADA',
           'PENDIENTE_FIRMA', 'FORMALIZADA', 'DESEMBOLSADA'
         ]
         && (!('fromStatus' in data) || data.fromStatus == null || (data.fromStatus is string && data.fromStatus.size() <= 64))
-        && data.toStatus is string && data.toStatus.size() >= 2 && data.toStatus.size() <= 64
-        && data.subject is string && data.subject.size() >= 3 && data.subject.size() <= 300
-        && data.bodyText is string && data.bodyText.size() >= 10 && data.bodyText.size() <= 30000
-        && data.bodyHtml is string && data.bodyHtml.size() >= 10 && data.bodyHtml.size() <= 80000
+        && strLen(data.toStatus, 2, 64)
+        && strLen(data.subject, 3, 300)
+        && strLen(data.bodyText, 10, 30000)
+        && strLen(data.bodyHtml, 10, 80000)
         && data.deliveryChannel in ['CLOUD_FUNCTION_TRIGGER', 'EXPRESS_SMTP_RELAY', 'CLOUD_FUNCTION_PENDING_SMTP']
         && data.status in ['QUEUED', 'SENT', 'PENDING_CLOUD_FUNCTION', 'SKIPPED_NO_EMAIL', 'FAILED']
         && (!('providerMessageId' in data) || data.providerMessageId == null || (data.providerMessageId is string && data.providerMessageId.size() <= 200))
         && (!('errorMessage' in data) || data.errorMessage == null || (data.errorMessage is string && data.errorMessage.size() <= 1000))
-        && data.idempotencyKey is string && data.idempotencyKey.size() >= 4 && data.idempotencyKey.size() <= 180
+        && strLen(data.idempotencyKey, 4, 180)
         && isValidId(data.triggeredBy)
         && (!('triggeredByName' in data) || (data.triggeredByName is string && data.triggeredByName.size() <= 160))
         && (!('sentAt' in data) || data.sentAt == null || isValidTimestampStr(data.sentAt))
@@ -694,11 +800,7 @@ service cloud.firestore {
     }
 
     function isValidFcmToken(data, tokenId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'userId', 'userRole', 'userEmail',
-          'token', 'platform', 'userAgent', 'status', 'lastSeenAt', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'userId', 'userRole', 'userEmail',
           'token', 'platform', 'userAgent', 'status', 'lastSeenAt', 'createdAt', 'updatedAt'
         ])
@@ -710,10 +812,10 @@ service cloud.firestore {
           'COMMITTEE_MEMBER', 'FORMALIZATION', 'OPERATIONS', 'FINANCE', 'AUDITOR',
           'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'CASHIER', 'MANAGEMENT'
         ]
-        && data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 254
-        && data.token is string && data.token.size() >= 20 && data.token.size() <= 512
-        && data.platform is string && data.platform.size() >= 1 && data.platform.size() <= 64
-        && data.userAgent is string && data.userAgent.size() >= 1 && data.userAgent.size() <= 300
+        && strLen(data.userEmail, 3, 254)
+        && strLen(data.token, 20, 512)
+        && strLen(data.platform, 1, 64)
+        && strLen(data.userAgent, 1, 300)
         && data.status in ['ACTIVE', 'REVOKED']
         && isValidTimestampStr(data.lastSeenAt)
         && data.createdAt is timestamp
@@ -721,13 +823,7 @@ service cloud.firestore {
     }
 
     function isValidPushSubscription(data, subscriptionId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'userId', 'userRole', 'userEmail',
-          'endpoint', 'p256dh', 'auth', 'vapidPublicKeyPrefix',
-          'subscribedStatuses', 'platform', 'userAgent', 'status',
-          'lastSeenAt', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'userId', 'userRole', 'userEmail',
           'endpoint', 'p256dh', 'auth', 'fcmToken', 'vapidPublicKeyPrefix',
           'subscribedStatuses', 'platform', 'userAgent', 'status',
@@ -742,12 +838,12 @@ service cloud.firestore {
           'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'CASHIER', 'MANAGEMENT',
           'EXTERNAL_CLIENT'
         ]
-        && data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 254
-        && data.endpoint is string && data.endpoint.size() >= 10 && data.endpoint.size() <= 1024
-        && data.p256dh is string && data.p256dh.size() >= 16 && data.p256dh.size() <= 256
-        && data.auth is string && data.auth.size() >= 8 && data.auth.size() <= 128
-        && (!('fcmToken' in data) || data.fcmToken == null || (data.fcmToken is string && data.fcmToken.size() >= 20 && data.fcmToken.size() <= 512))
-        && data.vapidPublicKeyPrefix is string && data.vapidPublicKeyPrefix.size() >= 4 && data.vapidPublicKeyPrefix.size() <= 32
+        && strLen(data.userEmail, 3, 254)
+        && strLen(data.endpoint, 10, 1024)
+        && strLen(data.p256dh, 16, 256)
+        && strLen(data.auth, 8, 128)
+        && (!('fcmToken' in data) || data.fcmToken == null || (strLen(data.fcmToken, 20, 512)))
+        && strLen(data.vapidPublicKeyPrefix, 4, 32)
         && data.subscribedStatuses is list
         && data.subscribedStatuses.size() >= 1
         && data.subscribedStatuses.size() <= 12
@@ -757,8 +853,8 @@ service cloud.firestore {
           'APROBADA', 'APROBADA_CONDICIONADA', 'RECHAZADA',
           'FORMALIZADA', 'DESEMBOLSADA', 'CANCELADA'
         ])
-        && data.platform is string && data.platform.size() >= 1 && data.platform.size() <= 64
-        && data.userAgent is string && data.userAgent.size() >= 1 && data.userAgent.size() <= 300
+        && strLen(data.platform, 1, 64)
+        && strLen(data.userAgent, 1, 300)
         && data.status in ['ACTIVE', 'REVOKED']
         && isValidTimestampStr(data.lastSeenAt)
         && data.createdAt is timestamp
@@ -766,12 +862,7 @@ service cloud.firestore {
     }
 
     function isValidUserNotification(data, notificationId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'userId', 'type', 'category',
-          'priority', 'title', 'message', 'read', 'createdBy',
-          'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'userId', 'type', 'category',
           'priority', 'title', 'message', 'amountLabel', 'targetSection',
           'entityType', 'entityId', 'sourceEventKey', 'actorName',
@@ -779,11 +870,11 @@ service cloud.firestore {
           'createdAt', 'updatedAt'
         ])
         && data.id == notificationId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.userId)
-        && data.type is string && data.type.size() >= 2 && data.type.size() <= 64
+        && strLen(data.type, 2, 64)
         && data.category in ['CREDITO', 'COBRANZA', 'RIESGO', 'BITACORA', 'SISTEMA']
         && data.priority in ['INMEDIATA', 'ALTA', 'MEDIA']
-        && data.title is string && data.title.size() >= 2 && data.title.size() <= 200
-        && data.message is string && data.message.size() >= 2 && data.message.size() <= 600
+        && strLen(data.title, 2, 200)
+        && strLen(data.message, 2, 600)
         && optStr(data, 'amountLabel', 80) && optStr(data, 'targetSection', 64) && optStr(data, 'entityType', 64)
         && optStr(data, 'entityId', 128) && optStr(data, 'sourceEventKey', 160) && optStr(data, 'actorName', 160)
         && optStr(data, 'eventTimestampIso', 40) && data.read is bool && optStr(data, 'readAt', 40)
@@ -791,11 +882,7 @@ service cloud.firestore {
     }
 
     function isValidOrganizationMembership(data, membershipId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'userId', 'userEmail', 'userDisplayName',
-          'role', 'status', 'granularPermissions', 'createdBy', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'tenantId', 'tenant_id', 'organizationName', 'userId', 'userEmail', 'userDisplayName',
           'role', 'status', 'granularPermissions', 'allowedModuleCodes', 'isPrimaryAdmin', 'invitationId', 'invitedBy',
           'createdBy', 'createdAt', 'updatedAt'
@@ -803,8 +890,8 @@ service cloud.firestore {
         && data.id == membershipId && isValidId(data.id) && isValidId(data.organizationId)
         && optStr(data, 'tenantId', 128) && optStr(data, 'tenant_id', 128) && optStr(data, 'organizationName', 160)
         && isValidId(data.userId)
-        && data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 254
-        && data.userDisplayName is string && data.userDisplayName.size() >= 1 && data.userDisplayName.size() <= 160
+        && strLen(data.userEmail, 3, 254)
+        && strLen(data.userDisplayName, 1, 160)
         && isAllRole(data.role)
         && data.status in ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'INVITED', 'REVOKED']
         && data.granularPermissions is list && data.granularPermissions.size() <= 30
@@ -814,23 +901,18 @@ service cloud.firestore {
     }
 
     function isValidTenantLicense(data, licenseId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'licenseKey', 'planCode', 'status',
-          'startDate', 'endDate', 'maxUsers', 'enabledModules', 'autoRenew',
-          'updatedBy', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'licenseKey', 'planCode', 'status',
           'startDate', 'endDate', 'maxUsers', 'enabledModules', 'autoRenew',
           'notes', 'updatedBy', 'createdAt', 'updatedAt'
         ])
         && data.id == licenseId && isValidId(data.id)
         && isValidId(data.organizationId)
-        && data.licenseKey is string && data.licenseKey.size() >= 4 && data.licenseKey.size() <= 80
+        && strLen(data.licenseKey, 4, 80)
         && data.planCode in ['BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'CORPORATIVO', 'PERSONALIZADO']
         && data.status in ['PENDIENTE', 'ACTIVA', 'PROXIMA_A_VENCER', 'VENCIDA', 'SUSPENDIDA', 'CANCELADA']
-        && data.startDate is string && data.startDate.size() >= 8 && data.startDate.size() <= 40
-        && data.endDate is string && data.endDate.size() >= 8 && data.endDate.size() <= 40
+        && strLen(data.startDate, 8, 40)
+        && strLen(data.endDate, 8, 40)
         && data.maxUsers is number && data.maxUsers >= 1 && data.maxUsers <= 100000
         && data.enabledModules is list && data.enabledModules.size() <= 60
         && data.autoRenew is bool
@@ -841,11 +923,7 @@ service cloud.firestore {
     }
 
     function isValidTenantSubscription(data, subId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'planCode', 'billingCycle', 'amountUsd',
-          'status', 'nextBillingDate', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'planCode', 'billingCycle', 'amountUsd',
           'status', 'nextBillingDate', 'lastPaymentDate', 'createdAt', 'updatedAt'
         ])
@@ -855,7 +933,7 @@ service cloud.firestore {
         && data.billingCycle in ['MENSUAL', 'TRIMESTRAL', 'ANUAL']
         && data.amountUsd is number && data.amountUsd >= 0 && data.amountUsd <= 1000000
         && data.status in ['AL_DIA', 'PENDIENTE_PAGO', 'EN_GRACIA', 'SUSPENDIDA', 'CANCELADA']
-        && data.nextBillingDate is string && data.nextBillingDate.size() >= 8 && data.nextBillingDate.size() <= 40
+        && strLen(data.nextBillingDate, 8, 40)
         && (!('lastPaymentDate' in data) || data.lastPaymentDate == null || (data.lastPaymentDate is string && data.lastPaymentDate.size() <= 40))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
@@ -876,10 +954,15 @@ service cloud.firestore {
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
       allow update: if isValidId(orgId) && (isBootstrappedAdmin() || (isAdmin() && inSameOrg(orgId)))
-        && isValidOrganization(incoming(), orgId)
-        && incoming().id == existing().id
-        && ((!('createdAt' in existing()) || !(existing().createdAt is timestamp)) ? incoming().createdAt == request.time : incoming().createdAt == existing().createdAt)
-        && incoming().updatedAt == request.time;
+        && (
+          isValidOrganizationBrandingPatch(incoming())
+          || (
+            isValidOrganization(incoming(), orgId)
+            && (!('id' in existing()) || incoming().id == existing().id)
+            && (!('createdAt' in existing()) || !(existing().createdAt is timestamp) || incoming().createdAt == existing().createdAt)
+            && incoming().updatedAt == request.time
+          )
+        );
       allow delete: if false;
     }
 
@@ -904,8 +987,21 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'organizationId', 'isSuperAdmin', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'updatedAt'])) ||
-          (request.auth.uid == userId && incoming().role == existing().role && incoming().status == existing().status && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'organizationId', 'invitationStatus', 'updatedAt'])) ||
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'organizationId', 'isSuperAdmin', 'linkedCustomerId', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'updatedAt'])) ||
+          (isInternalStaff(existing().organizationId) && currentRole() != 'AUDITOR' && existing().role == 'EXTERNAL_CLIENT' && incoming().role == existing().role && incoming().status == existing().status && incoming().organizationId == existing().organizationId && incoming().diff(existing()).affectedKeys().hasOnly(['linkedCustomerId', 'updatedAt'])) ||
+          (request.auth.uid == userId && incoming().role == existing().role && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'organizationId', 'invitationStatus', 'declaredDocumentKey', 'declaredPhone', 'linkedCustomerId', 'updatedAt'])
+            && (
+              !('linkedCustomerId' in incoming().diff(existing()).affectedKeys())
+              || incoming().linkedCustomerId == null
+              || canClientClaimCustomer(incoming().linkedCustomerId, incoming().organizationId, incoming())
+            )
+            && (
+              incoming().organizationId == existing().organizationId
+              || !('linkedCustomerId' in incoming())
+              || incoming().linkedCustomerId == null
+            )
+          ) ||
           (request.auth.uid == userId && 'invitationId' in incoming() && incoming().status == 'ACTIVE' && incoming().invitationStatus == 'CONFIRMADA' && hasValidInvitation(incoming().invitationId, incoming().role, incoming().organizationId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'organizationId', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'updatedAt']))
         );
       allow delete: if false;
@@ -944,8 +1040,8 @@ service cloud.firestore {
     }
 
     match /customers/{customerId} {
-      allow get: if isValidId(customerId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().createdBy == request.auth.uid));
-      allow list: if isVerified() && (resource.data.createdBy == request.auth.uid || isInternalStaff(resource.data.organizationId));
+      allow get: if isValidId(customerId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().createdBy == request.auth.uid) || matchesClientCustomerLookup(existing()));
+      allow list: if isVerified() && (resource.data.createdBy == request.auth.uid || isInternalStaff(resource.data.organizationId) || matchesClientCustomerLookup(resource.data));
       allow create: if isValidId(customerId)
         && (canOriginate(incoming().organizationId) || (isInternalStaff(incoming().organizationId) && currentRole() != 'AUDITOR'))
         && isValidCustomer(incoming(), customerId)
@@ -1006,7 +1102,9 @@ service cloud.firestore {
     function canCreateApplicationByRole(role, inc) {
       return (role != 'AUDITOR' && role != 'NONE')
         && (
+          role in ['ADMIN', 'OPERATIONS', 'FINANCE'] ||
           inc.status in ['BORRADOR', 'RECIBIDA'] ||
+          (role != 'EXTERNAL_CLIENT' && inc.status in ['EN_EVALUACION', 'EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'FORMALIZADA']) ||
           (
             inc.status == 'EN_EVALUACION'
             && ('decisionQualificationStatus' in inc)
@@ -1017,9 +1115,7 @@ service cloud.firestore {
               exists(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId)) ||
               existsAfter(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId))
             )
-          ) ||
-          (role != 'EXTERNAL_CLIENT' && inc.status in ['EN_EVALUACION', 'EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'FORMALIZADA']) ||
-          role in ['ADMIN', 'OPERATIONS', 'FINANCE']
+          )
         );
     }
 
@@ -1039,8 +1135,11 @@ service cloud.firestore {
     }
 
     function canUpdateApplicationByRole(role, applicationId, inc, ext) {
+      let changed = inc.diff(ext).affectedKeys();
+      let statusKeys = ['status', 'movementHistory', 'updatedAt'];
+      let reevalRoles = ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT'];
       return (
-        // Action 1a: Originator submits/edits own draft or returned application (cannot jump directly to EN_EVALUACION unless auto-qualified with linked analysis)
+        // Action 1a: Originator submits/edits own draft or returned application
         (ext.createdBy == request.auth.uid
           && ext.status in ['BORRADOR', 'DEVUELTA']
           && (
@@ -1056,9 +1155,9 @@ service cloud.firestore {
               )
             )
           )
-          && inc.diff(ext).affectedKeys().hasOnly(appEditAllowedKeys())
+          && changed.hasOnly(appEditAllowedKeys())
         ) ||
-        // Action 1b: Internal staff updates received/returned/evaluation application & re-evaluates (no unauthorized status jump to EN_EVALUACION without analysis)
+        // Action 1b: Internal staff updates received/returned/evaluation application & re-evaluates
         (!(role in ['EXTERNAL_CLIENT', 'NONE', 'AUDITOR'])
           && ext.status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA', 'EN_EVALUACION']
           && (
@@ -1066,15 +1165,15 @@ service cloud.firestore {
             inc.status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA'] ||
             (
               inc.status == 'EN_EVALUACION'
-              && role in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT']
+              && role in reevalRoles
               && ('activeFinancialAnalysisId' in inc) && isValidId(inc.activeFinancialAnalysisId)
               && ('latestScoringExecutionId' in inc) && isValidId(inc.latestScoringExecutionId)
             )
           )
-          && inc.diff(ext).affectedKeys().hasOnly(appEditAllowedKeys())
+          && changed.hasOnly(appEditAllowedKeys())
         ) ||
-        // Action 1c: Authorized credit staff routes BORRADOR/RECIBIDA/DEVUELTA -> EN_EVALUACION ONLY with persisted financial analysis & scoring (anti-bypass)
-        (role in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT']
+        // Action 1c: Authorized credit staff routes BORRADOR/RECIBIDA/DEVUELTA -> EN_EVALUACION ONLY with persisted financial analysis & scoring
+        (role in reevalRoles
           && ext.status in ['BORRADOR', 'RECIBIDA', 'DEVUELTA']
           && inc.status == 'EN_EVALUACION'
           && ('latestScoringExecutionId' in inc) && isValidId(inc.latestScoringExecutionId)
@@ -1083,7 +1182,7 @@ service cloud.firestore {
             exists(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId)) ||
             existsAfter(/databases/$(database)/documents/financial_analyses/$(inc.activeFinancialAnalysisId))
           )
-          && inc.diff(ext).affectedKeys().hasOnly([
+          && changed.hasOnly([
             'status', 'requestedAmount', 'requestedTermMonths', 'paymentFrequency', 'amortizationMethod',
             'authorizedAlternateAmount', 'alternateAmountAuthorizedBy',
             'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
@@ -1097,7 +1196,7 @@ service cloud.firestore {
         // Action 2: Automatic scoring & financial analysis attachment (without advancing status)
         (!(role in ['EXTERNAL_CLIENT', 'NONE', 'AUDITOR'])
           && inc.status == ext.status
-          && inc.diff(ext).affectedKeys().hasOnly([
+          && changed.hasOnly([
             'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
             'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
             'originalRequestedConditions', 'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId',
@@ -1106,11 +1205,13 @@ service cloud.firestore {
             'movementHistory', 'updatedAt'
           ])
         ) ||
-        // Action 3a: Analyst evaluation, verified financials & evaluation-stage versioned analysis link
+        // Action 3a: Analyst evaluation, verified financials, condition adjustments & evaluation-stage versioned analysis link
         (role in ['ADMIN', 'CREDIT_ANALYST']
           && inc.status in ['EN_EVALUACION', 'EN_COMITE', 'DEVUELTA']
-          && inc.diff(ext).affectedKeys().hasOnly([
+          && changed.hasOnly([
             'verifiedFinancialData', 'verifiedBusinessFinancialData', 'declaredDocumentsSummary',
+            'requestedAmount', 'requestedTermMonths', 'paymentFrequency', 'amortizationMethod',
+            'legalFeeMode', 'installmentCount', 'interestOnlyPeriods', 'originalRequestedConditions',
             'status', 'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
             'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
             'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId', 'financialAnalysisVersion',
@@ -1121,7 +1222,7 @@ service cloud.firestore {
         // Action 3b: Risk Officer independent review, V2 stress/recalc & escalation/return
         (role in ['ADMIN', 'RISK_OFFICER']
           && inc.status in ['EN_EVALUACION', 'EN_COMITE', 'DEVUELTA']
-          && inc.diff(ext).affectedKeys().hasOnly([
+          && changed.hasOnly([
             'status', 'prequalificationStatus', 'latestScoringExecutionId', 'latestScore', 'latestRiskBand',
             'recommendedAmount', 'recommendedRateMonthly', 'recommendedTermMonths', 'recommendedInstallment',
             'activeFinancialAnalysisId', 'approvedEvaluationAnalysisId', 'financialAnalysisVersion',
@@ -1133,20 +1234,20 @@ service cloud.firestore {
           && (role == 'ADMIN' || ext.createdBy != request.auth.uid)
           && ext.status in ['EN_COMITE', 'EN_EVALUACION']
           && inc.status in ['EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'DEVUELTA', 'RECHAZADA']
-          && inc.diff(ext).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
+          && changed.hasOnly(statusKeys)
         ) ||
         // Action 5: Formalization transition
         (role in ['ADMIN', 'FORMALIZATION']
           && ext.status in ['APROBADA', 'APROBADA_CONDICIONADA']
           && inc.status == 'FORMALIZADA'
-          && inc.diff(ext).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
+          && changed.hasOnly(statusKeys)
         ) ||
         // Action 6: Disbursement terminal transition
         (role in ['ADMIN', 'OPERATIONS', 'FINANCE']
           && ext.status == 'FORMALIZADA'
           && inc.status == 'DESEMBOLSADA'
           && existsAfter(/databases/$(database)/documents/disbursements/$(applicationId))
-          && inc.diff(ext).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
+          && changed.hasOnly(statusKeys)
         )
       );
     }
@@ -1155,8 +1256,8 @@ service cloud.firestore {
       allow get: if isValidId(applicationId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().createdBy == request.auth.uid));
       allow list: if isVerified() && (resource.data.createdBy == request.auth.uid || isInternalStaff(resource.data.organizationId));
       allow create: if isValidId(applicationId)
-        && inSameOrg(incoming().organizationId)
         && isValidApplication(incoming(), applicationId)
+        && inSameOrg(incoming().organizationId)
         && incoming().createdBy == request.auth.uid
         && canCreateApplicationByRole(currentRole(), incoming())
         && incoming().createdAt == request.time
@@ -1180,7 +1281,16 @@ service cloud.firestore {
             && incoming().createdAt == existing().createdAt
             && (!('originalRequestedConditions' in existing()) || existing().originalRequestedConditions == null || incoming().originalRequestedConditions == existing().originalRequestedConditions)
             && existing().status != 'DESEMBOLSADA'
-            && canUpdateApplicationByRole(currentRole(), applicationId, incoming(), existing())
+            && (
+              canUpdateApplicationByRole(currentRole(), applicationId, incoming(), existing()) ||
+              (
+                canDecideCommittee(existing().organizationId)
+                && existing().createdBy != request.auth.uid
+                && existing().status in ['EN_COMITE', 'EN_EVALUACION']
+                && incoming().status in ['EN_COMITE', 'APROBADA', 'APROBADA_CONDICIONADA', 'DEVUELTA', 'RECHAZADA']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'movementHistory', 'updatedAt'])
+              )
+            )
           )
         );
       allow delete: if false;
@@ -1271,13 +1381,7 @@ service cloud.firestore {
     // STRICT SECURITY: EXTERNAL_CLIENT has ZERO read/list/update/delete access to internal analyses or schedules.
 
     function isValidFinancialAnalysis(data, analysisId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'applicationId', 'idempotencyKey', 'version',
-          'analysisType', 'status', 'originalRequestedConditions', 'calculatedConditions',
-          'decisionSummary', 'installmentsCount', 'canSendToEvaluation',
-          'calculatedBy', 'calculatedByName', 'calculatedByRole', 'calculatedAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'scoringExecutionId', 'idempotencyKey',
           'version', 'analysisType', 'status', 'originalRequestedConditions', 'calculatedConditions',
           'decisionSummary', 'financialSummary', 'exchangeRateMeta', 'installmentsCount',
@@ -1288,35 +1392,28 @@ service cloud.firestore {
         && data.id == analysisId && isValidId(data.id)
         && isValidId(data.organizationId)
         && isValidId(data.applicationId)
-        && (!('scoringExecutionId' in data) || data.scoringExecutionId == null || isValidId(data.scoringExecutionId))
-        && data.idempotencyKey is string && data.idempotencyKey.size() >= 6 && data.idempotencyKey.size() <= 128
+        && optId(data, 'scoringExecutionId')
+        && strLen(data.idempotencyKey, 6, 128)
         && data.version is number && data.version >= 1 && data.version <= 1000
         && data.analysisType in ['SOLICITUD_INICIAL', 'REEVALUACION_HUMANA', 'AJUSTE_EVALUACION', 'ACTUALIZACION_DATOS']
         && data.status in ['VIGENTE', 'HISTORICO', 'APROBADO_EVALUACION', 'RECHAZADO']
         && data.originalRequestedConditions is map
         && data.calculatedConditions is map
         && data.decisionSummary is map
-        && (!('financialSummary' in data) || data.financialSummary == null || data.financialSummary is map)
-        && (!('exchangeRateMeta' in data) || data.exchangeRateMeta == null || data.exchangeRateMeta is map)
+        && optMap(data, 'financialSummary') && optMap(data, 'exchangeRateMeta')
         && data.installmentsCount is number && data.installmentsCount >= 0 && data.installmentsCount <= 10000
-        && (!('installmentsPreview' in data) || (data.installmentsPreview is list && data.installmentsPreview.size() <= 120))
+        && optList(data, 'installmentsPreview', 120)
         && data.canSendToEvaluation is bool
-        && (!('sendToEvaluationBlockedReasons' in data) || (data.sendToEvaluationBlockedReasons is list && data.sendToEvaluationBlockedReasons.size() <= 20))
-        && (!('justification' in data) || data.justification == null || (data.justification is string && data.justification.size() <= 1000))
+        && optList(data, 'sendToEvaluationBlockedReasons', 20) && optStr(data, 'justification', 1000)
         && isValidId(data.calculatedBy)
-        && data.calculatedByName is string && data.calculatedByName.size() >= 1 && data.calculatedByName.size() <= 160
-        && data.calculatedByRole is string && data.calculatedByRole.size() >= 2 && data.calculatedByRole.size() <= 64
+        && strLen(data.calculatedByName, 1, 160)
+        && strLen(data.calculatedByRole, 2, 64)
         && (data.calculatedAt is timestamp || isValidTimestampStr(data.calculatedAt))
         && data.updatedAt is timestamp;
     }
 
     function isValidFinancialAnalysisInstallment(data, instId) {
-      return data.keys().hasAll([
-          'id', 'analysisId', 'applicationId', 'organizationId', 'installmentNumber',
-          'dueDate', 'stage', 'principalAmount', 'interestAmount', 'totalAmount',
-          'remainingBalance', 'createdAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'analysisId', 'applicationId', 'organizationId', 'installmentNumber',
           'dueDate', 'stage', 'principalAmount', 'interestAmount', 'totalAmount',
           'remainingBalance', 'dopEquivalent', 'createdAt'
@@ -1326,24 +1423,18 @@ service cloud.firestore {
         && isValidId(data.applicationId)
         && isValidId(data.organizationId)
         && data.installmentNumber is number && data.installmentNumber >= 1 && data.installmentNumber <= 10000
-        && data.dueDate is string && data.dueDate.size() >= 8 && data.dueDate.size() <= 20
+        && strLen(data.dueDate, 8, 20)
         && data.stage in ['SOLO_INTERESES', 'NORMAL']
         && data.principalAmount is number && data.principalAmount >= 0
         && data.interestAmount is number && data.interestAmount >= 0
         && data.totalAmount is number && data.totalAmount >= 0
         && data.remainingBalance is number && data.remainingBalance >= 0
-        && (!('dopEquivalent' in data) || data.dopEquivalent == null || data.dopEquivalent is map)
+        && optMap(data, 'dopEquivalent')
         && data.createdAt is timestamp;
     }
 
     function isValidApplicationDecisionHistory(data, historyId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'applicationId', 'eventType', 'originalConditions',
-          'evaluatedConditions', 'previousStatus', 'newStatus', 'qualifies',
-          'requiresHumanIntervention', 'rulesPassedCount', 'rulesFailedCount',
-          'actorId', 'actorName', 'actorRole', 'createdAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'applicationId', 'analysisId', 'scoringExecutionId',
           'eventType', 'originalConditions', 'evaluatedConditions', 'previousStatus',
           'newStatus', 'qualifies', 'requiresHumanIntervention', 'rulesPassedCount',
@@ -1353,8 +1444,7 @@ service cloud.firestore {
         && data.id == historyId && isValidId(data.id)
         && isValidId(data.organizationId)
         && isValidId(data.applicationId)
-        && (!('analysisId' in data) || data.analysisId == null || isValidId(data.analysisId))
-        && (!('scoringExecutionId' in data) || data.scoringExecutionId == null || isValidId(data.scoringExecutionId))
+        && optId(data, 'analysisId') && optId(data, 'scoringExecutionId')
         && data.eventType in [
           'INITIAL_AUTO_EVALUATION', 'HUMAN_REEVALUATION_SIMULATION',
           'SENT_TO_EVALUATION_AFTER_REEVALUATION', 'EVALUATION_CONDITIONS_ADJUSTED',
@@ -1362,18 +1452,16 @@ service cloud.firestore {
         ]
         && data.originalConditions is map
         && data.evaluatedConditions is map
-        && data.previousStatus is string && data.previousStatus.size() >= 2 && data.previousStatus.size() <= 40
-        && data.newStatus is string && data.newStatus.size() >= 2 && data.newStatus.size() <= 40
+        && strLen(data.previousStatus, 2, 40)
+        && strLen(data.newStatus, 2, 40)
         && data.qualifies is bool
         && data.requiresHumanIntervention is bool
         && data.rulesPassedCount is number && data.rulesPassedCount >= 0 && data.rulesPassedCount <= 100
         && data.rulesFailedCount is number && data.rulesFailedCount >= 0 && data.rulesFailedCount <= 100
-        && (!('unmetReasons' in data) || (data.unmetReasons is list && data.unmetReasons.size() <= 30))
-        && (!('changesSummary' in data) || (data.changesSummary is list && data.changesSummary.size() <= 30))
-        && (!('justification' in data) || data.justification == null || (data.justification is string && data.justification.size() <= 1000))
+        && optList(data, 'unmetReasons', 30) && optList(data, 'changesSummary', 30) && optStr(data, 'justification', 1000)
         && isValidId(data.actorId)
-        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 160
-        && data.actorRole is string && data.actorRole.size() >= 2 && data.actorRole.size() <= 64
+        && strLen(data.actorName, 1, 160)
+        && strLen(data.actorRole, 2, 64)
         && data.createdAt is timestamp;
     }
 
@@ -1389,7 +1477,7 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && (
           currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT'] ||
-          (currentRole() == 'EXTERNAL_CLIENT' && incoming().analysisType == 'SOLICITUD_INICIAL' && incoming().version == 1)
+          (currentRole() in ['OPERATIONS', 'FINANCE', 'EXTERNAL_CLIENT'] && incoming().analysisType == 'SOLICITUD_INICIAL' && incoming().version == 1)
         )
         && (
           isAdmin() ||
@@ -1432,7 +1520,7 @@ service cloud.firestore {
         && incoming().createdAt == request.time
         && (
           currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT'] ||
-          (currentRole() == 'EXTERNAL_CLIENT' && incoming().eventType == 'INITIAL_AUTO_EVALUATION')
+          (currentRole() in ['OPERATIONS', 'FINANCE', 'EXTERNAL_CLIENT'] && incoming().eventType == 'INITIAL_AUTO_EVALUATION')
         )
         && (
           isAdmin() ||
@@ -1488,7 +1576,7 @@ service cloud.firestore {
     }
 
     match /committee_decisions/{decId} {
-      allow get: if isValidId(decId) && isInternalStaff(existing().organizationId);
+      allow get: if isValidId(decId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId));
       allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
       allow create: if isValidId(decId) && canDecideCommittee(incoming().organizationId)
         && isValidCommitteeDecision(incoming(), decId)
@@ -1499,10 +1587,19 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/applications/$(incoming().applicationId)) ||
           existsAfter(/databases/$(database)/documents/applications/$(incoming().applicationId))
         );
-      allow update: if isValidId(decId) && isAdmin() && inSameOrg(existing().organizationId)
+      allow update: if isValidId(decId)
         && isValidCommitteeDecision(incoming(), decId)
         && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId;
+        && incoming().organizationId == existing().organizationId
+        && (
+          (isAdmin() && inSameOrg(existing().organizationId)) ||
+          (
+            canDecideCommittee(existing().organizationId)
+            && existing().decidedBy == request.auth.uid
+            && incoming().decidedBy == request.auth.uid
+            && incoming().decidedAt == request.time
+          )
+        );
       allow delete: if false;
     }
 
@@ -1510,7 +1607,7 @@ service cloud.firestore {
       allow get: if isValidId(formId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId));
       allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
       allow create: if isValidId(formId)
-        && hasOrgRole(incoming().organizationId, ['ADMIN', 'FORMALIZATION', 'COMMITTEE_MEMBER', 'OPERATIONS', 'FINANCE'])
+        && (isBootstrappedAdmin() || hasOrgRole(incoming().organizationId, ['ADMIN', 'FORMALIZATION', 'COMMITTEE_MEMBER', 'OPERATIONS', 'FINANCE']) || canDecideCommittee(incoming().organizationId))
         && isValidFormalization(incoming(), formId)
         && incoming().formalizedBy == request.auth.uid
         && incoming().createdAt == request.time
@@ -1521,28 +1618,40 @@ service cloud.firestore {
           existsAfter(/databases/$(database)/documents/applications/$(incoming().applicationId))
         );
       allow update: if isValidId(formId)
-        && inSameOrg(existing().organizationId)
         && isValidFormalization(incoming(), formId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
         && incoming().updatedAt == request.time
         && (
-          isAdmin() ||
+          isBootstrappedAdmin() ||
+          (isAdmin() && (!('organizationId' in existing()) || inSameOrg(existing().organizationId))) ||
           (
-            incoming().applicationId == existing().applicationId
-            && incoming().decisionId == existing().decisionId
-            && incoming().formalizedBy == existing().formalizedBy
-            && incoming().createdAt == existing().createdAt
-            && existing().status != 'DESEMBOLSADA'
+            inSameOrg(existing().organizationId)
+            && incoming().id == existing().id
+            && incoming().organizationId == existing().organizationId
             && (
-              (currentRole() in ['ADMIN', 'FORMALIZATION'] && incoming().diff(existing()).affectedKeys().hasOnly([
-                'approvedFinancialAnalysisId', 'financedExpenses', 'totalFinanced', 'deductedExpenses', 'netDisbursementAmount',
-                'disbursementTargetDate', 'firstPaymentDate', 'maturityDate', 'totalContractualPayable',
-                'contractText', 'promissoryNoteText', 'requiredDocsChecklist', 'conditionsFulfilled',
-                'signatures', 'collateralDetails', 'legalReviewConfirmed',
-                'promissoryNoteConfirmed', 'contractConfirmed', 'status', 'updatedAt'
-              ])) ||
-              (currentRole() in ['ADMIN', 'OPERATIONS', 'FINANCE'] && incoming().status == 'DESEMBOLSADA' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+              (
+                canDecideCommittee(existing().organizationId)
+                && existing().status == 'PENDIENTE'
+                && incoming().applicationId == existing().applicationId
+                && incoming().status == 'PENDIENTE'
+              ) ||
+              (
+                incoming().applicationId == existing().applicationId
+                && incoming().decisionId == existing().decisionId
+                && incoming().formalizedBy == existing().formalizedBy
+                && incoming().createdAt == existing().createdAt
+                && existing().status != 'DESEMBOLSADA'
+                && (
+                  (currentRole() in ['ADMIN', 'FORMALIZATION'] && incoming().diff(existing()).affectedKeys().hasOnly([
+                    'approvedFinancialAnalysisId', 'approvedCapital', 'financedExpenses', 'totalFinanced',
+                    'deductedExpenses', 'netDisbursementAmount', 'contractualRateMonthly', 'termMonths',
+                    'frequency', 'amortizationMethod', 'disbursementTargetDate', 'firstPaymentDate',
+                    'maturityDate', 'totalContractualPayable', 'contractText', 'promissoryNoteText',
+                    'requiredDocsChecklist', 'conditionsFulfilled', 'signatures', 'collateralDetails',
+                    'legalReviewConfirmed', 'promissoryNoteConfirmed', 'contractConfirmed', 'status', 'updatedAt'
+                  ])) ||
+                  (currentRole() in ['ADMIN', 'OPERATIONS', 'FINANCE'] && incoming().status == 'DESEMBOLSADA' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+                )
+              )
             )
           )
         );
@@ -1574,8 +1683,8 @@ service cloud.firestore {
     }
 
     match /loans/{loanId} {
-      allow get: if isValidId(loanId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().createdBy == request.auth.uid));
-      allow list: if isVerified() && (resource.data.createdBy == request.auth.uid || isInternalStaff(resource.data.organizationId));
+      allow get: if isValidId(loanId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().createdBy == request.auth.uid) || isLinkedCustomer(existing().customerId, existing().organizationId));
+      allow list: if isVerified() && (resource.data.createdBy == request.auth.uid || isInternalStaff(resource.data.organizationId) || isLinkedCustomer(resource.data.customerId, resource.data.organizationId));
       allow create: if isValidId(loanId)
         && hasOrgRole(incoming().organizationId, ['ADMIN', 'OPERATIONS', 'FINANCE', 'COLLECTION_COORDINATOR', 'MANAGEMENT'])
         && isValidLoan(incoming(), loanId)
@@ -1612,8 +1721,15 @@ service cloud.firestore {
               (currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'currentPrincipalBalance', 'status', 'paidPrincipalTotal',
-                  'paidInterestTotal', 'paidLateFeeTotal', 'closedAt',
+                  'paidInterestTotal', 'paidLateFeeTotal', 'waivedLateFeeTotal', 'closedAt',
                   'closureCertificateNumber', 'updatedAt'
+                ])) ||
+              (currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'SUPERVISOR', 'MANAGEMENT']
+                && existing().status != 'CANCELADO'
+                && existing().status != 'PAGADO'
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'waivedLateFeeTotal', 'lateFeeExempt', 'lateFeeExemptReason',
+                  'lateFeeExemptBy', 'lateFeeExemptAt', 'updatedAt'
                 ])) ||
               (currentRole() in ['ADMIN', 'FINANCE', 'OPERATIONS']
                 && incoming().status == 'CANCELADO'
@@ -1633,8 +1749,8 @@ service cloud.firestore {
     }
 
     match /loan_installments/{instId} {
-      allow get: if isValidId(instId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && exists(/databases/$(database)/documents/loans/$(existing().loanId)) && get(/databases/$(database)/documents/loans/$(existing().loanId)).data.createdBy == request.auth.uid));
-      allow list: if isVerified() && (isInternalStaff(resource.data.organizationId) || (isActiveUser() && exists(/databases/$(database)/documents/loans/$(resource.data.loanId)) && get(/databases/$(database)/documents/loans/$(resource.data.loanId)).data.createdBy == request.auth.uid));
+      allow get: if isValidId(instId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || canClientReadLoan(existing().loanId, existing().organizationId));
+      allow list: if isVerified() && (isInternalStaff(resource.data.organizationId) || canClientReadLoan(resource.data.loanId, resource.data.organizationId));
       allow create: if isValidId(instId) && (canDisburse(incoming().organizationId) || canApplyOrReversePayments(incoming().organizationId))
         && isValidInstallment(incoming(), instId)
         && incoming().createdAt == request.time
@@ -1664,8 +1780,12 @@ service cloud.firestore {
               (canApplyOrReversePayments(existing().organizationId)
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'status', 'paidPrincipal', 'paidInterest', 'paidOtherCharges',
-                  'paidLateFee', 'accruedLateFee', 'paidAt', 'updatedAt'
+                  'paidLateFee', 'accruedLateFee', 'waivedLateFee', 'paidAt', 'updatedAt'
                 ])) ||
+              (hasOrgRole(existing().organizationId, ['ADMIN', 'FINANCE', 'OPERATIONS', 'COLLECTION_COORDINATOR', 'SUPERVISOR', 'MANAGEMENT'])
+                && existing().status in ['PENDIENTE', 'VENCIDA', 'PARCIAL']
+                && incoming().status in ['PENDIENTE', 'VENCIDA', 'PARCIAL']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['accruedLateFee', 'waivedLateFee', 'updatedAt'])) ||
               (isInternalStaff(existing().organizationId)
                 && existing().status in ['PENDIENTE', 'VENCIDA', 'PARCIAL']
                 && incoming().status in ['PENDIENTE', 'VENCIDA', 'PARCIAL']
@@ -1834,7 +1954,7 @@ service cloud.firestore {
         && incoming().id == existing().id
         && incoming().organizationId == existing().organizationId
         && incoming().loanId == existing().loanId
-        && incoming().currency == existing().currency
+        && (incoming().currency == existing().currency || (isAdmin() && incoming().currency in ['DOP', 'USD']))
         && incoming().updatedAt == request.time;
       allow delete: if isValidId(accountId) && isBootstrappedAdmin();
     }
@@ -1857,7 +1977,7 @@ service cloud.firestore {
         && isValidCollectionBase(incoming(), actionId)
         && isValidId(incoming().loanId)
         && incoming().collectorId == request.auth.uid
-        && incoming().notes is string && incoming().notes.size() >= 2 && incoming().notes.size() <= 4000
+        && strLen(incoming().notes, 2, 4000)
         && incoming().isClosed == true
         && incoming().createdAt == request.time;
       allow update: if isValidId(actionId) && canLogCollections(existing().organizationId)
@@ -1875,7 +1995,7 @@ service cloud.firestore {
       allow create: if isValidId(taskId) && isInternalStaff(incoming().organizationId)
         && isValidCollectionBase(incoming(), taskId)
         && isValidId(incoming().loanId)
-        && incoming().sourceEventKey is string && incoming().sourceEventKey.size() >= 3 && incoming().sourceEventKey.size() <= 180
+        && strLen(incoming().sourceEventKey, 3, 180)
         && incoming().status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA']
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -1935,15 +2055,15 @@ service cloud.firestore {
     }
 
     function hasValidPaymentEvidence(data) {
-      return (!('receiptEvidenceName' in data) || (data.receiptEvidenceName is string && data.receiptEvidenceName.size() <= 240))
-        && (!('receiptEvidenceMimeType' in data) || (data.receiptEvidenceMimeType is string && data.receiptEvidenceMimeType.size() <= 120))
+      return optStr(data, 'receiptEvidenceName', 240)
+        && optStr(data, 'receiptEvidenceMimeType', 120)
         && (!('receiptEvidenceSizeBytes' in data) || (data.receiptEvidenceSizeBytes is number && data.receiptEvidenceSizeBytes >= 0 && data.receiptEvidenceSizeBytes <= 10485760))
-        && (!('receiptEvidenceDataUrl' in data) || (data.receiptEvidenceDataUrl is string && data.receiptEvidenceDataUrl.size() <= 700000));
+        && optStr(data, 'receiptEvidenceDataUrl', 700000);
     }
 
     match /payments/{paymentId} {
-      allow get: if isValidId(paymentId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().reportedByUserId == request.auth.uid));
-      allow list: if isVerified() && (resource.data.reportedByUserId == request.auth.uid || isInternalStaff(resource.data.organizationId));
+      allow get: if isValidId(paymentId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId) || (isActiveUser() && existing().reportedByUserId == request.auth.uid) || ('customerId' in existing() && isLinkedCustomer(existing().customerId, existing().organizationId)));
+      allow list: if isVerified() && (resource.data.reportedByUserId == request.auth.uid || isInternalStaff(resource.data.organizationId) || ('customerId' in resource.data && isLinkedCustomer(resource.data.customerId, resource.data.organizationId)));
       allow create: if isValidId(paymentId)
         && isValidCollectionBase(incoming(), paymentId)
         && isValidId(incoming().loanId)
@@ -1962,7 +2082,7 @@ service cloud.firestore {
         && incoming().organizationId == existing().organizationId
         && incoming().loanId == existing().loanId
         && incoming().amount == existing().amount
-        && incoming().currency == existing().currency
+        && (incoming().currency == existing().currency || (isAdmin() && incoming().currency in ['DOP', 'USD']))
         && hasValidPaymentEvidence(incoming())
         && incoming().updatedAt == request.time
         && (
@@ -2001,7 +2121,7 @@ service cloud.firestore {
         && isValidId(incoming().paymentId)
         && isValidId(incoming().loanId)
         && incoming().authorizedByUserId == request.auth.uid
-        && incoming().reason is string && incoming().reason.size() >= 5 && incoming().reason.size() <= 1000
+        && strLen(incoming().reason, 5, 1000)
         && incoming().createdAt == request.time;
       allow update, delete: if false;
     }
@@ -2298,14 +2418,14 @@ service cloud.firestore {
         ])
         && data.id == expenseId && isValidId(data.id)
         && isValidId(data.organizationId)
-        && data.expenseNumber is string && data.expenseNumber.size() >= 2 && data.expenseNumber.size() <= 64
-        && data.expenseDate is string && data.expenseDate.size() >= 10 && data.expenseDate.size() <= 20
+        && strLen(data.expenseNumber, 2, 64)
+        && strLen(data.expenseDate, 10, 20)
         && data.category in [
           'NOMINA', 'ALQUILER', 'SERVICIOS_BASICOS', 'TECNOLOGIA', 'MARKETING',
           'LEGAL_COBRANZA', 'IMPUESTOS', 'SUMINISTROS', 'INTERESES_INVERSIONISTAS', 'OTROS'
         ]
-        && data.concept is string && data.concept.size() >= 2 && data.concept.size() <= 200
-        && data.vendorName is string && data.vendorName.size() >= 2 && data.vendorName.size() <= 160
+        && strLen(data.concept, 2, 200)
+        && strLen(data.vendorName, 2, 160)
         && (!('invoiceNumber' in data) || (data.invoiceNumber is string && data.invoiceNumber.size() <= 64))
         && data.currency in ['DOP', 'USD']
         && data.amount is number && data.amount > 0 && data.amount <= 1000000000
@@ -2313,19 +2433,13 @@ service cloud.firestore {
         && data.status in ['PAGADO', 'PENDIENTE', 'ANULADO']
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
         && isValidId(data.createdBy)
-        && data.createdByName is string && data.createdByName.size() >= 1 && data.createdByName.size() <= 160
+        && strLen(data.createdByName, 1, 160)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
 
     function isValidInvestor(data, investorId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'investorCode', 'fullName', 'investorType',
-          'documentNumber', 'phone', 'currency', 'annualReturnRatePct', 'joinDate',
-          'currentInvestedBalance', 'totalContributed', 'totalWithdrawn', 'totalReturnsPaid',
-          'status', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'investorCode', 'fullName', 'investorType',
           'documentNumber', 'phone', 'email', 'currency', 'annualReturnRatePct', 'joinDate',
           'currentInvestedBalance', 'totalContributed', 'totalWithdrawn', 'totalReturnsPaid',
@@ -2333,15 +2447,15 @@ service cloud.firestore {
         ])
         && data.id == investorId && isValidId(data.id)
         && isValidId(data.organizationId)
-        && data.investorCode is string && data.investorCode.size() >= 2 && data.investorCode.size() <= 64
-        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 160
+        && strLen(data.investorCode, 2, 64)
+        && strLen(data.fullName, 2, 160)
         && data.investorType in ['PERSONA_FISICA', 'PERSONA_JURIDICA']
-        && data.documentNumber is string && data.documentNumber.size() >= 4 && data.documentNumber.size() <= 40
-        && data.phone is string && data.phone.size() >= 7 && data.phone.size() <= 40
+        && strLen(data.documentNumber, 4, 40)
+        && strLen(data.phone, 7, 40)
         && (!('email' in data) || (data.email is string && data.email.size() <= 254))
         && data.currency in ['DOP', 'USD']
         && data.annualReturnRatePct is number && data.annualReturnRatePct >= 0 && data.annualReturnRatePct <= 200
-        && data.joinDate is string && data.joinDate.size() >= 10 && data.joinDate.size() <= 20
+        && strLen(data.joinDate, 10, 20)
         && data.currentInvestedBalance is number && data.currentInvestedBalance >= 0
         && data.totalContributed is number && data.totalContributed >= 0
         && data.totalWithdrawn is number && data.totalWithdrawn >= 0
@@ -2349,18 +2463,13 @@ service cloud.firestore {
         && data.status in ['ACTIVO', 'INACTIVO']
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
         && isValidId(data.createdBy)
-        && data.createdByName is string && data.createdByName.size() >= 1 && data.createdByName.size() <= 160
+        && strLen(data.createdByName, 1, 160)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
 
     function isValidInvestorTransaction(data, txId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'investorId', 'investorName', 'transactionType',
-          'transactionDate', 'currency', 'amount', 'paymentMethod',
-          'createdBy', 'createdByName', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
+      return data.keys().hasOnly([
           'id', 'organizationId', 'investorId', 'investorName', 'transactionType',
           'transactionDate', 'currency', 'amount', 'paymentMethod', 'referenceNumber',
           'notes', 'createdBy', 'createdByName', 'createdAt', 'updatedAt'
@@ -2368,16 +2477,16 @@ service cloud.firestore {
         && data.id == txId && isValidId(data.id)
         && isValidId(data.organizationId)
         && isValidId(data.investorId)
-        && data.investorName is string && data.investorName.size() >= 2 && data.investorName.size() <= 160
+        && strLen(data.investorName, 2, 160)
         && data.transactionType in ['APORTE_CAPITAL', 'RETIRO_CAPITAL', 'PAGO_RENDIMIENTO']
-        && data.transactionDate is string && data.transactionDate.size() >= 10 && data.transactionDate.size() <= 20
+        && strLen(data.transactionDate, 10, 20)
         && data.currency in ['DOP', 'USD']
         && data.amount is number && data.amount > 0 && data.amount <= 1000000000
         && data.paymentMethod in ['TRANSFERENCIA', 'EFECTIVO', 'CHEQUE', 'TARJETA']
         && (!('referenceNumber' in data) || (data.referenceNumber is string && data.referenceNumber.size() <= 80))
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
         && isValidId(data.createdBy)
-        && data.createdByName is string && data.createdByName.size() >= 1 && data.createdByName.size() <= 160
+        && strLen(data.createdByName, 1, 160)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -2449,53 +2558,22 @@ service cloud.firestore {
     }
 
     function isValidDashboardWidgetConfig(data, configId) {
-      return data.keys().hasAll([
-          'id', 'organizationId', 'userId', 'role',
-          'sectionOrder', 'hiddenSections',
-          'kpiOrder', 'hiddenKpis',
-          'alertOrder', 'hiddenAlerts',
-          'alertsViewMode', 'updatedBy',
-          'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
-          'id', 'organizationId', 'userId', 'role',
-          'sectionOrder', 'hiddenSections',
-          'kpiOrder', 'hiddenKpis',
-          'alertOrder', 'hiddenAlerts',
-          'alertsViewMode', 'updatedBy',
-          'createdAt', 'updatedAt'
-        ])
-        && data.id == configId && isValidId(data.id)
-        && isValidId(data.organizationId)
-        && isValidId(data.userId)
-        && data.role in [
-          'ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'RISK_OFFICER',
-          'COMMITTEE_MEMBER', 'FORMALIZATION', 'OPERATIONS', 'FINANCE',
-          'AUDITOR', 'COLLECTION_AGENT', 'SUPERVISOR', 'COLLECTION_COORDINATOR',
-          'CASHIER', 'MANAGEMENT', 'EXTERNAL_CLIENT'
-        ]
-        && data.sectionOrder is list && data.sectionOrder.size() >= 1 && data.sectionOrder.size() <= 9
-        && data.sectionOrder[0] is string
-        && data.sectionOrder.hasOnly(['executiveSummary', 'performanceOverview', 'panorama', 'intelligence', 'alertsAndActivity', 'performance', 'collections', 'teamProductivity', 'shortcuts'])
-        && data.hiddenSections is list && data.hiddenSections.size() <= 9
-        && (data.hiddenSections.size() == 0 || data.hiddenSections[0] is string)
-        && data.hiddenSections.hasOnly(['executiveSummary', 'performanceOverview', 'panorama', 'intelligence', 'alertsAndActivity', 'performance', 'collections', 'teamProductivity', 'shortcuts'])
-        && data.kpiOrder is list && data.kpiOrder.size() >= 1 && data.kpiOrder.size() <= 4
-        && data.kpiOrder[0] is string
-        && data.kpiOrder.hasOnly(['CARTERA_TOTAL', 'CARTERA_VENCIDA', 'DESEMBOLSOS', 'RECUPERACION'])
-        && data.hiddenKpis is list && data.hiddenKpis.size() <= 4
-        && (data.hiddenKpis.size() == 0 || data.hiddenKpis[0] is string)
-        && data.hiddenKpis.hasOnly(['CARTERA_TOTAL', 'CARTERA_VENCIDA', 'DESEMBOLSOS', 'RECUPERACION'])
-        && data.alertOrder is list && data.alertOrder.size() <= 7
-        && (data.alertOrder.size() == 0 || data.alertOrder[0] is string)
-        && data.alertOrder.hasOnly(['CUOTAS_VENCIDAS', 'PROMESAS_INCUMPLIDAS', 'PROXIMO_VENCER', 'EVALUACION', 'APROBACIONES', 'EXPEDIENTES', 'INCIDENCIAS'])
-        && data.hiddenAlerts is list && data.hiddenAlerts.size() <= 7
-        && (data.hiddenAlerts.size() == 0 || data.hiddenAlerts[0] is string)
-        && data.hiddenAlerts.hasOnly(['CUOTAS_VENCIDAS', 'PROMESAS_INCUMPLIDAS', 'PROXIMO_VENCER', 'EVALUACION', 'APROBACIONES', 'EXPEDIENTES', 'INCIDENCIAS'])
+      let req = ['id', 'organizationId', 'userId', 'role', 'sectionOrder', 'hiddenSections', 'kpiOrder', 'hiddenKpis', 'alertOrder', 'hiddenAlerts', 'alertsViewMode', 'updatedBy', 'createdAt', 'updatedAt'];
+      let secs = ['executiveSummary', 'performanceOverview', 'panorama', 'intelligence', 'alertsAndActivity', 'performance', 'collections', 'teamProductivity', 'shortcuts'];
+      let kpis = ['CARTERA_TOTAL', 'CARTERA_VENCIDA', 'DESEMBOLSOS', 'RECUPERACION'];
+      let alerts = ['CUOTAS_VENCIDAS', 'PROMESAS_INCUMPLIDAS', 'PROXIMO_VENCER', 'EVALUACION', 'APROBACIONES', 'EXPEDIENTES', 'INCIDENCIAS'];
+      return data.keys().hasAll(req) && data.keys().hasOnly(req)
+        && data.id == configId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.userId)
+        && isAllRole(data.role)
+        && data.sectionOrder is list && data.sectionOrder.size() >= 1 && data.sectionOrder.size() <= 9 && data.sectionOrder[0] is string && data.sectionOrder.hasOnly(secs)
+        && data.hiddenSections is list && data.hiddenSections.size() <= 9 && (data.hiddenSections.size() == 0 || data.hiddenSections[0] is string) && data.hiddenSections.hasOnly(secs)
+        && data.kpiOrder is list && data.kpiOrder.size() >= 1 && data.kpiOrder.size() <= 4 && data.kpiOrder[0] is string && data.kpiOrder.hasOnly(kpis)
+        && data.hiddenKpis is list && data.hiddenKpis.size() <= 4 && (data.hiddenKpis.size() == 0 || data.hiddenKpis[0] is string) && data.hiddenKpis.hasOnly(kpis)
+        && data.alertOrder is list && data.alertOrder.size() <= 7 && (data.alertOrder.size() == 0 || data.alertOrder[0] is string) && data.alertOrder.hasOnly(alerts)
+        && data.hiddenAlerts is list && data.hiddenAlerts.size() <= 7 && (data.hiddenAlerts.size() == 0 || data.hiddenAlerts[0] is string) && data.hiddenAlerts.hasOnly(alerts)
         && data.alertsViewMode in ['CARDS', 'FEED']
         && isValidId(data.updatedBy) && data.updatedBy == request.auth.uid
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
     match /dashboard_widget_configs/{configId} {
@@ -2533,8 +2611,8 @@ service cloud.firestore {
           'status', 'createdBy', 'createdAt', 'updatedAt'
         ])
         && d.id == accountId && isValidId(d.id) && isValidId(d.organizationId)
-        && d.code is string && d.code.size() >= 1 && d.code.size() <= 32
-        && d.name is string && d.name.size() >= 2 && d.name.size() <= 160
+        && strLen(d.code, 1, 32)
+        && strLen(d.name, 2, 160)
         && d.accountType in ['ACTIVO', 'PASIVO', 'PATRIMONIO', 'INGRESO', 'COSTO', 'GASTO']
         && d.normalBalance in ['DEBITO', 'CREDITO']
         && (!('parentCode' in d) || d.parentCode is string)
@@ -2577,7 +2655,7 @@ service cloud.firestore {
           'updatedBy', 'createdAt', 'updatedAt'
         ])
         && d.id == configId && d.organizationId == configId && isValidId(d.id)
-        && d.rnc is string && d.rnc.size() >= 9 && d.rnc.size() <= 20
+        && strLen(d.rnc, 9, 20)
         && d.legalName is string && d.tradeName is string && d.fiscalAddress is string
         && d.municipality is string && d.province is string && d.phone is string
         && d.email is string && d.economicActivity is string
@@ -2895,6 +2973,36 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- AxyCore IMPULSA (Motor Inteligente de Crecimiento Crediticio) ---
+
+    match /impulsa_opportunities/{oppId} {
+      allow read: if isInternalStaff(resource.data.organizationId);
+      allow create: if isInternalStaff(incoming().organizationId)
+        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+        && incoming().id == oppId && incoming().currency in ['DOP', 'USD']
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isInternalStaff(existing().organizationId)
+        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+        && incoming().id == oppId && incoming().organizationId == existing().organizationId
+        && incoming().customerId == existing().customerId && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /impulsa_configs/{configId} {
+      allow read: if isInternalStaff(resource.data.organizationId);
+      allow create: if isInternalStaff(incoming().organizationId)
+        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+        && incoming().id == configId && incoming().organizationId == configId
+        && incoming().requireExplicitConsentForExternalContact == true
+        && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time;
+      allow update: if isInternalStaff(existing().organizationId)
+        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
+        && incoming().id == configId && incoming().organizationId == existing().organizationId
+        && incoming().requireExplicitConsentForExternalContact == true
+        && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
     // --- AxyCore REGULA (32 Tenant-Isolated Regulatory, Risk, PLAFTPADM, Control & Audit Entities) ---
 
     function isRegulaCol(col) {
@@ -2929,6 +3037,74 @@ service cloud.firestore {
             && incoming().diff(existing()).affectedKeys().hasOnly(['humanValidationStatus', 'validatedBy', 'validatedByName', 'validatedAt', 'updatedAt'])
           )
         );
+      allow delete: if false;
+    }
+
+    // --- Public Institution Portal Directory (PII-Free Branding Only, Single-Doc Get Only) ---
+    match /public_portals/{portalCode} {
+      allow get: if isValidId(portalCode);
+      allow list: if false;
+      allow create, update: if isValidId(portalCode)
+        && (isBootstrappedAdmin() || (isAdmin() && inSameOrg(incoming().organizationId)))
+        && isValidPublicPortal(incoming(), portalCode)
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // --- Client Self-Service Requests (Tenant-Isolated Portal Requests) ---
+    match /client_service_requests/{requestId} {
+      allow get: if isValidId(requestId) && (
+        (resource == null && isActiveUser()) ||
+        isInternalStaff(existing().organizationId) ||
+        (isActiveStaffDoc() && existing().clientUid == request.auth.uid && existing().organizationId == userDoc().organizationId)
+      );
+      allow list: if isVerified() && (
+        isInternalStaff(resource.data.organizationId) ||
+        (isActiveStaffDoc() && resource.data.clientUid == request.auth.uid && resource.data.organizationId == userDoc().organizationId)
+      );
+      allow create: if isValidId(requestId)
+        && isActiveUser()
+        && inSameOrg(incoming().organizationId)
+        && isValidClientServiceRequest(incoming(), requestId)
+        && incoming().clientUid == request.auth.uid
+        && incoming().status == 'PENDIENTE'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(requestId)
+        && isInternalStaff(existing().organizationId)
+        && currentRole() != 'AUDITOR'
+        && isValidClientServiceRequest(incoming(), requestId)
+        && incoming().id == existing().id
+        && incoming().ticketNumber == existing().ticketNumber
+        && incoming().organizationId == existing().organizationId
+        && incoming().clientUid == existing().clientUid
+        && incoming().requestType == existing().requestType
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'staffResponse', 'resolvedBy', 'resolvedByName', 'resolvedAt', 'customerId', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // --- Public Web Credit Applications (Write-Only Public Intake, Strictly Staff-Only Reads) ---
+    match /public_credit_applications/{pubAppId} {
+      allow get: if isValidId(pubAppId) && isInternalStaff(existing().organizationId);
+      allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
+      allow create: if isValidId(pubAppId)
+        && isValidPublicCreditApplication(incoming(), pubAppId)
+        && incoming().status == 'RECIBIDA_PUBLICA'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isActivePublicPortalTarget(incoming().portalCode, incoming().organizationId);
+      allow update: if isValidId(pubAppId)
+        && isInternalStaff(existing().organizationId)
+        && currentRole() != 'AUDITOR'
+        && existing().status == 'RECIBIDA_PUBLICA'
+        && isValidPublicCreditAppReview(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'convertedApplicationId', 'convertedBy', 'convertedByName', 'convertedAt', 'reviewNotes', 'updatedAt'
+        ]);
       allow delete: if false;
     }
   }

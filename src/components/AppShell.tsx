@@ -54,6 +54,7 @@ import {
   Moon,
   Network,
   Package,
+  Percent,
   Radar,
   Receipt,
   Scale,
@@ -75,6 +76,7 @@ import {
   X,
 } from 'lucide-react';
 import { NavSectionId, useAxyCore } from '../context/AxyCoreContext';
+import { isValidInstitutionalLogoUrl } from '../utils/institutionalLogo';
 import { CreditNotificationToasts } from './CreditNotifications';
 import {
   NotificationCenter,
@@ -152,6 +154,19 @@ const SIDEBAR_GROUPS: NavGroupDefinition[] = [
       { id: 'cobranza_daily', label: 'Cobros del día', icon: ClipboardCheck },
       { id: 'cobranza_urgent', label: 'Cobros Urgentes', icon: Flame },
       { id: 'cobranza_legal', label: 'Cobros en Legal', icon: Gavel },
+      { id: 'cobranza_discounts', label: 'Descuentos', icon: Percent },
+      {
+        id: 'cobranza_discounts_mora',
+        label: 'Mora',
+        icon: Percent,
+        subItemOf: 'cobranza_discounts',
+      },
+      {
+        id: 'cobranza_discounts_payoff',
+        label: 'Saldos',
+        icon: Receipt,
+        subItemOf: 'cobranza_discounts',
+      },
       { id: 'cobranza_actions', label: 'Gestiones de Cobros', icon: ListChecks },
       {
         id: 'cobranza_agreements_today',
@@ -257,7 +272,7 @@ const SIDEBAR_GROUPS: NavGroupDefinition[] = [
       { id: 'cobranza_anticipate', label: 'Anticípate', icon: TrendingUp },
       { id: 'regula', label: 'REGULA', icon: ShieldCheck },
       { id: 'system_sitemap', label: 'Mapa del Sistema', icon: Network },
-      { id: 'intelligence_impulsa', label: 'Impulsa', icon: Activity, comingSoon: true },
+      { id: 'intelligence_impulsa', label: 'Impulsa', icon: Activity },
     ],
   },
   {
@@ -375,6 +390,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     customers: false,
     accounting: false,
     ecf_dashboard: false,
+    cobranza_discounts: false,
     cobranza_actions: false,
   });
 
@@ -386,8 +402,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [userSettingsOpen, setUserSettingsOpen] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [orgLogoFailed, setOrgLogoFailed] = useState(false);
   const [bioFeedback, setBioFeedback] = useState<string | null>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setOrgLogoFailed(false);
+  }, [organization.logoUrl]);
+
+  const hasInstitutionalLogo =
+    isValidInstitutionalLogoUrl(organization.logoUrl) && !orgLogoFailed;
 
   const isExternalClient = rbac.role === 'EXTERNAL_CLIENT';
   const canOriginate = rbac.hasPermission('ORIGINATE_APPLICATION');
@@ -519,6 +543,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const agreementsTodayCount = agreementMgmtClassification.acuerdosDelDia.length;
   const agreementsBrokenCount = agreementMgmtClassification.acuerdosIncumplidos.length;
+  const lateFeeAccountsCount = collectionAccounts.filter(
+    (a) =>
+      !a.lateFeeExempt &&
+      a.stage !== 'CANCELADO' &&
+      (a.overdueLateFee ?? 0) > 0
+  ).length;
 
   const activeAlertsCount = riskAlerts.filter((a) => a.status === 'ACTIVA').length;
   const openExceptionsCount = reconciliationExceptions.filter((e) => e.status === 'ABIERTA').length;
@@ -547,7 +577,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const handleSelectNav = (id: NavSectionId) => {
     setActiveSection(id);
-    if (id === 'ecf_dashboard' || id === 'accounting' || id === 'policies' || id === 'customers') {
+    if (
+      id === 'ecf_dashboard' ||
+      id === 'accounting' ||
+      id === 'policies' ||
+      id === 'customers' ||
+      id === 'cobranza_discounts'
+    ) {
       setOpenSubMenus((prev) => ({ ...prev, [id]: true }));
     }
     setMobileOpen(false);
@@ -893,6 +929,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (id === 'cobranza_daily') return dailyTramoCount;
     if (id === 'cobranza_urgent') return urgentTramoCount;
     if (id === 'cobranza_legal') return legalTramoCount;
+    if (id === 'cobranza_discounts' || id === 'cobranza_discounts_mora') return lateFeeAccountsCount;
     if (id === 'cobranza_agreements_today') return agreementsTodayCount;
     if (id === 'cobranza_agreements_broken') return agreementsBrokenCount;
     if (id === 'cobranza_sentinel') return activeAlertsCount;
@@ -980,6 +1017,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Active Tenant Workspace & Multi-Organization Switcher */}
+        {collapsed && hasInstitutionalLogo && (
+          <div className="px-2.5 py-2 border-b border-[#00B8FF]/12 bg-[#06122B] flex items-center justify-center shrink-0">
+            <div
+              className="h-9 w-9 rounded-lg bg-white p-1 border border-[#00B8FF]/25 flex items-center justify-center overflow-hidden"
+              title={organization.tradeName || organization.name}
+            >
+              <img
+                src={organization.logoUrl}
+                alt={organization.tradeName || organization.name}
+                referrerPolicy="no-referrer"
+                onError={() => setOrgLogoFailed(true)}
+                className="h-full w-full object-contain"
+              />
+            </div>
+          </div>
+        )}
         {!collapsed && (
           <div className="px-3 py-2.5 border-b border-[#00B8FF]/12 bg-[#06122B] space-y-2 shrink-0">
             <div className="flex items-center justify-between gap-1.5">
@@ -990,24 +1043,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {organization.planCode || 'CORPORATIVO'}
               </span>
             </div>
-            {availableWorkspaces.length > 1 ? (
-              <select
-                value={organization.id}
-                onChange={(e) => switchOrganizationWorkspace(e.target.value)}
-                aria-label="Cambiar empresa activa"
-                className="w-full px-2.5 py-1.5 rounded-lg bg-[#040C1E] border border-[#00B8FF]/20 text-xs font-bold text-white cursor-pointer focus:border-[#00B8FF] focus:outline-none"
-              >
-                {availableWorkspaces.map((ws) => (
-                  <option key={ws.id} value={ws.id}>
-                    {ws.tradeName || ws.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="px-2.5 py-1.5 rounded-lg bg-[#040C1E] border border-[#00B8FF]/15 text-xs font-bold text-white truncate">
-                {organization.tradeName || organization.name}
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {hasInstitutionalLogo && (
+                <div
+                  className="h-9 w-9 rounded-lg bg-white p-1 border border-[#00B8FF]/25 flex items-center justify-center shrink-0 overflow-hidden"
+                  title={organization.tradeName || organization.name}
+                >
+                  <img
+                    src={organization.logoUrl}
+                    alt={organization.tradeName || organization.name}
+                    referrerPolicy="no-referrer"
+                    onError={() => setOrgLogoFailed(true)}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              )}
+              {availableWorkspaces.length > 1 ? (
+                <select
+                  value={organization.id}
+                  onChange={(e) => switchOrganizationWorkspace(e.target.value)}
+                  aria-label="Cambiar empresa activa"
+                  className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[#040C1E] border border-[#00B8FF]/20 text-xs font-bold text-white cursor-pointer focus:border-[#00B8FF] focus:outline-none"
+                >
+                  {availableWorkspaces.map((ws) => (
+                    <option key={ws.id} value={ws.id}>
+                      {ws.tradeName || ws.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[#040C1E] border border-[#00B8FF]/15 text-xs font-bold text-white truncate">
+                  {organization.tradeName || organization.name}
+                </div>
+              )}
+            </div>
 
             {isSuperAdmin && (
               <div className="grid grid-cols-3 gap-1 pt-0.5">
@@ -1350,21 +1419,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 h-16 bg-white/88 dark:bg-[#050E24]/88 backdrop-blur-xl border-b border-slate-200/80 dark:border-[#00B8FF]/14 px-4 sm:px-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="sticky top-0 z-30 h-16 bg-white/88 dark:bg-[#050E24]/88 backdrop-blur-xl border-b border-slate-200/80 dark:border-[#00B8FF]/14 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 overflow-hidden">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 rounded-lg border border-slate-200 dark:border-[#00B8FF]/20 text-slate-600 dark:text-slate-300 cursor-pointer"
+              className="lg:hidden p-2 rounded-lg border border-slate-200 dark:border-[#00B8FF]/20 text-slate-600 dark:text-slate-300 shrink-0 cursor-pointer"
               aria-label="Abrir menú"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <NavigationBreadcrumbs
-              variant="header"
-              showSiblingSwitcher
-              organizationLabel={organization.tradeName || organization.name}
-            />
+            {hasInstitutionalLogo && (
+              <div
+                className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-white border border-slate-200/90 dark:border-[#00B8FF]/25 p-1 flex items-center justify-center shrink-0 overflow-hidden"
+                title={organization.tradeName || organization.name}
+              >
+                <img
+                  src={organization.logoUrl}
+                  alt={organization.tradeName || organization.name}
+                  referrerPolicy="no-referrer"
+                  onError={() => setOrgLogoFailed(true)}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            )}
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <NavigationBreadcrumbs
+                variant="header"
+                showSiblingSwitcher
+                organizationLabel={organization.tradeName || organization.name}
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">

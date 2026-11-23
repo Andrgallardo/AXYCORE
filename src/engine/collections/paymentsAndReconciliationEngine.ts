@@ -82,7 +82,14 @@ export function allocatePaymentAcrossInstallments(params: {
       return inst;
     }
 
-    let dueMora = Math.max(0, toCents(inst.accruedLateFee ?? 0) - toCents(inst.paidLateFee ?? 0));
+    let dueMora = loan.lateFeeExempt
+      ? 0
+      : Math.max(
+          0,
+          toCents(inst.accruedLateFee ?? 0) -
+            toCents(inst.paidLateFee ?? 0) -
+            toCents(inst.waivedLateFee ?? 0)
+        );
     let dueCharges = Math.max(0, toCents(inst.otherCharges) - toCents(inst.paidOtherCharges ?? 0));
     let dueInterest = Math.max(0, toCents(inst.interestAmount) - toCents(inst.paidInterest ?? 0));
     let duePrincipal = Math.max(0, toCents(inst.principalAmount) - toCents(inst.paidPrincipal ?? 0));

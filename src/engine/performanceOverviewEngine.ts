@@ -171,6 +171,7 @@ function resolveApplicationDecisionDate(app: ApplicationRecord): string | null {
 
 export function buildPerformanceOverviewData(params: {
   currency: CurrencyCode;
+  consolidateUsdToDopRate?: number;
   windowDays: PerformanceWindowDays;
   todayIso: string;
   metrics: ExecutiveCurrencyMetrics;
@@ -181,6 +182,7 @@ export function buildPerformanceOverviewData(params: {
 }): PerformanceOverviewSummary {
   const {
     currency,
+    consolidateUsdToDopRate,
     windowDays,
     todayIso,
     metrics,
@@ -189,6 +191,15 @@ export function buildPerformanceOverviewData(params: {
     collectionAccounts,
     collectionDailySnapshots,
   } = params;
+
+  const isConsolidated =
+    currency === 'DOP' &&
+    typeof consolidateUsdToDopRate === 'number' &&
+    Number.isFinite(consolidateUsdToDopRate) &&
+    consolidateUsdToDopRate > 0;
+  const fxRate = isConsolidated ? consolidateUsdToDopRate : 1;
+  const scaleMoney = (amount: number, recCurrency: CurrencyCode) =>
+    isConsolidated && recCurrency === 'USD' ? amount * fxRate : amount;
 
   const startIso = addDaysIso(todayIso, -(windowDays - 1));
   const endIso = todayIso;
@@ -200,9 +211,9 @@ export function buildPerformanceOverviewData(params: {
     dates.push(addDaysIso(todayIso, -i));
   }
 
-  // 1. Applications scoped to currency (excluding drafts)
+  // 1. Applications scoped to currency (or consolidated DOP+USD, excluding drafts)
   const currencyApps = applications.filter(
-    (a) => a.currency === currency && a.status !== 'BORRADOR'
+    (a) => (isConsolidated || a.currency === currency) && a.status !== 'BORRADOR'
   );
   const pendingCount = currencyApps.filter((a) =>
     PENDING_PIPELINE_STATUSES.has(a.status)
@@ -275,13 +286,18 @@ export function buildPerformanceOverviewData(params: {
       ? 'Acumulado histórico'
       : 'Sin decisiones registradas';
 
-  // 2. Loans / Daily Placement Volume scoped to currency
-  const currencyLoans = loans.filter((l) => l.currency === currency);
+  // 2. Loans / Daily Placement Volume scoped to currency (converting USD -> DOP when consolidated)
+  const currencyLoans = isConsolidated
+    ? loans
+    : loans.filter((l) => l.currency === currency);
   const loanMeta = currencyLoans.map((l) => ({
     loan: l,
     dateIso: resolveLoanPlacementDate(l),
-    amount: resolveLoanPlacementAmount(l),
-    currentBalance: Math.max(0, Number(l.currentPrincipalBalance || 0)),
+    amount: scaleMoney(resolveLoanPlacementAmount(l), l.currency),
+    currentBalance: scaleMoney(
+      Math.max(0, Number(l.currentPrincipalBalance || 0)),
+      l.currency
+    ),
     isActive: l.status === 'ACTIVO' || l.status === 'VENCIDO',
   }));
 
@@ -338,7 +354,7 @@ export function buildPerformanceOverviewData(params: {
   }
 
   const activeCollectionAccounts = collectionAccounts.filter(
-    (a) => a.currency === currency && a.stage !== 'CANCELADO'
+    (a) => (isConsolidated || a.currency === currency) && a.stage !== 'CANCELADO'
   );
   const currentPar30AccountsCount = activeCollectionAccounts.filter(
     (a) => a.dpd >= 30
@@ -348,6 +364,25 @@ export function buildPerformanceOverviewData(params: {
   const currentPar30Exposure = Math.max(0, Number(metrics.par30Exposure || 0));
 
   const readSnapshotMetrics = (snap: CollectionDailySnapshotRecord) => {
+    if (isConsolidated) {
+      const capDop = Math.max(0, Number(snap.principalBalanceDop || 0));
+      const capUsdInDop = Math.max(0, Number(snap.principalBalanceUsd || 0)) * fxRate;
+      const activeCapital = round2(capDop + capUsdInDop);
+      const par30ExpDop = (capDop * Math.max(0, Number(snap.par30Dop || 0))) / 100;
+      const par30ExpUsdInDop =
+        (capUsdInDop * Math.max(0, Number(snap.par30Usd || 0))) / 100;
+      const par1ExpDop = (capDop * Math.max(0, Number(snap.par1Dop || 0))) / 100;
+      const par1ExpUsdInDop =
+        (capUsdInDop * Math.max(0, Number(snap.par1Usd || 0))) / 100;
+      const par30Exposure = round2(par30ExpDop + par30ExpUsdInDop);
+      const par30Pct =
+        activeCapital > 0 ? round2((par30Exposure / activeCapital) * 100) : 0;
+      const par1Pct =
+        activeCapital > 0
+          ? round2(((par1ExpDop + par1ExpUsdInDop) / activeCapital) * 100)
+          : 0;
+      return { activeCapital, par30Pct, par1Pct, par30Exposure };
+    }
     const activeCapital =
       currency === 'USD'
         ? Math.max(0, Number(snap.principalBalanceUsd || 0))
@@ -449,7 +484,10 @@ export function buildPerformanceOverviewData(params: {
               const disbDate = loanDisbDateById.get(acct.loanId);
               if (disbDate && disbDate > dateIso) continue;
               const projectedDpd = Math.max(0, (acct.dpd || 0) - daysAgo);
-              const exp = Math.max(0, Number(acct.totalOutstandingPrincipal || 0));
+              const exp = scaleMoney(
+                Math.max(0, Number(acct.totalOutstandingPrincipal || 0)),
+                acct.currency
+              );
               if (projectedDpd >= 30) par30Exp += exp;
               if (projectedDpd >= 1) par1Exp += exp;
             }

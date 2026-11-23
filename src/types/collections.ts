@@ -92,6 +92,8 @@ export interface CollectionAccountRecord {
   behaviorBand: 'EXCELENTE' | 'BUENO' | 'ATENCION' | 'RIESGO_ALTO' | 'CRITICO';
   isRestructured?: boolean;
   hasOpenDispute?: boolean;
+  lateFeeExempt?: boolean;
+  waivedLateFeeTotal?: number;
   consentWhatsAppOptIn: boolean;
   closedAt?: string | null;
   closureCertificateNumber?: string | null;

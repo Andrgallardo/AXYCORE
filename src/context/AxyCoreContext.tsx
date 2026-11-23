@@ -10,7 +10,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import {
   auth,
   db,
@@ -93,9 +93,19 @@ import {
 } from '../engine/multiTenantEngine';
 import { tenantService } from '../services/tenantService';
 import {
+  applyLateFeeDiscountToLoan,
+  applyLoanPayoffSettlement,
   fetchAllOrgInstallments,
   syncDisbursedLoansAndDailyCutoff,
 } from '../services/collectionsStore';
+import type {
+  LateFeeDiscountMode,
+  LateFeeDiscountPlan,
+} from '../engine/collections/lateFeeDiscountEngine';
+import type {
+  LoanPayoffMode,
+  LoanPayoffPlan,
+} from '../engine/collections/loanPayoffEngine';
 import {
   fetchUserMembershipsFromStore,
   switchActiveOrganizationInStore,
@@ -104,6 +114,15 @@ import {
   parseInvitationParamsFromSearch,
   type ParsedInvitationLinkParams,
 } from '../engine/invitationFlow';
+import {
+  parseExternalPortalLinkFromLocation,
+  type ParsedExternalPortalLink,
+} from '../engine/externalPortalEngine';
+import {
+  fetchPublicInstitutionPortal,
+  syncPublicInstitutionPortal,
+  verifyAndLinkClientCustomerProfile,
+} from '../services/externalPortalService';
 import {
   authenticateWithBiometricCredential,
   clearBiometricSessionUnlocked,
@@ -136,6 +155,22 @@ import type {
   AlteraRecommendationStatus,
   AlteraSavedScenarioRecord,
 } from '../types/altera';
+import { buildDefaultImpulsaConfig, type DetectImpulsaResult } from '../engine/impulsa/impulsaEngine';
+import {
+  assignImpulsaOpportunity,
+  convertImpulsaOpportunityToApplication,
+  logImpulsaFollowUpAndTransition,
+  runAndPersistImpulsaDetection,
+  saveImpulsaConfig,
+  syncImpulsaLifecycleWithAxyCore,
+} from '../services/impulsaStore';
+import type {
+  ImpulsaContactChannel,
+  ImpulsaEngineConfig,
+  ImpulsaEngineRunLog,
+  ImpulsaOpportunityRecord,
+  ImpulsaOpportunityStatus,
+} from '../types/impulsa';
 import type {
   AccountingAccountRecord,
   DgiiAuditLogRecord,
@@ -148,14 +183,18 @@ import type {
   JournalEntryRecord,
 } from '../types/dgiiEcf';
 import type {
+  AmortizationMethod,
   ApplicationDecisionHistoryRecord,
   ApplicationDocumentRecord,
   ApplicationRecord,
   AuditLogRecord,
+  PaymentFrequency,
+  ProductCode,
   AxyCoreModuleCode,
   BankTransactionRecord,
   BelaChatMessage,
   BusinessRecord,
+  ClientServiceRequestRecord,
   CollectionAccountRecord,
   CollectionActionRecord,
   CollectionAssignmentRecord,
@@ -192,6 +231,7 @@ import type {
   OrganizationRecord,
   PaymentAgreementRecord,
   PaymentAllocationRecord,
+  PaymentChannelMethod,
   PaymentIntentRecord,
   PaymentPromiseRecord,
   PushDeliveryMode,
@@ -199,6 +239,8 @@ import type {
   PaymentRecord,
   PaymentReversalRecord,
   PortalAccessMode,
+  PublicCreditApplicationRecord,
+  PublicInstitutionPortalRecord,
   ReconciliationExceptionRecord,
   ReconciliationMatchRecord,
   RiskAlertRecord,
@@ -208,6 +250,7 @@ import type {
   UserInvitationRecord,
   UserProfile,
   UserRole,
+  ExternalPortalActionIntent,
 } from '../types/axycore';
 
 export interface ResolvedCorporateOrgInfo {
@@ -313,6 +356,25 @@ interface AxyCoreContextValue {
   clearCorporateAccessSelection: () => void;
   portalAccessError: string | null;
   clearPortalAccessError: () => void;
+  parsedExternalPortalLink: ParsedExternalPortalLink;
+  externalInstitutionPortal: PublicInstitutionPortalRecord | null;
+  externalPortalLoading: boolean;
+  externalPortalError: string | null;
+  externalPortalIntent: ExternalPortalActionIntent;
+  setExternalPortalIntent: (intent: ExternalPortalActionIntent) => void;
+  exitExternalInstitutionLink: () => void;
+  clientServiceRequests: ClientServiceRequestRecord[];
+  publicCreditApplications: PublicCreditApplicationRecord[];
+  verifyAndLinkClientProfile: (params?: {
+    documentNumber?: string;
+    documentType?: 'CEDULA' | 'PASAPORTE';
+    phone?: string;
+  }) => Promise<{
+    linked: boolean;
+    customer?: CustomerRecord;
+    method?: 'VERIFIED_EMAIL' | 'CEDULA_AND_PHONE' | 'ALREADY_LINKED';
+    message: string;
+  }>;
   biometricSupported: boolean;
   biometricLabel: string;
   biometricEnrolled: boolean;
@@ -397,6 +459,21 @@ interface AxyCoreContextValue {
     asOfDateIso?: string;
     saveSnapshot?: boolean;
   }) => Promise<{ syncedLoans: number; newAlerts: number; newTasks: number }>;
+  applyLateFeeDiscount: (params: {
+    loanId: string;
+    mode: LateFeeDiscountMode;
+    amount?: number;
+    reason?: string;
+  }) => Promise<LateFeeDiscountPlan>;
+  applyLoanPayoff: (params: {
+    loanId: string;
+    mode: LoanPayoffMode;
+    discountPercent?: number;
+    customPayoffAmount?: number;
+    paymentMethod: PaymentChannelMethod;
+    referenceNumber?: string;
+    reason?: string;
+  }) => Promise<LoanPayoffPlan>;
   refreshInstallments: () => Promise<void>;
   operatingExpenses: OperatingExpenseRecord[];
   investors: InvestorRecord[];
@@ -416,6 +493,39 @@ interface AxyCoreContextValue {
   alteraOutcomes: AlteraOutcomeRecord[];
   alteraAnalyses: AlteraAnalysisLogRecord[];
   alteraConfig: AlteraConfigRecord;
+  impulsaOpportunities: ImpulsaOpportunityRecord[];
+  impulsaConfig: ImpulsaEngineConfig;
+  runImpulsaDetection: (trigger?: 'MANUAL' | 'PROGRAMADO') => Promise<{
+    result: DetectImpulsaResult;
+    runLog: ImpulsaEngineRunLog;
+  }>;
+  assignImpulsaOpportunityEntry: (params: {
+    opportunity: ImpulsaOpportunityRecord;
+    targetOfficer: { uid: string; displayName: string };
+    reason: string;
+  }) => Promise<void>;
+  logImpulsaFollowUp: (params: {
+    opportunity: ImpulsaOpportunityRecord;
+    newStatus: ImpulsaOpportunityStatus;
+    channel: ImpulsaContactChannel;
+    outcome: string;
+    comment: string;
+    nextFollowUpDate?: string | null;
+  }) => Promise<void>;
+  convertImpulsaToApplication: (params: {
+    opportunity: ImpulsaOpportunityRecord;
+    productCode: ProductCode;
+    requestedAmount: number;
+    requestedTermMonths: number;
+    paymentFrequency: PaymentFrequency;
+    amortizationMethod: AmortizationMethod;
+    loanPurposeNote?: string;
+    submitMode: 'SUBMIT' | 'DRAFT';
+  }) => Promise<{ application: ApplicationRecord; scoring?: ScoringExecutionRecord }>;
+  updateImpulsaConfigSettings: (config: ImpulsaEngineConfig) => Promise<void>;
+  syncImpulsaWithAxyCore: (
+    targets?: ImpulsaOpportunityRecord[]
+  ) => Promise<{ syncedCount: number; syncedCodes: string[] }>;
   saveAlteraScenarioEntry: (
     scenario: Omit<
       AlteraSavedScenarioRecord,
@@ -545,8 +655,37 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     return parseInvitationParamsFromSearch(window.location.search);
   });
 
+  const [parsedExternalPortalLink, setParsedExternalPortalLink] = useState<ParsedExternalPortalLink>(() => {
+    if (typeof window === 'undefined') {
+      return {
+        portalCode: null,
+        actionIntent: 'portal',
+        isExternalInstitutionLink: false,
+      };
+    }
+    return parseExternalPortalLinkFromLocation(window.location.search, window.location.pathname);
+  });
+  const [externalInstitutionPortal, setExternalInstitutionPortal] =
+    useState<PublicInstitutionPortalRecord | null>(null);
+  const externalInstitutionPortalRef = useRef<PublicInstitutionPortalRecord | null>(null);
+  externalInstitutionPortalRef.current = externalInstitutionPortal;
+  const [externalPortalLoading, setExternalPortalLoading] = useState<boolean>(
+    () => parsedExternalPortalLink.isExternalInstitutionLink
+  );
+  const [externalPortalError, setExternalPortalError] = useState<string | null>(null);
+  const [externalPortalIntent, setExternalPortalIntent] = useState<ExternalPortalActionIntent>(
+    () => parsedExternalPortalLink.actionIntent
+  );
+  const externalPortalIntentRef = useRef<ExternalPortalActionIntent>(externalPortalIntent);
+  externalPortalIntentRef.current = externalPortalIntent;
+
   const [portalMode, setPortalModeState] = useState<PortalAccessMode | null>(() => {
     if (typeof window === 'undefined') return null;
+    const extLink = parseExternalPortalLinkFromLocation(
+      window.location.search,
+      window.location.pathname
+    );
+    if (extLink.isExternalInstitutionLink) return 'client';
     const params = new URLSearchParams(window.location.search);
     if (params.get('channel') === 'external') return 'client';
     const inv = parseInvitationParamsFromSearch(window.location.search);
@@ -618,9 +757,35 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
 
   const [externalPortalMode, setExternalPortalMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
+    const extLink = parseExternalPortalLinkFromLocation(
+      window.location.search,
+      window.location.pathname
+    );
+    if (extLink.isExternalInstitutionLink) return true;
     const params = new URLSearchParams(window.location.search);
     return params.get('channel') === 'external';
   });
+
+  const exitExternalInstitutionLink = useCallback(() => {
+    setParsedExternalPortalLink({
+      portalCode: null,
+      actionIntent: 'portal',
+      isExternalInstitutionLink: false,
+    });
+    setExternalInstitutionPortal(null);
+    externalInstitutionPortalRef.current = null;
+    setExternalPortalError(null);
+    setExternalPortalLoading(false);
+    setExternalPortalMode(false);
+    setPortalMode(null);
+    if (typeof window !== 'undefined') {
+      try {
+        window.history.replaceState({}, document.title, '/');
+      } catch {
+        // ignore
+      }
+    }
+  }, [setPortalMode]);
 
   const [intendedSection, setIntendedSection] = useState<NavSectionId | null>(() => {
     if (typeof window === 'undefined') return null;
@@ -731,7 +896,11 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   const [alteraOutcomes, setAlteraOutcomes] = useState<AlteraOutcomeRecord[]>([]);
   const [alteraAnalyses, setAlteraAnalyses] = useState<AlteraAnalysisLogRecord[]>([]);
   const [alteraConfigs, setAlteraConfigs] = useState<AlteraConfigRecord[]>([]);
+  const [impulsaOpportunities, setImpulsaOpportunities] = useState<ImpulsaOpportunityRecord[]>([]);
+  const [impulsaConfigs, setImpulsaConfigs] = useState<ImpulsaEngineConfig[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
+  const [clientServiceRequests, setClientServiceRequests] = useState<ClientServiceRequestRecord[]>([]);
+  const [publicCreditApplications, setPublicCreditApplications] = useState<PublicCreditApplicationRecord[]>([]);
   const [emailNotifications, setEmailNotifications] = useState<EmailNotificationRecord[]>([]);
   const [smtpConfigured, setSmtpConfigured] = useState<boolean>(false);
   const [fcmVapidConfigured, setFcmVapidConfigured] = useState<boolean>(() => isVapidKeyConfigured());
@@ -825,10 +994,74 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Resolve public institution portal branding BEFORE auth when visiting /?portal=<CODE> or /portal/<CODE>
   useEffect(() => {
-    document.documentElement.style.setProperty('--axy-primary', organization.primaryColor || '#0f3d91');
-    document.documentElement.style.setProperty('--axy-accent', organization.accentColor || '#0284c7');
-  }, [organization.primaryColor, organization.accentColor]);
+    if (!parsedExternalPortalLink.isExternalInstitutionLink || !parsedExternalPortalLink.portalCode) {
+      setExternalPortalLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setExternalPortalLoading(true);
+    setExternalPortalError(null);
+    void fetchPublicInstitutionPortal(parsedExternalPortalLink.portalCode)
+      .then((portal) => {
+        if (cancelled) return;
+        if (!portal) {
+          setExternalInstitutionPortal(null);
+          externalInstitutionPortalRef.current = null;
+          setExternalPortalError(
+            `No encontramos una institución activa registrada con el código "${parsedExternalPortalLink.portalCode}". Verifica el enlace con tu entidad financiera.`
+          );
+        } else if (!portal.portalEnabled || portal.status !== 'ACTIVA') {
+          setExternalInstitutionPortal(portal);
+          externalInstitutionPortalRef.current = portal;
+          setExternalPortalError(
+            `El portal externo de "${portal.tradeName || portal.name}" no está disponible temporalmente. Contacta directamente a la institución.`
+          );
+        } else {
+          setExternalInstitutionPortal(portal);
+          externalInstitutionPortalRef.current = portal;
+          setExternalPortalError(null);
+          setOrganization((prev) => ({
+            ...prev,
+            id: portal.organizationId,
+            organizationId: portal.organizationId,
+            accessCode: portal.portalCode,
+            name: portal.name,
+            tradeName: portal.tradeName,
+            primaryColor: portal.primaryColor || prev.primaryColor,
+            accentColor: portal.accentColor || prev.accentColor,
+            currency: portal.currency || prev.currency,
+            phone: portal.phone || prev.phone,
+            corporateEmail: portal.corporateEmail || prev.corporateEmail,
+          }));
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setExternalPortalError(
+          'No pudimos consultar el enlace de la institución en este momento. Intenta nuevamente.'
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setExternalPortalLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [parsedExternalPortalLink.isExternalInstitutionLink, parsedExternalPortalLink.portalCode]);
+
+  useEffect(() => {
+    const primary = externalInstitutionPortal?.primaryColor || organization.primaryColor || '#0f3d91';
+    const accent = externalInstitutionPortal?.accentColor || organization.accentColor || '#0284c7';
+    document.documentElement.style.setProperty('--axy-primary', primary);
+    document.documentElement.style.setProperty('--axy-accent', accent);
+  }, [
+    organization.primaryColor,
+    organization.accentColor,
+    externalInstitutionPortal?.primaryColor,
+    externalInstitutionPortal?.accentColor,
+  ]);
 
   useEffect(() => {
     fetch('/api/notifications/status')
@@ -910,13 +1143,31 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     testFirestoreConnection();
     const finalizeAuthenticatedSession = async (fbUser: FirebaseUser) => {
       try {
-        let profile = await bootstrapUserAndOrg(fbUser);
+        // If user arrived via an institution external link, resolve the institution's organizationId first
+        let preferredExternalOrgId = externalInstitutionPortalRef.current?.organizationId;
+        if (!preferredExternalOrgId && typeof window !== 'undefined') {
+          const extLink = parseExternalPortalLinkFromLocation(
+            window.location.search,
+            window.location.pathname
+          );
+          if (extLink.isExternalInstitutionLink && extLink.portalCode) {
+            const resolvedExt = await fetchPublicInstitutionPortal(extLink.portalCode).catch(() => null);
+            if (resolvedExt && resolvedExt.portalEnabled && resolvedExt.status === 'ACTIVA') {
+              preferredExternalOrgId = resolvedExt.organizationId;
+              setExternalInstitutionPortal(resolvedExt);
+              externalInstitutionPortalRef.current = resolvedExt;
+            }
+          }
+        }
+
+        let profile = await bootstrapUserAndOrg(fbUser, preferredExternalOrgId);
         const activePortal = portalModeRef.current;
         const targetCorp = resolvedCorporateOrgRef.current;
         const superUser = isSuperAdminUser(profile, fbUser.emailVerified);
+        const isOnExternalInstLink = Boolean(preferredExternalOrgId);
 
         // Enforce selected entry portal mode rules cleanly
-        if (activePortal === 'axycore_admin') {
+        if (activePortal === 'axycore_admin' && !isOnExternalInstLink) {
           if (!superUser) {
             setPortalAccessError(
               `La cuenta ${profile.email} no posee privilegios de Superadministrador AxyCore para administrar Platform Control SaaS. Selecciona Acceso Corporativo o Portal de Clientes.`
@@ -927,7 +1178,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           }
           setExternalPortalMode(false);
           setActiveSection('platform_control');
-        } else if (activePortal === 'corporate') {
+        } else if (activePortal === 'corporate' && !isOnExternalInstLink) {
           if (profile.role === 'EXTERNAL_CLIENT' && !superUser) {
             setPortalAccessError(
               `Tu cuenta (${profile.email}) está registrada como Cliente Externo y no cuenta con una invitación o rol corporativo activo. Pide a tu Administrador que envíe tu invitación o ingresa por el Portal de Clientes.`
@@ -971,9 +1222,12 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           }
           setExternalPortalMode(false);
           setActiveSection('dashboard');
-        } else if (activePortal === 'client') {
+        } else if (activePortal === 'client' || isOnExternalInstLink) {
+          setPortalMode('client');
           setExternalPortalMode(true);
-          setActiveSection('loans');
+          setActiveSection(
+            externalPortalIntentRef.current === 'solicitud' ? 'new_application' : 'loans'
+          );
         } else {
           // Direct session restore or automatic login after email activation link
           if (profile.role === 'EXTERNAL_CLIENT' && !superUser) {
@@ -1076,6 +1330,36 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Live listener on the authenticated user's own profile document so updates like `linkedCustomerId`
+  // (from self-verification or staff linking) take effect immediately without page reload.
+  useEffect(() => {
+    if (!authReady || !firebaseUser || !firebaseUser.emailVerified) return;
+    const unsubUser = onSnapshot(
+      doc(db, 'users', firebaseUser.uid),
+      (snap) => {
+        if (!snap.exists()) return;
+        const fresh = snap.data() as UserProfile;
+        setUserProfile((prev) => {
+          if (!prev) return fresh;
+          if (
+            prev.linkedCustomerId === fresh.linkedCustomerId &&
+            prev.organizationId === fresh.organizationId &&
+            prev.role === fresh.role &&
+            prev.status === fresh.status &&
+            prev.displayName === fresh.displayName
+          ) {
+            return prev;
+          }
+          return { ...prev, ...fresh };
+        });
+      },
+      () => {}
+    );
+    return () => unsubUser();
+  }, [authReady, firebaseUser?.uid, firebaseUser?.emailVerified]);
+
+  const syncedPublicPortalsRef = useRef<Set<string>>(new Set());
+
   // Attach Firestore real-time listeners strictly after auth, profile readiness & biometric unlock
   useEffect(() => {
     if (!authReady || !firebaseUser || !userProfile || biometricLocked || portalAccessError) {
@@ -1084,6 +1368,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
 
     setDataLoading(true);
     const orgId = userProfile.organizationId || DEFAULT_ORG_ID;
+    const linkedCustId = userProfile.linkedCustomerId || null;
     const isExternal = userProfile.role === 'EXTERNAL_CLIENT' || portalMode === 'client';
     const isAdmin = userProfile.role === 'ADMIN';
     const superAdmin = isSuperAdminUser(userProfile, firebaseUser.emailVerified);
@@ -1118,6 +1403,9 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
               const explicitlyDisabledRegula =
                 typeof window !== 'undefined' &&
                 window.localStorage.getItem(`axycore_regula_disabled_${orgDocId}`) === 'true';
+              const explicitlyDisabledImpulsa =
+                typeof window !== 'undefined' &&
+                window.localStorage.getItem(`axycore_impulsa_disabled_${orgDocId}`) === 'true';
               const hasAccountingOrFinance =
                 currentModules.includes('contabilidad') || currentModules.includes('finanzas');
               const isEligibleTenant =
@@ -1136,6 +1424,12 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
                 raw.planCode === 'EMPRESARIAL' ||
                 currentModules.includes('clientes') ||
                 currentModules.length > 0;
+              const isEligibleImpulsa =
+                orgDocId === DEFAULT_ORG_ID ||
+                raw.planCode === 'CORPORATIVO' ||
+                raw.planCode === 'EMPRESARIAL' ||
+                currentModules.includes('prestamos') ||
+                currentModules.includes('motor_decisiones');
               const shouldAutoIncludeEcf =
                 !explicitlyDisabled &&
                 isEligibleTenant &&
@@ -1150,7 +1444,16 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
                 !explicitlyDisabledRegula &&
                 isEligibleRegula &&
                 !currentModules.includes('regula');
-              if (!shouldAutoIncludeEcf && !shouldAutoIncludeAltera && !shouldAutoIncludeRegula) {
+              const shouldAutoIncludeImpulsa =
+                !explicitlyDisabledImpulsa &&
+                isEligibleImpulsa &&
+                !currentModules.includes('impulsa');
+              if (
+                !shouldAutoIncludeEcf &&
+                !shouldAutoIncludeAltera &&
+                !shouldAutoIncludeRegula &&
+                !shouldAutoIncludeImpulsa
+              ) {
                 return {
                   ...raw,
                   enabledModules: currentModules,
@@ -1165,6 +1468,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
                   : []),
                 ...(shouldAutoIncludeAltera ? (['altera'] as AxyCoreModuleCode[]) : []),
                 ...(shouldAutoIncludeRegula ? (['regula'] as AxyCoreModuleCode[]) : []),
+                ...(shouldAutoIncludeImpulsa ? (['impulsa'] as AxyCoreModuleCode[]) : []),
               ];
               const upgradedModules = Array.from(
                 new Set([...currentModules, ...extraModules])
@@ -1195,6 +1499,23 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             if (activeOrg) {
               setOrganization(activeOrg);
               tenantService.setContext({ organization: activeOrg, user: userProfile });
+              if ((isAdmin || superAdmin) && activeOrg.accessCode) {
+                const syncKey = `${activeOrg.id}:${activeOrg.accessCode}`;
+                if (!syncedPublicPortalsRef.current.has(syncKey)) {
+                  syncedPublicPortalsRef.current.add(syncKey);
+                  void syncPublicInstitutionPortal(activeOrg).catch(() => {});
+                }
+              }
+            }
+            if (superAdmin) {
+              orgs.forEach((o) => {
+                if (!o.accessCode) return;
+                const syncKey = `${o.id}:${o.accessCode}`;
+                if (!syncedPublicPortalsRef.current.has(syncKey)) {
+                  syncedPublicPortalsRef.current.add(syncKey);
+                  void syncPublicInstitutionPortal(o).catch(() => {});
+                }
+              });
             }
           }
         },
@@ -1230,16 +1551,26 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
               const disabledRegula =
                 typeof window !== 'undefined' &&
                 window.localStorage.getItem(`axycore_regula_disabled_${licOrgId}`) === 'true';
+              const disabledImpulsa =
+                typeof window !== 'undefined' &&
+                window.localStorage.getItem(`axycore_impulsa_disabled_${licOrgId}`) === 'true';
               const licModules = Array.isArray(lic.enabledModules) ? lic.enabledModules : [];
               const eligible =
                 licOrgId === DEFAULT_ORG_ID ||
                 lic.planCode === 'CORPORATIVO' ||
                 lic.planCode === 'EMPRESARIAL' ||
                 licModules.includes('clientes');
+              const extras: AxyCoreModuleCode[] = [];
               if (!disabledRegula && eligible && !licModules.includes('regula')) {
+                extras.push('regula');
+              }
+              if (!disabledImpulsa && eligible && !licModules.includes('impulsa')) {
+                extras.push('impulsa');
+              }
+              if (extras.length > 0) {
                 return {
                   ...lic,
-                  enabledModules: [...licModules, 'regula'],
+                  enabledModules: [...licModules, ...extras],
                 };
               }
               return lic;
@@ -1366,16 +1697,46 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
-    const custQuery = isExternal
-      ? query(collection(db, 'customers'), where('createdBy', '==', userProfile.uid))
-      : query(collection(db, 'customers'), where('organizationId', '==', orgId));
-    unsubs.push(
-      onSnapshot(
-        custQuery,
-        (snap) => setCustomers(snap.docs.map((d) => d.data() as CustomerRecord)),
-        (err) => handleFirestoreError(err, OperationType.LIST, 'customers')
-      )
-    );
+    if (isExternal) {
+      let createdCustomers: CustomerRecord[] = [];
+      let linkedCustomerDoc: CustomerRecord | null = null;
+      const emitMergedCustomers = () => {
+        const map = new Map<string, CustomerRecord>();
+        createdCustomers.forEach((c) => map.set(c.id, c));
+        if (linkedCustomerDoc) map.set(linkedCustomerDoc.id, linkedCustomerDoc);
+        setCustomers(Array.from(map.values()));
+      };
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'customers'), where('createdBy', '==', userProfile.uid)),
+          (snap) => {
+            createdCustomers = snap.docs.map((d) => d.data() as CustomerRecord);
+            emitMergedCustomers();
+          },
+          (err) => handleFirestoreError(err, OperationType.LIST, 'customers')
+        )
+      );
+      if (linkedCustId) {
+        unsubs.push(
+          onSnapshot(
+            doc(db, 'customers', linkedCustId),
+            (snap) => {
+              linkedCustomerDoc = snap.exists() ? (snap.data() as CustomerRecord) : null;
+              emitMergedCustomers();
+            },
+            () => {}
+          )
+        );
+      }
+    } else {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'customers'), where('organizationId', '==', orgId)),
+          (snap) => setCustomers(snap.docs.map((d) => d.data() as CustomerRecord)),
+          (err) => handleFirestoreError(err, OperationType.LIST, 'customers')
+        )
+      );
+    }
 
     const bizQuery = isExternal
       ? query(collection(db, 'businesses'), where('createdBy', '==', userProfile.uid))
@@ -1410,16 +1771,50 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
-    const loansQuery = isExternal
-      ? query(collection(db, 'loans'), where('createdBy', '==', userProfile.uid))
-      : query(collection(db, 'loans'), where('organizationId', '==', orgId));
-    unsubs.push(
-      onSnapshot(
-        loansQuery,
-        (snap) => setLoans(snap.docs.map((d) => d.data() as LoanRecord)),
-        (err) => handleFirestoreError(err, OperationType.LIST, 'loans')
-      )
-    );
+    if (isExternal) {
+      let createdLoans: LoanRecord[] = [];
+      let linkedLoans: LoanRecord[] = [];
+      const emitMergedLoans = () => {
+        const map = new Map<string, LoanRecord>();
+        createdLoans.forEach((l) => map.set(l.id, l));
+        linkedLoans.forEach((l) => map.set(l.id, l));
+        setLoans(Array.from(map.values()));
+      };
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'loans'), where('createdBy', '==', userProfile.uid)),
+          (snap) => {
+            createdLoans = snap.docs.map((d) => d.data() as LoanRecord);
+            emitMergedLoans();
+          },
+          (err) => handleFirestoreError(err, OperationType.LIST, 'loans')
+        )
+      );
+      if (linkedCustId) {
+        unsubs.push(
+          onSnapshot(
+            query(
+              collection(db, 'loans'),
+              where('organizationId', '==', orgId),
+              where('customerId', '==', linkedCustId)
+            ),
+            (snap) => {
+              linkedLoans = snap.docs.map((d) => d.data() as LoanRecord);
+              emitMergedLoans();
+            },
+            () => {}
+          )
+        );
+      }
+    } else {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'loans'), where('organizationId', '==', orgId)),
+          (snap) => setLoans(snap.docs.map((d) => d.data() as LoanRecord)),
+          (err) => handleFirestoreError(err, OperationType.LIST, 'loans')
+        )
+      );
+    }
 
     const emailQuery = isExternal
       ? query(collection(db, 'email_notifications'), where('applicantUid', '==', userProfile.uid))
@@ -1432,8 +1827,34 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
+    const serviceReqQuery = isExternal
+      ? query(
+          collection(db, 'client_service_requests'),
+          where('organizationId', '==', orgId),
+          where('clientUid', '==', userProfile.uid)
+        )
+      : query(collection(db, 'client_service_requests'), where('organizationId', '==', orgId));
+    unsubs.push(
+      onSnapshot(
+        serviceReqQuery,
+        (snap) =>
+          setClientServiceRequests(snap.docs.map((d) => d.data() as ClientServiceRequestRecord)),
+        () => {}
+      )
+    );
+
     // Internal-only operational collections (NEVER subscribed for EXTERNAL_CLIENT)
     if (!isExternal) {
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'public_credit_applications'), where('organizationId', '==', orgId)),
+          (snap) =>
+            setPublicCreditApplications(
+              snap.docs.map((d) => d.data() as PublicCreditApplicationRecord)
+            ),
+          () => {}
+        )
+      );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'financial_analyses'), where('organizationId', '==', orgId)),
@@ -1773,6 +2194,21 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           (err) => handleFirestoreError(err, OperationType.LIST, 'altera_configs')
         )
       );
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'impulsa_opportunities'), where('organizationId', '==', orgId)),
+          (snap) =>
+            setImpulsaOpportunities(snap.docs.map((d) => d.data() as ImpulsaOpportunityRecord)),
+          (err) => handleFirestoreError(err, OperationType.LIST, 'impulsa_opportunities')
+        )
+      );
+      unsubs.push(
+        onSnapshot(
+          query(collection(db, 'impulsa_configs'), where('organizationId', '==', orgId)),
+          (snap) => setImpulsaConfigs(snap.docs.map((d) => d.data() as ImpulsaEngineConfig)),
+          (err) => handleFirestoreError(err, OperationType.LIST, 'impulsa_configs')
+        )
+      );
     }
 
     // Suscripciones Web Push VAPID (para staff interno y clientes externos)
@@ -1804,14 +2240,41 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         )
       );
     } else {
-      // Cliente Externo / Portal de Clientes escucha sus propios pagos reportados en tiempo real
+      // Cliente Externo / Portal de Clientes escucha sus pagos reportados y los pagos de su expediente vinculado
+      let reportedPayments: PaymentRecord[] = [];
+      let linkedPayments: PaymentRecord[] = [];
+      const emitMergedPayments = () => {
+        const map = new Map<string, PaymentRecord>();
+        reportedPayments.forEach((p) => map.set(p.id, p));
+        linkedPayments.forEach((p) => map.set(p.id, p));
+        setPayments(Array.from(map.values()));
+      };
       unsubs.push(
         onSnapshot(
           query(collection(db, 'payments'), where('reportedByUserId', '==', userProfile.uid)),
-          (snap) => setPayments(snap.docs.map((d) => d.data() as PaymentRecord)),
+          (snap) => {
+            reportedPayments = snap.docs.map((d) => d.data() as PaymentRecord);
+            emitMergedPayments();
+          },
           () => {}
         )
       );
+      if (linkedCustId) {
+        unsubs.push(
+          onSnapshot(
+            query(
+              collection(db, 'payments'),
+              where('organizationId', '==', orgId),
+              where('customerId', '==', linkedCustId)
+            ),
+            (snap) => {
+              linkedPayments = snap.docs.map((d) => d.data() as PaymentRecord);
+              emitMergedPayments();
+            },
+            () => {}
+          )
+        );
+      }
       setFcmDeviceTokens([]);
     }
 
@@ -1837,7 +2300,48 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubs.forEach((u) => u());
     };
-  }, [authReady, firebaseUser, userProfile, biometricLocked, portalAccessError, portalMode]);
+  }, [
+    authReady,
+    firebaseUser,
+    userProfile?.uid,
+    userProfile?.organizationId,
+    userProfile?.role,
+    userProfile?.linkedCustomerId,
+    biometricLocked,
+    portalAccessError,
+    portalMode,
+  ]);
+
+  const verifyAndLinkClientProfile = useCallback(
+    async (params?: {
+      documentNumber?: string;
+      documentType?: 'CEDULA' | 'PASAPORTE';
+      phone?: string;
+    }) => {
+      if (!userProfile) {
+        return { linked: false, message: 'Inicia sesión para vincular tu expediente.' };
+      }
+      const orgId =
+        externalInstitutionPortal?.organizationId ||
+        userProfile.organizationId ||
+        organization.id ||
+        DEFAULT_ORG_ID;
+      const result = await verifyAndLinkClientCustomerProfile({
+        user: userProfile,
+        organizationId: orgId,
+        documentNumber: params?.documentNumber,
+        documentType: params?.documentType,
+        phone: params?.phone,
+      });
+      if (result.linked && result.customer) {
+        setUserProfile((prev) =>
+          prev ? { ...prev, linkedCustomerId: result.customer!.id } : prev
+        );
+      }
+      return result;
+    },
+    [userProfile, externalInstitutionPortal?.organizationId, organization.id]
+  );
 
   const activeDgiiConfig = useMemo(
     () => getEffectiveDgiiConfig(dgiiFiscalConfigs, organization),
@@ -1962,6 +2466,136 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     const testing = policies.find((p) => p.status === 'EN_PRUEBAS' || p.status === 'PROPUESTA');
     return testing ?? FALLBACK_POLICY;
   }, [policies]);
+
+  const impulsaConfig = useMemo<ImpulsaEngineConfig>(() => {
+    const orgId = organization.id || organization.organizationId || DEFAULT_ORG_ID;
+    const found = impulsaConfigs.find((c) => c.organizationId === orgId);
+    return found || buildDefaultImpulsaConfig(orgId);
+  }, [impulsaConfigs, organization.id, organization.organizationId]);
+
+  const runImpulsaDetection = useCallback(
+    async (trigger: 'MANUAL' | 'PROGRAMADO' = 'MANUAL') => {
+      if (!userProfile) throw new Error('Sesión requerida para ejecutar el motor de Impulsa.');
+      return runAndPersistImpulsaDetection({
+        user: userProfile,
+        trigger,
+        input: {
+          customers,
+          businesses,
+          loans,
+          loanInstallments,
+          payments,
+          applications,
+          collectionAccounts,
+          riskAlerts,
+          policy: activeOrTestPolicy,
+          users: usersList,
+          existingOpportunities: impulsaOpportunities,
+          config: impulsaConfig,
+        },
+      });
+    },
+    [
+      userProfile,
+      customers,
+      businesses,
+      loans,
+      loanInstallments,
+      payments,
+      applications,
+      collectionAccounts,
+      riskAlerts,
+      activeOrTestPolicy,
+      usersList,
+      impulsaOpportunities,
+      impulsaConfig,
+    ]
+  );
+
+  const assignImpulsaOpportunityEntry = useCallback(
+    async (params: {
+      opportunity: ImpulsaOpportunityRecord;
+      targetOfficer: { uid: string; displayName: string };
+      reason: string;
+    }) => {
+      if (!userProfile) throw new Error('Sesión requerida para asignar oportunidades en Impulsa.');
+      return assignImpulsaOpportunity({ user: userProfile, ...params });
+    },
+    [userProfile]
+  );
+
+  const logImpulsaFollowUp = useCallback(
+    async (params: {
+      opportunity: ImpulsaOpportunityRecord;
+      newStatus: ImpulsaOpportunityStatus;
+      channel: ImpulsaContactChannel;
+      outcome: string;
+      comment: string;
+      nextFollowUpDate?: string | null;
+    }) => {
+      if (!userProfile) throw new Error('Sesión requerida para registrar gestiones en Impulsa.');
+      return logImpulsaFollowUpAndTransition({ user: userProfile, ...params });
+    },
+    [userProfile]
+  );
+
+  const convertImpulsaToApplication = useCallback(
+    async (params: {
+      opportunity: ImpulsaOpportunityRecord;
+      productCode: ProductCode;
+      requestedAmount: number;
+      requestedTermMonths: number;
+      paymentFrequency: PaymentFrequency;
+      amortizationMethod: AmortizationMethod;
+      loanPurposeNote?: string;
+      submitMode: 'SUBMIT' | 'DRAFT';
+    }) => {
+      if (!userProfile) throw new Error('Sesión requerida para convertir oportunidad en solicitud.');
+      const customer = customers.find((c) => c.id === params.opportunity.customerId);
+      if (!customer) {
+        throw new Error('No se encontró el expediente del cliente en la cartera actual.');
+      }
+      const latestCustomerApplication = [...applications]
+        .filter((a) => a.customerId === customer.id)
+        .sort((a, b) => String(b.id).localeCompare(String(a.id)))[0];
+      return convertImpulsaOpportunityToApplication({
+        user: userProfile,
+        opportunity: params.opportunity,
+        customer,
+        latestCustomerApplication,
+        policy: activeOrTestPolicy,
+        productCode: params.productCode,
+        requestedAmount: params.requestedAmount,
+        requestedTermMonths: params.requestedTermMonths,
+        paymentFrequency: params.paymentFrequency,
+        amortizationMethod: params.amortizationMethod,
+        loanPurposeNote: params.loanPurposeNote,
+        submitMode: params.submitMode,
+      });
+    },
+    [userProfile, customers, applications, activeOrTestPolicy]
+  );
+
+  const updateImpulsaConfigSettings = useCallback(
+    async (config: ImpulsaEngineConfig) => {
+      if (!userProfile) throw new Error('Sesión requerida para configurar Impulsa.');
+      return saveImpulsaConfig({ user: userProfile, config });
+    },
+    [userProfile]
+  );
+
+  const syncImpulsaWithAxyCore = useCallback(
+    async (targets?: ImpulsaOpportunityRecord[]) => {
+      if (!userProfile) throw new Error('Sesión requerida para sincronizar Impulsa con AxyCore.');
+      return syncImpulsaLifecycleWithAxyCore({
+        user: userProfile,
+        opportunities: targets ?? impulsaOpportunities,
+        applications,
+        loans,
+      });
+    },
+    [userProfile, impulsaOpportunities, applications, loans]
+  );
 
   const ackSet = useMemo(() => new Set(acknowledgedKeys), [acknowledgedKeys]);
 
@@ -3049,6 +3683,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       currencyFilter: executiveCurrency,
       dopMetrics,
       usdMetrics,
+      usdToDopRate: activeOrTestPolicy.exchangeRateConfig?.dopPerUsd || 60.0,
       operationalItems: operationalDayItems,
       recentActivity: recentActivityItems,
       applications,
@@ -3065,6 +3700,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     executiveCurrency,
     dopMetrics,
     usdMetrics,
+    activeOrTestPolicy.exchangeRateConfig?.dopPerUsd,
     operationalDayItems,
     recentActivityItems,
     applications,
@@ -3221,6 +3857,101 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     ]
   );
 
+  const applyLateFeeDiscount = useCallback(
+    async (params: {
+      loanId: string;
+      mode: LateFeeDiscountMode;
+      amount?: number;
+      reason?: string;
+    }): Promise<LateFeeDiscountPlan> => {
+      if (!userProfile || userProfile.role === 'EXTERNAL_CLIENT') {
+        throw new Error('Debes iniciar sesión con un perfil autorizado para aplicar descuentos de mora.');
+      }
+      const loan = loans.find((l) => l.id === params.loanId);
+      if (!loan) {
+        throw new Error('No se encontró el préstamo seleccionado.');
+      }
+      const orgId = userProfile.organizationId || DEFAULT_ORG_ID;
+      const freshInsts =
+        loanInstallments.length > 0 ? loanInstallments : await fetchAllOrgInstallments(orgId);
+      const account = collectionAccounts.find((a) => a.loanId === loan.id) ?? null;
+
+      const plan = await applyLateFeeDiscountToLoan({
+        loan,
+        installments: freshInsts,
+        account,
+        mode: params.mode,
+        amount: params.amount,
+        reason: params.reason,
+        policy: activeCollectionPolicy,
+        user: userProfile,
+      });
+
+      await refreshInstallments();
+      return plan;
+    },
+    [
+      userProfile,
+      loans,
+      loanInstallments,
+      collectionAccounts,
+      activeCollectionPolicy,
+      refreshInstallments,
+    ]
+  );
+
+  const applyLoanPayoff = useCallback(
+    async (params: {
+      loanId: string;
+      mode: LoanPayoffMode;
+      discountPercent?: number;
+      customPayoffAmount?: number;
+      paymentMethod: PaymentChannelMethod;
+      referenceNumber?: string;
+      reason?: string;
+    }): Promise<LoanPayoffPlan> => {
+      if (!userProfile || userProfile.role === 'EXTERNAL_CLIENT') {
+        throw new Error('Debes iniciar sesión con un perfil autorizado para aplicar saldos.');
+      }
+      const loan = loans.find((l) => l.id === params.loanId);
+      if (!loan) {
+        throw new Error('No se encontró el préstamo seleccionado.');
+      }
+      const orgId = userProfile.organizationId || DEFAULT_ORG_ID;
+      const freshInsts =
+        loanInstallments.length > 0 ? loanInstallments : await fetchAllOrgInstallments(orgId);
+      const account = collectionAccounts.find((a) => a.loanId === loan.id) ?? null;
+      const customer = customers.find((c) => c.id === loan.customerId) ?? null;
+
+      const plan = await applyLoanPayoffSettlement({
+        loan,
+        customer,
+        installments: freshInsts,
+        account,
+        mode: params.mode,
+        discountPercent: params.discountPercent,
+        customPayoffAmount: params.customPayoffAmount,
+        paymentMethod: params.paymentMethod,
+        referenceNumber: params.referenceNumber,
+        reason: params.reason,
+        policy: activeCollectionPolicy,
+        user: userProfile,
+      });
+
+      await refreshInstallments();
+      return plan;
+    },
+    [
+      userProfile,
+      loans,
+      customers,
+      loanInstallments,
+      collectionAccounts,
+      activeCollectionPolicy,
+      refreshInstallments,
+    ]
+  );
+
   const value: AxyCoreContextValue = {
     firebaseUser,
     userProfile,
@@ -3255,6 +3986,16 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     clearCorporateAccessSelection,
     portalAccessError,
     clearPortalAccessError,
+    parsedExternalPortalLink,
+    externalInstitutionPortal,
+    externalPortalLoading,
+    externalPortalError,
+    externalPortalIntent,
+    setExternalPortalIntent,
+    exitExternalInstitutionLink,
+    clientServiceRequests,
+    publicCreditApplications,
+    verifyAndLinkClientProfile,
     biometricSupported,
     biometricLabel,
     biometricEnrolled,
@@ -3336,6 +4077,8 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     collectionDailySnapshots,
     collectionsIntegrationsStatus,
     runDailyCollectionsSync,
+    applyLateFeeDiscount,
+    applyLoanPayoff,
     refreshInstallments,
     operatingExpenses,
     investors,
@@ -3361,6 +4104,14 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     recordAlteraOutcomeCalibration,
     logAlteraAnalysis,
     updateAlteraConfigSettings,
+    impulsaOpportunities,
+    impulsaConfig,
+    runImpulsaDetection,
+    assignImpulsaOpportunityEntry,
+    logImpulsaFollowUp,
+    convertImpulsaToApplication,
+    updateImpulsaConfigSettings,
+    syncImpulsaWithAxyCore,
     auditLogs,
     emailNotifications,
     smtpConfigured,

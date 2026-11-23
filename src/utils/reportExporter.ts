@@ -23,6 +23,7 @@ export interface ExportReportPayload {
   reportSubtitle: string;
   organizationName: string;
   organizationTaxId?: string;
+  organizationPhone?: string;
   primaryColor?: string;
   policyVersion: string;
   filtersSummary: string;
@@ -74,6 +75,12 @@ export function buildCsvContent(payload: ExportReportPayload, includeMetadataHea
 
   if (includeMetadataHeader) {
     lines.push([escapeCsvCell('Entidad'), escapeCsvCell(payload.organizationName)].join(','));
+    if (payload.organizationTaxId?.trim()) {
+      lines.push([escapeCsvCell('RNC / ID Fiscal'), escapeCsvCell(payload.organizationTaxId.trim())].join(','));
+    }
+    if (payload.organizationPhone?.trim()) {
+      lines.push([escapeCsvCell('Teléfono Institucional'), escapeCsvCell(payload.organizationPhone.trim())].join(','));
+    }
     lines.push([escapeCsvCell('Reporte'), escapeCsvCell(payload.reportTitle)].join(','));
     lines.push([escapeCsvCell('Filtros'), escapeCsvCell(payload.filtersSummary)].join(','));
     lines.push([escapeCsvCell('Política'), escapeCsvCell(payload.policyVersion)].join(','));
@@ -139,11 +146,15 @@ export function exportReportToPdf(payload: ExportReportPayload): string {
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text(
-    `${payload.organizationTaxId ? `RNC: ${payload.organizationTaxId} · ` : ''}Módulo Integral de Préstamos · Política ${payload.policyVersion}`,
-    36,
-    43
-  );
+  const bannerMeta = [
+    payload.organizationTaxId?.trim() ? `RNC: ${payload.organizationTaxId.trim()}` : '',
+    payload.organizationPhone?.trim() ? `Tel.: ${payload.organizationPhone.trim()}` : '',
+    'Módulo Integral de Préstamos',
+    `Política ${payload.policyVersion}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  doc.text(bannerMeta, 36, 43);
 
   doc.setFontSize(8.5);
   doc.text(`Generado: ${generatedAt}`, pageWidth - 36, 26, { align: 'right' });

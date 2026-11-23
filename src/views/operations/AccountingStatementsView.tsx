@@ -44,6 +44,7 @@ export function AccountingStatementsView({
   const {
     organization,
     loans,
+    loanInstallments,
     disbursements,
     collectionReceipts,
     payments,
@@ -51,6 +52,7 @@ export function AccountingStatementsView({
     operatingExpenses,
     investors,
     investorTransactions,
+    journalEntries,
     setActiveSection,
     rbac,
   } = useAxyCore();
@@ -67,6 +69,7 @@ export function AccountingStatementsView({
         currency,
         year: selectedYear,
         loans,
+        loanInstallments,
         disbursements,
         collectionReceipts,
         payments,
@@ -74,11 +77,13 @@ export function AccountingStatementsView({
         operatingExpenses,
         investors,
         investorTransactions,
+        journalEntries,
       }),
     [
       currency,
       selectedYear,
       loans,
+      loanInstallments,
       disbursements,
       collectionReceipts,
       payments,
@@ -86,6 +91,7 @@ export function AccountingStatementsView({
       operatingExpenses,
       investors,
       investorTransactions,
+      journalEntries,
     ]
   );
 
@@ -97,6 +103,19 @@ export function AccountingStatementsView({
   }, [periodMode, report]);
 
   const cumulative = report.cumulativeAllYearsColumn;
+
+  const hasOtherCurrentAssets = useMemo(
+    () => columns.some((c) => Math.abs(c.balanceSheet.otherCurrentAssets) > 0.005),
+    [columns]
+  );
+  const hasOtherLiabilities = useMemo(
+    () => columns.some((c) => Math.abs(c.balanceSheet.otherLiabilities) > 0.005),
+    [columns]
+  );
+  const hasPaidInCapital = useMemo(
+    () => columns.some((c) => Math.abs(c.balanceSheet.paidInCapital) > 0.005),
+    [columns]
+  );
 
   const fmtCell = (val: number) => {
     const formatted = formatMoney(Math.abs(val), currency);
@@ -112,13 +131,33 @@ export function AccountingStatementsView({
         ['ACTIVOS', ...columns.map(() => '')],
         ['Efectivo y Bancos Neto', ...columns.map((c) => c.balanceSheet.cashAndBanks.toFixed(2))],
         ['Cartera de Préstamos por Cobrar', ...columns.map((c) => c.balanceSheet.loanPortfolioReceivable.toFixed(2))],
+        ...(hasOtherCurrentAssets
+          ? [
+              [
+                'Otras Cuentas por Cobrar e ITBIS a Favor',
+                ...columns.map((c) => c.balanceSheet.otherCurrentAssets.toFixed(2)),
+              ],
+            ]
+          : []),
         ['TOTAL ACTIVOS', ...columns.map((c) => c.balanceSheet.totalAssets.toFixed(2))],
         ['PASIVOS', ...columns.map(() => '')],
         ['Capital de Inversionistas por Pagar', ...columns.map((c) => c.balanceSheet.investorCapitalPayable.toFixed(2))],
         ['Gastos Operativos por Pagar', ...columns.map((c) => c.balanceSheet.accountsPayableExpenses.toFixed(2))],
+        ...(hasOtherLiabilities
+          ? [
+              [
+                'Otros Pasivos Fiscales / ITBIS por Pagar',
+                ...columns.map((c) => c.balanceSheet.otherLiabilities.toFixed(2)),
+              ],
+            ]
+          : []),
         ['TOTAL PASIVOS', ...columns.map((c) => c.balanceSheet.totalLiabilities.toFixed(2))],
         ['PATRIMONIO', ...columns.map(() => '')],
+        ...(hasPaidInCapital
+          ? [['Capital Social y Aportes', ...columns.map((c) => c.balanceSheet.paidInCapital.toFixed(2))]]
+          : []),
         ['Resultados Acumulados', ...columns.map((c) => c.balanceSheet.accumulatedResults.toFixed(2))],
+        ['TOTAL PATRIMONIO', ...columns.map((c) => c.balanceSheet.totalEquity.toFixed(2))],
         ['TOTAL PASIVO Y PATRIMONIO', ...columns.map((c) => c.balanceSheet.totalLiabilitiesAndEquity.toFixed(2))]
       );
     } else if (statementTab === 'resultados') {
@@ -127,6 +166,7 @@ export function AccountingStatementsView({
         ['Intereses Cobrados', ...columns.map((c) => c.incomeStatement.interestIncome.toFixed(2))],
         ['Mora y Penalidades', ...columns.map((c) => c.incomeStatement.lateFeeIncome.toFixed(2))],
         ['Cargos y Comisiones', ...columns.map((c) => c.incomeStatement.chargesIncome.toFixed(2))],
+        ['Otros Ingresos / Facturación e-CF', ...columns.map((c) => c.incomeStatement.otherOperatingIncome.toFixed(2))],
         ['TOTAL INGRESOS', ...columns.map((c) => c.incomeStatement.totalRevenue.toFixed(2))],
         ['GASTOS OPERATIVOS', ...columns.map(() => '')],
         ...EXPENSE_CATEGORIES_ORDERED.map((cat) => [
@@ -304,7 +344,7 @@ export function AccountingStatementsView({
             {fmtCell(cumulative.balanceSheet.totalAssets)}
           </p>
           <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-            Cartera: {fmtCell(cumulative.balanceSheet.loanPortfolioReceivable)}
+            Cartera: {fmtCell(cumulative.balanceSheet.loanPortfolioReceivable)} ({report.reconciliationMeta.activeLoansCount} activos)
           </p>
         </div>
 
@@ -316,7 +356,12 @@ export function AccountingStatementsView({
             {fmtCell(cumulative.incomeStatement.totalRevenue)}
           </p>
           <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-            Intereses: {fmtCell(cumulative.incomeStatement.interestIncome)}
+            Int: {fmtCell(cumulative.incomeStatement.interestIncome)} · Mora/Otros:{' '}
+            {fmtCell(
+              cumulative.incomeStatement.lateFeeIncome +
+                cumulative.incomeStatement.chargesIncome +
+                cumulative.incomeStatement.otherOperatingIncome
+            )}
           </p>
         </div>
 
@@ -601,6 +646,12 @@ export function AccountingStatementsView({
                     (c) => c.balanceSheet.loanPortfolioReceivable,
                     { indent: true }
                   )}
+                  {hasOtherCurrentAssets &&
+                    renderRow(
+                      'Otras Cuentas por Cobrar e ITBIS a Favor',
+                      (c) => c.balanceSheet.otherCurrentAssets,
+                      { indent: true, highlightNegative: true }
+                    )}
                   {renderRow('Total Activos', (c) => c.balanceSheet.totalAssets, {
                     isTotal: true,
                   })}
@@ -616,11 +667,23 @@ export function AccountingStatementsView({
                     (c) => c.balanceSheet.accountsPayableExpenses,
                     { indent: true }
                   )}
+                  {hasOtherLiabilities &&
+                    renderRow(
+                      'Otros Pasivos Fiscales / ITBIS por Pagar',
+                      (c) => c.balanceSheet.otherLiabilities,
+                      { indent: true, highlightNegative: true }
+                    )}
                   {renderRow('Total Pasivos', (c) => c.balanceSheet.totalLiabilities, {
                     isSubtotal: true,
                   })}
 
                   {renderSectionBanner('Patrimonio')}
+                  {hasPaidInCapital &&
+                    renderRow(
+                      'Capital Social y Aportes',
+                      (c) => c.balanceSheet.paidInCapital,
+                      { indent: true, highlightNegative: true }
+                    )}
                   {renderRow(
                     'Resultados Acumulados del Ejercicio',
                     (c) => c.balanceSheet.accumulatedResults,
@@ -649,6 +712,10 @@ export function AccountingStatementsView({
                   })}
                   {renderRow('Cargos y Comisiones Administrativas', (c) => c.incomeStatement.chargesIncome, {
                     indent: true,
+                  })}
+                  {renderRow('Otros Ingresos / Facturación e-CF', (c) => c.incomeStatement.otherOperatingIncome, {
+                    indent: true,
+                    highlightNegative: true,
                   })}
                   {renderRow('Total Ingresos Operativos', (c) => c.incomeStatement.totalRevenue, {
                     isSubtotal: true,
@@ -767,10 +834,28 @@ export function AccountingStatementsView({
                 : `Comparativo anual (${report.availableYears.join(', ')}) + Acumulado Total histórico.`}
             </span>
           </span>
-          <span className="font-mono tabular-nums">
-            Cuadre contable (Activo − Pasivo − Patrimonio):{' '}
-            {fmtCell(cumulative.balanceSheet.balanceDiff)}
-          </span>
+          <div className="flex flex-wrap items-center gap-4 font-mono tabular-nums">
+            <span
+              className={
+                Math.abs(report.reconciliationMeta.portfolioDiff) <= 0.01
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-amber-600 dark:text-amber-400'
+              }
+            >
+              Cuadre Cartera ({report.reconciliationMeta.activeLoansCount} activos):{' '}
+              {fmtCell(report.reconciliationMeta.portfolioDiff)}
+            </span>
+            <span
+              className={
+                Math.abs(cumulative.balanceSheet.balanceDiff) <= 0.01
+                  ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                  : 'text-rose-600 dark:text-rose-400 font-semibold'
+              }
+            >
+              Cuadre contable (Activo − Pasivo − Patrimonio):{' '}
+              {fmtCell(cumulative.balanceSheet.balanceDiff)}
+            </span>
+          </div>
         </div>
       </div>
     </div>

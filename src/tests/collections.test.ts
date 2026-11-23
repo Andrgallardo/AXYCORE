@@ -1113,8 +1113,8 @@ describe('Módulo Integral de Cobranza y Recuperación de Cartera (30 escenarios
     expect(projections[2].expectedStressDop).toBeLessThanOrEqual(projections[2].expectedBaseDop);
   });
 
-  it('30. Cobertura RBAC completa de los 21 submódulos cobranza_* y exportación CSV sin mezcla de monedas', () => {
-    expect(ALL_COBRANZA_SECTIONS).toHaveLength(21);
+  it('30. Cobertura RBAC completa de los 24 submódulos cobranza_* y exportación CSV sin mezcla de monedas', () => {
+    expect(ALL_COBRANZA_SECTIONS).toHaveLength(24);
     ALL_COBRANZA_SECTIONS.forEach((sec) => {
       expect(canRoleAccessSection('ADMIN', sec)).toBe(true);
       expect(canRoleAccessSection('AUDITOR', sec)).toBe(true);

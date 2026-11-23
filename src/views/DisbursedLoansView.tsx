@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calculator, CalendarDays, Download, Landmark, Layers, Search, UserRoundCheck } from 'lucide-react';
+import { ArrowLeftRight, Calculator, CalendarDays, Download, Landmark, Layers, Search, UserRoundCheck } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { fetchInstallmentsByLoan, runBackendAmortization } from '../services/axycoreStore';
+import { correctSingleLoanCurrency } from '../services/loanCurrencyCorrectionService';
 import {
   formatMoney,
   formatRatePct,
@@ -56,6 +57,7 @@ export function DisbursedLoansView() {
     rbac,
   } = useAxyCore();
   const isExternal = userProfile?.role === 'EXTERNAL_CLIENT';
+  const isAdminActor = Boolean(userProfile && (userProfile.role === 'ADMIN' || userProfile.isSuperAdmin));
 
   const [tab, setTab] = useState<'PORTFOLIO' | 'SIMULATOR'>('PORTFOLIO');
   const [statusFilter, setStatusFilter] = useState<LoanStatusFilter>('TODOS');
@@ -63,6 +65,15 @@ export function DisbursedLoansView() {
   const [selectedLoan, setSelectedLoan] = useState<LoanRecord | null>(null);
   const [installments, setInstallments] = useState<LoanInstallmentRecord[]>([]);
   const [loadingInstallments, setLoadingInstallments] = useState(false);
+
+  // Admin currency correction state
+  const [currencyPanelOpen, setCurrencyPanelOpen] = useState(false);
+  const [currencyReason, setCurrencyReason] = useState('Corrección de moneda desde originación');
+  const [currencyBusy, setCurrencyBusy] = useState(false);
+  const [currencyFeedback, setCurrencyFeedback] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   // Interactive Amortization Simulator state
   const [simPrincipal, setSimPrincipal] = useState('200000');
@@ -137,8 +148,19 @@ export function DisbursedLoansView() {
       setSelectedLoan(null);
       return;
     }
-    if (!selectedLoan || !filteredLoans.some((l) => l.id === selectedLoan.id)) {
+    const latestMatch = selectedLoan
+      ? filteredLoans.find((l) => l.id === selectedLoan.id)
+      : undefined;
+    if (!latestMatch) {
       setSelectedLoan(filteredLoans[0]);
+      setCurrencyPanelOpen(false);
+      setCurrencyFeedback(null);
+    } else if (
+      latestMatch.currency !== selectedLoan?.currency ||
+      latestMatch.productCode !== selectedLoan?.productCode ||
+      latestMatch.status !== selectedLoan?.status
+    ) {
+      setSelectedLoan(latestMatch);
     }
   }, [filteredLoans, selectedLoan]);
 
@@ -425,11 +447,109 @@ export function DisbursedLoansView() {
                         Ficha del Préstamo Adquirido — {PRODUCT_LABELS[selectedLoan.productCode]}
                       </h3>
                     </div>
-                    <div className="text-right">
-                      <p className="text-slate-500 dark:text-slate-400">Estado Operativo</p>
-                      <p className="font-semibold text-emerald-700 dark:text-emerald-400">{selectedLoan.status}</p>
+                    <div className="flex items-start gap-3">
+                      {isAdminActor && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCurrencyPanelOpen((prev) => !prev);
+                            setCurrencyFeedback(null);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-[#00B8FF]/30 bg-slate-50 dark:bg-white/[0.04] hover:bg-slate-100 dark:hover:bg-white/[0.08] text-slate-700 dark:text-[#00D1FF] text-[11px] font-semibold cursor-pointer transition-colors"
+                          title="Corregir moneda del préstamo y todos sus registros asociados"
+                        >
+                          <ArrowLeftRight className="w-3.5 h-3.5" />
+                          <span>Cambiar a {selectedLoan.currency === 'USD' ? 'DOP' : 'USD'}</span>
+                        </button>
+                      )}
+                      <div className="text-right">
+                        <p className="text-slate-500 dark:text-slate-400">Estado Operativo</p>
+                        <p className="font-semibold text-emerald-700 dark:text-emerald-400">{selectedLoan.status}</p>
+                      </div>
                     </div>
                   </div>
+
+                  {isAdminActor && currencyPanelOpen && (
+                    <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/25 border border-amber-300/70 dark:border-amber-500/30 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-amber-950 dark:text-amber-200">
+                          Corregir moneda de {selectedLoan.currency} a{' '}
+                          {selectedLoan.currency === 'USD' ? 'DOP (RD$)' : 'USD (US$)'}
+                        </p>
+                        <span className="font-mono text-[11px] text-amber-800 dark:text-amber-300">
+                          Actualiza préstamo, solicitud, cobranza, pagos y recibos
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={currencyReason}
+                        onChange={(e) => setCurrencyReason(e.target.value)}
+                        placeholder="Justificación de auditoría..."
+                        className="axy-input w-full px-3 py-1.5 text-xs text-slate-900 dark:text-white"
+                      />
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={currencyBusy}
+                          onClick={() => setCurrencyPanelOpen(false)}
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-white/15 text-slate-700 dark:text-slate-300 font-medium cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={currencyBusy || !userProfile}
+                          onClick={async () => {
+                            if (!userProfile || !selectedLoan) return;
+                            const targetCurrency: CurrencyCode =
+                              selectedLoan.currency === 'USD' ? 'DOP' : 'USD';
+                            setCurrencyBusy(true);
+                            setCurrencyFeedback(null);
+                            try {
+                              const res = await correctSingleLoanCurrency({
+                                loan: selectedLoan,
+                                targetCurrency,
+                                actor: userProfile,
+                                reason: currencyReason,
+                              });
+                              setCurrencyFeedback({
+                                type: 'success',
+                                text: `Moneda actualizada a ${res.newCurrency} (${res.totalDocumentsUpdated} registros sincronizados en cartera, cobranza y pagos).`,
+                              });
+                              setCurrencyPanelOpen(false);
+                            } catch (err) {
+                              setCurrencyFeedback({
+                                type: 'error',
+                                text:
+                                  err instanceof Error
+                                    ? err.message
+                                    : 'No se pudo actualizar la moneda del préstamo.',
+                              });
+                            } finally {
+                              setCurrencyBusy(false);
+                            }
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg bg-[#0066FF] hover:bg-[#0052CC] text-white font-semibold cursor-pointer disabled:opacity-50"
+                        >
+                          {currencyBusy
+                            ? 'Actualizando...'
+                            : `Confirmar cambio a ${selectedLoan.currency === 'USD' ? 'DOP' : 'USD'}`}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {currencyFeedback && (
+                    <div
+                      className={`px-3.5 py-2.5 rounded-xl border text-xs ${
+                        currencyFeedback.type === 'success'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300/70 dark:border-emerald-500/35 text-emerald-900 dark:text-emerald-200'
+                          : 'bg-rose-50 dark:bg-rose-950/30 border-rose-300/70 dark:border-rose-500/35 text-rose-900 dark:text-rose-200'
+                      }`}
+                    >
+                      {currencyFeedback.text}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
                     <div className="axy-surface-tonal p-3 rounded-xl">

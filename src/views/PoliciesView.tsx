@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Building2,
@@ -7,7 +7,10 @@ import {
   Copy,
   Gavel,
   GitCompare,
+  Globe,
+  Image as ImageIcon,
   Layers,
+  Link2,
   Mail,
   Palette,
   Plus,
@@ -18,12 +21,23 @@ import {
   ShieldCheck,
   Sliders,
   Trash2,
+  Upload,
   UserPlus,
   Users,
 } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
+import { ExternalLinkGeneratorPanel } from '../components/ExternalLinkGeneratorPanel';
+import { buildInstitutionExternalPortalLinks } from '../engine/externalPortalEngine';
+import {
+  fetchPublicInstitutionPortal,
+  syncPublicInstitutionPortal,
+} from '../services/externalPortalService';
 import { NavigationBreadcrumbs } from '../components/NavigationBreadcrumbs';
 import { ThemeSwitchControl } from '../components/ThemeSwitchControl';
+import {
+  isValidInstitutionalLogoUrl,
+  processInstitutionalLogoFile,
+} from '../utils/institutionalLogo';
 import {
   inviteStaffUserByAdmin,
   resendInvitationEmailAdmin,
@@ -242,12 +256,27 @@ export function PoliciesView({
   const [rolePermissionSearch, setRolePermissionSearch] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<'ALL' | UserRole>('ALL');
 
-  // Organization branding state
+  // Organization branding & external client portal state
   const [orgName, setOrgName] = useState(organization.name);
-  const [orgTaxId, setOrgTaxId] = useState(organization.taxId || '');
+  const [orgTaxId, setOrgTaxId] = useState(organization.taxId || organization.rnc || '');
+  const [orgPhone, setOrgPhone] = useState(organization.phone || '');
+  const [orgLogoUrl, setOrgLogoUrl] = useState(organization.logoUrl || '');
+  const [logoPreviewFailed, setLogoPreviewFailed] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [dragOverLogo, setDragOverLogo] = useState(false);
+  const [logoMetaText, setLogoMetaText] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [primaryColor, setPrimaryColor] = useState(organization.primaryColor || '#0f3d91');
   const [accentColor, setAccentColor] = useState(organization.accentColor || '#0284c7');
   const [savingBranding, setSavingBranding] = useState(false);
+  const [portalEnabled, setPortalEnabled] = useState(true);
+  const [portalHeadline, setPortalHeadline] = useState('');
+  const [portalSubtitle, setPortalSubtitle] = useState('');
+
+  const externalPortalLinks = useMemo(
+    () => buildInstitutionExternalPortalLinks(organization),
+    [organization]
+  );
 
   useEffect(() => {
     const found = policies.find((p) => p.id === selectedPolicyId) ?? activeOrTestPolicy;
@@ -256,10 +285,30 @@ export function PoliciesView({
 
   useEffect(() => {
     setOrgName(organization.name);
-    setOrgTaxId(organization.taxId || '');
+    setOrgTaxId(organization.taxId || organization.rnc || '');
+    setOrgPhone(organization.phone || '');
+    setOrgLogoUrl(organization.logoUrl || '');
+    setLogoPreviewFailed(false);
+    setLogoMetaText(null);
     setPrimaryColor(organization.primaryColor || '#0f3d91');
     setAccentColor(organization.accentColor || '#0284c7');
   }, [organization]);
+
+  useEffect(() => {
+    if (focusTab !== 'settings') return;
+    let cancelled = false;
+    void fetchPublicInstitutionPortal(externalPortalLinks.portalCode)
+      .then((portal) => {
+        if (cancelled || !portal) return;
+        setPortalEnabled(portal.portalEnabled !== false);
+        setPortalHeadline(portal.welcomeHeadline || '');
+        setPortalSubtitle(portal.welcomeSubtitle || '');
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [focusTab, externalPortalLinks.portalCode]);
 
   useEffect(() => {
     setFeedback(null);
@@ -469,23 +518,73 @@ export function PoliciesView({
     }
   };
 
+  const handleLogoFileSelected = async (file: File | null) => {
+    if (!file || !isAdmin) return;
+    setUploadingLogo(true);
+    setFeedback(null);
+    try {
+      const processed = await processInstitutionalLogoFile(file);
+      setOrgLogoUrl(processed.dataUrl);
+      setLogoPreviewFailed(false);
+      const kb = Math.max(1, Math.round(processed.bytesApprox / 1024));
+      setLogoMetaText(`${processed.width}×${processed.height} px · ${kb} KB optimizado`);
+    } catch (err) {
+      setFeedback({
+        type: 'err',
+        msg: err instanceof Error ? err.message : 'No fue posible procesar el logo seleccionado.',
+      });
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    if (!isAdmin) return;
+    setOrgLogoUrl('');
+    setLogoPreviewFailed(false);
+    setLogoMetaText('Logo removido. Guarda para aplicar el cambio.');
+  };
+
   const handleSaveBranding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile || !isAdmin) return;
     setSavingBranding(true);
     setFeedback(null);
     try {
+      const sanitizedLogo = isValidInstitutionalLogoUrl(orgLogoUrl) ? orgLogoUrl.trim() : '';
       await updateOrganizationBranding({
         organizationId: organization.id,
         name: orgName.trim(),
         taxId: orgTaxId.trim(),
+        phone: orgPhone.trim(),
         primaryColor,
         accentColor,
+        logoUrl: sanitizedLogo,
         adminUser: userProfile,
       });
+      await syncPublicInstitutionPortal(
+        {
+          ...organization,
+          name: orgName.trim(),
+          tradeName: orgName.trim(),
+          phone: orgPhone.trim(),
+          logoUrl: sanitizedLogo,
+          primaryColor,
+          accentColor,
+        },
+        {
+          portalEnabled,
+          welcomeHeadline: portalHeadline.trim() || undefined,
+          welcomeSubtitle: portalSubtitle.trim() || undefined,
+        }
+      ).catch(() => {});
+      setLogoMetaText(null);
       setFeedback({
         type: 'ok',
-        msg: 'Identidad institucional y colores corporativos actualizados.',
+        msg: 'Identidad institucional, RNC, teléfono, logo, colores corporativos y portal externo actualizados.',
       });
     } catch (err) {
       setFeedback({
@@ -1633,7 +1732,110 @@ export function PoliciesView({
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Logo Institucional */}
+              <div className="pb-4 border-b border-slate-200/80 dark:border-[#00B8FF]/15 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <label className="block font-medium text-slate-700 dark:text-slate-200">
+                      Logo de la Institución
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Se reflejará en la barra superior y en el panel de empresa activa sin sustituir la marca de AxyCore.
+                    </p>
+                  </div>
+                  {logoMetaText && (
+                    <span className="text-[11px] font-mono tabular-nums text-[#0066FF] dark:text-[#00D1FF] shrink-0">
+                      {logoMetaText}
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  onDragOver={(ev) => {
+                    if (!isAdmin) return;
+                    ev.preventDefault();
+                    setDragOverLogo(true);
+                  }}
+                  onDragLeave={() => setDragOverLogo(false)}
+                  onDrop={(ev) => {
+                    ev.preventDefault();
+                    setDragOverLogo(false);
+                    if (!isAdmin) return;
+                    const dropped = ev.dataTransfer.files?.[0] ?? null;
+                    void handleLogoFileSelected(dropped);
+                  }}
+                  className={`flex flex-col sm:flex-row sm:items-center gap-4 p-3.5 rounded-xl border border-dashed transition-colors ${
+                    dragOverLogo
+                      ? 'border-[#0066FF] bg-[#0066FF]/[0.06] dark:border-[#00D1FF] dark:bg-[#0066FF]/15'
+                      : 'border-slate-300/90 dark:border-[#00B8FF]/25 bg-slate-50/70 dark:bg-[#08132B]/70'
+                  }`}
+                >
+                  <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-xl bg-white dark:bg-[#040C1E] border border-slate-200/90 dark:border-[#00B8FF]/20 p-2 flex items-center justify-center shrink-0 overflow-hidden">
+                    {isValidInstitutionalLogoUrl(orgLogoUrl) && !logoPreviewFailed ? (
+                      <img
+                        src={orgLogoUrl}
+                        alt={`Logo de ${orgName || organization.name}`}
+                        referrerPolicy="no-referrer"
+                        onError={() => setLogoPreviewFailed(true)}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-1">
+                        <ImageIcon className="w-6 h-6" />
+                        <span className="text-[10px]">Sin logo</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-2.5">
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      Sube o arrastra el logotipo oficial de tu institución. Formatos permitidos: PNG con fondo transparente, JPG, WebP o SVG (máx. 5 MB).
+                    </p>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      disabled={!isAdmin || uploadingLogo}
+                      onChange={(ev) => {
+                        const selected = ev.target.files?.[0] ?? null;
+                        void handleLogoFileSelected(selected);
+                      }}
+                      className="hidden"
+                      aria-label="Seleccionar archivo de logo institucional"
+                    />
+                    {isAdmin && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={uploadingLogo}
+                          onClick={() => logoInputRef.current?.click()}
+                          className="axy-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] text-slate-700 dark:text-slate-200 font-semibold cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00D1FF]" />
+                          {uploadingLogo
+                            ? 'Optimizando...'
+                            : isValidInstitutionalLogoUrl(orgLogoUrl)
+                            ? 'Cambiar logo'
+                            : 'Subir logo'}
+                        </button>
+                        {isValidInstitutionalLogoUrl(orgLogoUrl) && (
+                          <button
+                            type="button"
+                            disabled={uploadingLogo}
+                            onClick={handleRemoveLogo}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 hover:bg-rose-100/80 dark:hover:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-medium cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Quitar logo
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
                 <div>
                   <label className="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">
                     Nombre de la Entidad *
@@ -1646,16 +1848,37 @@ export function PoliciesView({
                     className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white"
                   />
                 </div>
-                <div>
-                  <label className="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">
-                    RNC / ID Fiscal
-                  </label>
-                  <input
-                    disabled={!isAdmin}
-                    value={orgTaxId}
-                    onChange={(e) => setOrgTaxId(e.target.value)}
-                    className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white font-mono"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">
+                      RNC / ID Fiscal
+                    </label>
+                    <input
+                      disabled={!isAdmin}
+                      value={orgTaxId}
+                      onChange={(e) => setOrgTaxId(e.target.value)}
+                      placeholder="Ej. 131-12345-6"
+                      maxLength={40}
+                      className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 font-medium text-slate-700 dark:text-slate-300">
+                      Teléfono Institucional
+                    </label>
+                    <input
+                      type="tel"
+                      disabled={!isAdmin}
+                      value={orgPhone}
+                      onChange={(e) => setOrgPhone(e.target.value)}
+                      placeholder="Ej. 809-555-0100"
+                      maxLength={40}
+                      className="axy-input w-full px-3 py-2 text-slate-900 dark:text-white font-mono"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      Se reflejará en recibos de pago, estados de saldo, reportes PDF y portal de clientes.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1720,11 +1943,24 @@ export function PoliciesView({
 
           {/* Live Organization Summary & Preview */}
           <div className="axy-surface lg:col-span-5 p-5 rounded-xl space-y-4 h-fit">
-            <div className="pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF]" />
-              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white">
-                Ficha de Organización Activa
-              </h3>
+            <div className="pb-3 border-b border-slate-200/80 dark:border-[#00B8FF]/15 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Building2 className="w-4 h-4 text-[#0066FF] dark:text-[#00B8FF] shrink-0" />
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-white truncate">
+                  Ficha de Organización Activa
+                </h3>
+              </div>
+              {isValidInstitutionalLogoUrl(orgLogoUrl) && !logoPreviewFailed && (
+                <div className="h-10 w-10 rounded-lg bg-white border border-slate-200/90 dark:border-[#00B8FF]/25 p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                  <img
+                    src={orgLogoUrl}
+                    alt={`Logo de ${orgName || organization.name}`}
+                    referrerPolicy="no-referrer"
+                    onError={() => setLogoPreviewFailed(true)}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2.5">
@@ -1738,6 +1974,12 @@ export function PoliciesView({
                 <span className="text-slate-500 dark:text-slate-400">RNC / ID Fiscal</span>
                 <span className="font-mono text-slate-900 dark:text-white">
                   {orgTaxId || 'No registrado'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60 dark:border-[#00B8FF]/10">
+                <span className="text-slate-500 dark:text-slate-400">Teléfono Institucional</span>
+                <span className="font-mono text-slate-900 dark:text-white">
+                  {orgPhone || 'No registrado'}
                 </span>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-slate-200/60 dark:border-[#00B8FF]/10">
@@ -1778,6 +2020,17 @@ export function PoliciesView({
               </div>
             </div>
           </div>
+          </div>
+
+          {/* Generador de Enlaces Externos Propio de esta Institución */}
+          <div className="axy-surface p-5 sm:p-6 rounded-xl">
+            <ExternalLinkGeneratorPanel
+              institutions={[organization]}
+              initialInstitutionId={organization.id}
+              canEdit={isAdmin}
+              title={`Generador de Enlaces Externos — ${organization.tradeName || organization.name}`}
+              subtitle="Genera, personaliza y publica el enlace único de tu institución para recibir solicitudes de crédito públicas sin login y permitir a tus clientes ingresar a consultar sus préstamos, cuotas y montos."
+            />
           </div>
         </div>
       )}

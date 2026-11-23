@@ -18,7 +18,13 @@ import {
   PRODUCT_LABELS,
   SCORING_STATUS_LABELS,
 } from '../utils/formatters';
-import type { CurrencyCode, ProductCode, ScoringExecutionRecord } from '../types/axycore';
+import type {
+  AmortizationMethod,
+  CurrencyCode,
+  ProductCode,
+  ScoringExecutionRecord,
+} from '../types/axycore';
+import { evaluateCreditDecisionV2 } from '../engine/decisionEngineV2';
 import { IntelligenceDashboardView } from '../components/IntelligenceDashboardView';
 
 export function DecisionEngineView() {
@@ -83,6 +89,7 @@ export function DecisionEngineView() {
     }
   };
 
+  const [engineRateMethod, setEngineRateMethod] = useState<AmortizationMethod>('INTERES_FIJO');
   const [simProduct, setSimProduct] = useState<ProductCode>('PERSONAL_DOP');
   const [simAmount, setSimAmount] = useState<number>(120000);
   const [simTerm, setSimTerm] = useState<number>(12);
@@ -95,7 +102,8 @@ export function DecisionEngineView() {
 
   const simCurrency: CurrencyCode = simProduct.endsWith('USD') ? 'USD' : 'DOP';
 
-  const handleRunSimulation = async () => {
+  const handleRunSimulation = async (overrideRateMethod?: AmortizationMethod) => {
+    const effectiveRateMethod = overrideRateMethod ?? engineRateMethod;
     setRunning(true);
     try {
       const resp = await fetch('/api/engine/score', {
@@ -103,6 +111,7 @@ export function DecisionEngineView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           policy: activeOrTestPolicy,
+          evaluationRateMethod: effectiveRateMethod,
           executionTrigger: 'MANUAL_RERUN',
           executedBy: 'simulator_sandbox',
           executedByName: 'Simulador Motor V2',
@@ -125,7 +134,7 @@ export function DecisionEngineView() {
             requestedAmount: simAmount,
             requestedTermMonths: simTerm,
             paymentFrequency: 'MENSUAL',
-            amortizationMethod: 'SALDO_INSOLUTO',
+            amortizationMethod: effectiveRateMethod,
             loanPurpose: 'Simulación de capacidad',
             loanPurposeDescription: 'Prueba determinista en entorno de pruebas',
             references: [
@@ -227,8 +236,37 @@ export function DecisionEngineView() {
                 Dictamen del Motor de Decisiones sobre Solicitudes Recibidas
               </h2>
               <p className="text-slate-500 dark:text-slate-400">
-                Si la solicitud califica para el monto completo solicitado pasa directamente a Evaluación; de lo contrario, autoriza otro monto para re-evaluar en el Motor.
+                El motor evalúa siempre en <strong className="text-slate-700 dark:text-slate-200">Tasa Fija</strong> por defecto; puedes cambiar a <strong className="text-slate-700 dark:text-slate-200">Saldo Insoluto</strong> cuando lo requieras.
               </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                Forma de tasa:
+              </span>
+              <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-[#050D1E] border border-slate-200/80 dark:border-[#00B8FF]/20">
+                <button
+                  type="button"
+                  onClick={() => setEngineRateMethod('INTERES_FIJO')}
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                    engineRateMethod === 'INTERES_FIJO'
+                      ? 'bg-[#0066FF] text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Tasa Fija
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEngineRateMethod('SALDO_INSOLUTO')}
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                    engineRateMethod === 'SALDO_INSOLUTO'
+                      ? 'bg-[#0066FF] text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Saldo Insoluto
+                </button>
+              </div>
             </div>
           </div>
 
@@ -285,13 +323,30 @@ export function DecisionEngineView() {
           ) : (
             <div className="space-y-3">
               {receivedApps.map((app) => {
-                const qualifiesFullAmount =
-                  app.prequalificationStatus === 'PREOFERTA' &&
-                  (app.recommendedAmount ?? 0) >= app.requestedAmount;
                 const cust = customers.find((c) => c.id === app.customerId) ?? null;
+                const liveEval = cust
+                  ? evaluateCreditDecisionV2({
+                      application: app,
+                      customer: cust,
+                      policy: activeOrTestPolicy,
+                      evaluationRateMethod: engineRateMethod,
+                      executionTrigger: 'MANUAL_RERUN',
+                      executedBy: userProfile?.uid ?? 'engine_preview',
+                      executedByName: userProfile?.displayName ?? 'Motor de Decisiones',
+                    })
+                  : null;
+                const evalStatus = liveEval?.status ?? app.prequalificationStatus;
+                const evalScore = liveEval?.totalScore ?? app.latestScore;
+                const evalRiskBand = liveEval?.riskBand.label ?? app.latestRiskBand;
+                const evalRecommendedAmount = liveEval?.recommendedAmount ?? app.recommendedAmount ?? 0;
+                const evalRecommendedRate = liveEval?.recommendedRateMonthly ?? app.recommendedRateMonthly;
+                const evalRecommendedInstallment =
+                  liveEval?.recommendedInstallment ?? app.recommendedInstallment ?? 0;
+                const qualifiesFullAmount =
+                  evalStatus === 'PREOFERTA' && evalRecommendedAmount >= app.requestedAmount;
                 const suggestedAlt =
-                  app.recommendedAmount && app.recommendedAmount > 0
-                    ? app.recommendedAmount
+                  evalRecommendedAmount > 0
+                    ? evalRecommendedAmount
                     : Math.round(app.requestedAmount * 0.7);
                 const draft = alternateDrafts[app.id] ?? { amount: String(suggestedAlt), note: '' };
 
@@ -310,13 +365,16 @@ export function DecisionEngineView() {
                         </h3>
                         <p className="text-slate-500 mt-0.5">
                           Solicitado: <strong className="font-mono text-slate-900 dark:text-white">{formatMoney(app.requestedAmount, app.currency)}</strong> a{' '}
-                          {app.requestedTermMonths} meses
+                          {app.requestedTermMonths} meses · Evaluación:{' '}
+                          <strong className="text-[#0052CC] dark:text-[#00D1FF]">
+                            {engineRateMethod === 'SALDO_INSOLUTO' ? 'Saldo Insoluto' : 'Tasa Fija'}
+                          </strong>
                         </p>
                       </div>
 
                       <div className="text-right space-y-1">
                         <p className="font-mono font-bold text-sm text-slate-900 dark:text-white">
-                          Score V2: {app.latestScore ?? '—'}/100 ({app.latestRiskBand ?? '—'})
+                          Score V2: {evalScore ?? '—'}/100 ({evalRiskBand ?? '—'})
                         </p>
                         <p
                           className={`font-semibold ${
@@ -330,8 +388,8 @@ export function DecisionEngineView() {
                             : 'Requiere Autorización de Otro Monto'}
                         </p>
                         <p className="font-mono text-slate-500">
-                          Dictamen Motor: {app.prequalificationStatus ? SCORING_STATUS_LABELS[app.prequalificationStatus] : 'Pendiente'} · Sugerido:{' '}
-                          {formatMoney(app.recommendedAmount ?? 0, app.currency)}
+                          Dictamen Motor: {evalStatus ? SCORING_STATUS_LABELS[evalStatus] : 'Pendiente'} · Sugerido:{' '}
+                          {formatMoney(evalRecommendedAmount, app.currency)}
                         </p>
                       </div>
                     </div>
@@ -339,8 +397,9 @@ export function DecisionEngineView() {
                     {qualifiesFullAmount ? (
                       <div className="pt-3 border-t border-slate-200/80 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-3">
                         <span className="text-emerald-700 dark:text-emerald-400 font-medium">
-                          Oferta aprobada íntegramente por el Motor V2 ({formatRatePct(app.recommendedRateMonthly)} mensual · Cuota{' '}
-                          {formatMoney(app.recommendedInstallment ?? 0, app.currency)}).
+                          Oferta aprobada íntegramente por el Motor V2 ({formatRatePct(evalRecommendedRate)} mensual ·{' '}
+                          {engineRateMethod === 'SALDO_INSOLUTO' ? 'Saldo Insoluto' : 'Tasa Fija'} · Cuota{' '}
+                          {formatMoney(evalRecommendedInstallment, app.currency)}).
                         </span>
                         <button
                           type="button"
@@ -535,15 +594,47 @@ export function DecisionEngineView() {
               Laboratorio Sandbox — Motor de Decisiones Crediticias V2 (Backend API)
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={handleRunSimulation}
-            disabled={running}
-            className="axy-btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs cursor-pointer"
-          >
-            <Play className="w-3.5 h-3.5" />
-            {running ? 'Calculando...' : 'Simular Scoring V2'}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-lg p-0.5 bg-slate-100 dark:bg-[#050D1E] border border-slate-200/80 dark:border-[#00B8FF]/20">
+              <button
+                type="button"
+                onClick={() => {
+                  setEngineRateMethod('INTERES_FIJO');
+                  if (simResult) void handleRunSimulation('INTERES_FIJO');
+                }}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  engineRateMethod === 'INTERES_FIJO'
+                    ? 'bg-[#0066FF] text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Tasa Fija
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEngineRateMethod('SALDO_INSOLUTO');
+                  if (simResult) void handleRunSimulation('SALDO_INSOLUTO');
+                }}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  engineRateMethod === 'SALDO_INSOLUTO'
+                    ? 'bg-[#0066FF] text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Saldo Insoluto
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleRunSimulation()}
+              disabled={running}
+              className="axy-btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs cursor-pointer"
+            >
+              <Play className="w-3.5 h-3.5" />
+              {running ? 'Calculando...' : 'Simular Scoring V2'}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
@@ -640,7 +731,13 @@ export function DecisionEngineView() {
                 </p>
               </div>
               <div>
-                <p className="text-slate-500">Tasa / Plazo / Cuota</p>
+                <p className="text-slate-500">
+                  Tasa / Plazo / Cuota (
+                  {simResult.inputSnapshot?.evaluationRateMethod === 'SALDO_INSOLUTO'
+                    ? 'Saldo Insoluto'
+                    : 'Tasa Fija'}
+                  )
+                </p>
                 <p className="text-sm font-mono tabular-nums font-semibold">
                   {formatRatePct(simResult.recommendedRateMonthly)} · {simResult.recommendedTermMonths}m ·{' '}
                   {formatMoney(simResult.recommendedInstallment, simCurrency)}

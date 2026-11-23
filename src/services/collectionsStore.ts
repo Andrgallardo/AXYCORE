@@ -21,6 +21,17 @@ import {
   toCents,
 } from '../engine/collections/delinquencyEngine';
 import {
+  computeLateFeeDiscountPlan,
+  type LateFeeDiscountMode,
+  type LateFeeDiscountPlan,
+} from '../engine/collections/lateFeeDiscountEngine';
+import {
+  computeLoanPayoffPlan,
+  listAllClientsForPayoff,
+  type LoanPayoffMode,
+  type LoanPayoffPlan,
+} from '../engine/collections/loanPayoffEngine';
+import {
   computeCollectionPriority,
   generateAutomatedCollectionTasks,
 } from '../engine/collections/priorityAndTasksEngine';
@@ -779,6 +790,20 @@ function buildValidLoanDocForFirestore(loan: LoanRecord, actorUid: string): Reco
     paidPrincipalTotal: Math.max(0, Math.round((Number(loan.paidPrincipalTotal) || 0) * 100) / 100),
     paidInterestTotal: Math.max(0, Math.round((Number(loan.paidInterestTotal) || 0) * 100) / 100),
     paidLateFeeTotal: Math.max(0, Math.round((Number(loan.paidLateFeeTotal) || 0) * 100) / 100),
+    ...(loan.waivedLateFeeTotal !== undefined
+      ? {
+          waivedLateFeeTotal: Math.max(
+            0,
+            Math.round((Number(loan.waivedLateFeeTotal) || 0) * 100) / 100
+          ),
+        }
+      : {}),
+    ...(typeof loan.lateFeeExempt === 'boolean' ? { lateFeeExempt: loan.lateFeeExempt } : {}),
+    ...(loan.lateFeeExemptReason
+      ? { lateFeeExemptReason: String(loan.lateFeeExemptReason).slice(0, 500) }
+      : {}),
+    ...(loan.lateFeeExemptBy ? { lateFeeExemptBy: String(loan.lateFeeExemptBy).slice(0, 128) } : {}),
+    ...(loan.lateFeeExemptAt ? { lateFeeExemptAt: String(loan.lateFeeExemptAt).slice(0, 40) } : {}),
     ...(loan.closedAt ? { closedAt: String(loan.closedAt).slice(0, 40) } : {}),
     ...(loan.closureCertificateNumber
       ? { closureCertificateNumber: String(loan.closureCertificateNumber).slice(0, 64) }
@@ -817,6 +842,11 @@ function buildValidInstallmentDocForFirestore(
     paidOtherCharges: Math.max(0, Math.round((Number(inst.paidOtherCharges) || 0) * 100) / 100),
     paidLateFee: Math.max(0, Math.round((Number(inst.paidLateFee) || 0) * 100) / 100),
     accruedLateFee: Math.max(0, Math.round((Number(inst.accruedLateFee) || 0) * 100) / 100),
+    ...(inst.waivedLateFee !== undefined
+      ? {
+          waivedLateFee: Math.max(0, Math.round((Number(inst.waivedLateFee) || 0) * 100) / 100),
+        }
+      : {}),
     ...(inst.paidAt ? { paidAt: String(inst.paidAt).slice(0, 40) } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -2712,3 +2742,336 @@ export async function executeFormalLoanClosureTransaction(params: {
   }
   return check.certificateNumber;
 }
+
+const LATE_FEE_DISCOUNT_ALLOWED_ROLES = new Set([
+  'ADMIN',
+  'FINANCE',
+  'OPERATIONS',
+  'COLLECTION_COORDINATOR',
+  'SUPERVISOR',
+  'MANAGEMENT',
+]);
+
+export async function applyLateFeeDiscountToLoan(params: {
+  loan: LoanRecord;
+  installments: LoanInstallmentRecord[];
+  account?: CollectionAccountRecord | null;
+  mode: LateFeeDiscountMode;
+  amount?: number;
+  reason?: string;
+  policy?: CollectionPolicyVersionRecord;
+  user: UserProfile;
+  asOfDateIso?: string;
+}): Promise<LateFeeDiscountPlan> {
+  const {
+    loan,
+    installments,
+    account,
+    mode,
+    amount,
+    reason,
+    policy = DEFAULT_COLLECTION_POLICY_V1,
+    user,
+    asOfDateIso = getSantoDomingoTodayIso(),
+  } = params;
+
+  if (!LATE_FEE_DISCOUNT_ALLOWED_ROLES.has(user.role)) {
+    throw new Error(
+      'Tu rol no tiene permisos para aplicar descuentos o exenciones de mora. Contacta a un Supervisor, Coordinador de Cobranza, Finanzas o Administrador.'
+    );
+  }
+
+  const loanInsts = installments.filter((i) => i.loanId === loan.id);
+  const plan = computeLateFeeDiscountPlan({
+    loan,
+    installments: loanInsts,
+    account,
+    mode,
+    amount,
+    policy,
+    asOfDateIso,
+  });
+
+  const nowIso = new Date().toISOString();
+  const sanitizedReason = (reason ?? '').trim().slice(0, 500);
+  const batch = writeBatch(db);
+
+  // 1. Update each affected installment's accruedLateFee / waivedLateFee
+  for (const upd of plan.installmentUpdates) {
+    batch.update(doc(db, 'loan_installments', upd.installmentId), {
+      accruedLateFee: upd.nextAccruedLateFee,
+      waivedLateFee: upd.nextWaivedLateFee,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  // 2. Update loan record with waivedLateFeeTotal and permanent exemption metadata when applicable
+  const loanPatch: Record<string, unknown> = {
+    waivedLateFeeTotal: plan.nextWaivedLateFeeTotal,
+    updatedAt: serverTimestamp(),
+  };
+  if (mode === 'PERMANENT_EXEMPT') {
+    loanPatch.lateFeeExempt = true;
+    loanPatch.lateFeeExemptAt = nowIso;
+    loanPatch.lateFeeExemptBy = user.uid;
+    loanPatch.lateFeeExemptReason =
+      sanitizedReason || 'Exención definitiva de mora aplicada desde Cobros · Descuentos.';
+  }
+  batch.update(doc(db, 'loans', loan.id), loanPatch);
+
+  // 3. Update persisted collection_accounts snapshot if it exists
+  const accRef = doc(db, 'collection_accounts', loan.id);
+  const accSnap = await getDoc(accRef);
+  if (accSnap.exists()) {
+    batch.update(accRef, {
+      overdueLateFee: plan.nextAccountOverdueLateFee,
+      overdueTotalAmount: plan.nextAccountOverdueTotal,
+      lateFeeExempt: plan.nextLateFeeExempt,
+      waivedLateFeeTotal: plan.nextWaivedLateFeeTotal,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  // 4. Write immutable audit log
+  const auditId = generateId('audit');
+  const txId = `MORA-${loan.loanNumber.replace(/^PRE-/, '')}-${Date.now().toString(36).toUpperCase()}`;
+  const eventType =
+    mode === 'PERMANENT_EXEMPT'
+      ? 'LATE_FEE_PERMANENTLY_REMOVED'
+      : mode === 'CLEAR_CURRENT_KEEP_NORMAL'
+      ? 'LATE_FEE_CURRENT_CLEARED'
+      : 'LATE_FEE_DISCOUNT_APPLIED';
+  const actionLabel =
+    mode === 'PERMANENT_EXEMPT'
+      ? `Mora eliminada definitivamente en ${loan.loanNumber} (${loan.applicantDisplayName}) — descontado ${plan.discountAmount.toFixed(2)} ${loan.currency}`
+      : mode === 'CLEAR_CURRENT_KEEP_NORMAL'
+      ? `Mora actual eliminada (mantiene política normal de mora futura) en ${loan.loanNumber} (${loan.applicantDisplayName}) — eliminado ${plan.discountAmount.toFixed(2)} ${loan.currency}`
+      : `Descuento de mora por ${plan.discountAmount.toFixed(2)} ${loan.currency} aplicado a ${loan.loanNumber} (${loan.applicantDisplayName})`;
+  const defaultJustification =
+    mode === 'PERMANENT_EXEMPT'
+      ? 'Eliminación definitiva de mora actual y futura autorizada en módulo Cobros · Descuentos.'
+      : mode === 'CLEAR_CURRENT_KEEP_NORMAL'
+      ? 'Eliminación de mora generada hasta la fecha manteniendo generación normal ante futuros atrasos.'
+      : 'Descuento específico de mora autorizado en módulo Cobros · Descuentos.';
+
+  batch.set(doc(db, 'audit_logs', auditId), {
+    id: auditId,
+    organizationId: loan.organizationId,
+    eventType,
+    entityType: 'loans',
+    entityId: loan.id,
+    action: actionLabel,
+    previousState: JSON.stringify({
+      pendingLateFee: plan.previousLateFee,
+      waivedLateFeeTotal: loan.waivedLateFeeTotal ?? 0,
+      lateFeeExempt: Boolean(loan.lateFeeExempt),
+    }),
+    newState: JSON.stringify({
+      pendingLateFee: plan.nextLateFee,
+      discountApplied: plan.discountAmount,
+      waivedLateFeeTotal: plan.nextWaivedLateFeeTotal,
+      lateFeeExempt: plan.nextLateFeeExempt,
+      installmentsUpdated: plan.installmentUpdates.length,
+    }),
+    justification: sanitizedReason || defaultJustification,
+    transactionId: txId,
+    userId: user.uid,
+    userEmail: user.email,
+    userRole: user.role,
+    timestamp: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `loans/${loan.id}`);
+  }
+
+  return plan;
+}
+
+const LOAN_PAYOFF_ALLOWED_ROLES = new Set([
+  'ADMIN',
+  'FINANCE',
+  'OPERATIONS',
+  'COLLECTION_COORDINATOR',
+  'MANAGEMENT',
+]);
+
+export async function applyLoanPayoffSettlement(params: {
+  loan: LoanRecord;
+  customer?: CustomerRecord | null;
+  installments: LoanInstallmentRecord[];
+  account?: CollectionAccountRecord | null;
+  mode: LoanPayoffMode;
+  discountPercent?: number;
+  customPayoffAmount?: number;
+  paymentMethod: PaymentChannelMethod;
+  referenceNumber?: string;
+  reason?: string;
+  policy?: CollectionPolicyVersionRecord;
+  user: UserProfile;
+  asOfDateIso?: string;
+}): Promise<LoanPayoffPlan> {
+  const {
+    loan,
+    customer,
+    installments,
+    account,
+    mode,
+    discountPercent,
+    customPayoffAmount,
+    paymentMethod,
+    referenceNumber,
+    reason,
+    policy = DEFAULT_COLLECTION_POLICY_V1,
+    user,
+    asOfDateIso = getSantoDomingoTodayIso(),
+  } = params;
+
+  if (!LOAN_PAYOFF_ALLOWED_ROLES.has(user.role)) {
+    throw new Error(
+      'Tu rol no tiene permisos para aplicar saldos y liquidar préstamos. Contacta a Finanzas, Operaciones, Coordinador de Cobranza, Gerencia o Administrador.'
+    );
+  }
+
+  const loanInsts = installments.filter((i) => i.loanId === loan.id);
+  const [summary] = listAllClientsForPayoff({
+    customers: customer ? [customer] : [],
+    loans: [loan],
+    collectionAccounts: account ? [account] : [],
+    installments: loanInsts,
+    policy,
+    asOfDateIso,
+  });
+
+  if (!summary) {
+    throw new Error('No se pudo calcular el saldo actual del préstamo.');
+  }
+
+  const plan = computeLoanPayoffPlan({
+    item: summary,
+    mode,
+    discountPercent,
+    customPayoffAmount,
+    asOfDateIso,
+  });
+
+  const nowIso = new Date().toISOString();
+  const sanitizedReason = (reason ?? '').trim().slice(0, 500);
+  const cleanRef =
+    (referenceNumber ?? '').trim().slice(0, 80) ||
+    `SALDO-${loan.loanNumber.replace(/^PRE-/, '')}-${Date.now().toString(36).toUpperCase()}`;
+
+  const batch = writeBatch(db);
+
+  // 1. Mark all unpaid installments as PAGADA with allocated cash & waived Mora
+  for (const upd of plan.installmentUpdates) {
+    batch.update(doc(db, 'loan_installments', upd.installmentId), {
+      status: upd.nextStatus,
+      paidPrincipal: upd.nextPaidPrincipal,
+      paidInterest: upd.nextPaidInterest,
+      paidOtherCharges: upd.nextPaidOtherCharges,
+      paidLateFee: upd.nextPaidLateFee,
+      waivedLateFee: upd.nextWaivedLateFee,
+      paidAt: upd.paidAt,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  // 2. Settle loan balance to 0 and mark status PAGADO
+  batch.update(doc(db, 'loans', loan.id), {
+    currentPrincipalBalance: 0,
+    status: 'PAGADO',
+    paidPrincipalTotal: plan.nextPaidPrincipalTotal,
+    paidInterestTotal: plan.nextPaidInterestTotal,
+    paidLateFeeTotal: plan.nextPaidLateFeeTotal,
+    waivedLateFeeTotal: plan.nextWaivedLateFeeTotal,
+    closedAt: nowIso,
+    updatedAt: serverTimestamp(),
+  });
+
+  // 3. Update persisted collection_accounts snapshot if it exists
+  const accRef = doc(db, 'collection_accounts', loan.id);
+  const accSnap = await getDoc(accRef);
+  if (accSnap.exists()) {
+    const totalCount =
+      summary.totalInstallmentsCount > 0
+        ? summary.totalInstallmentsCount
+        : (accSnap.data()?.totalInstallmentsCount as number | undefined) ?? 0;
+    batch.update(accRef, {
+      dpd: 0,
+      stage: 'CANCELADO',
+      bucket: 'AL_DIA',
+      priority: 'BAJA',
+      overdueInstallmentsCount: 0,
+      paidInstallmentsCount: totalCount,
+      overduePrincipal: 0,
+      overdueInterest: 0,
+      overdueLateFee: 0,
+      overdueCharges: 0,
+      overdueTotalAmount: 0,
+      totalOutstandingPrincipal: 0,
+      waivedLateFeeTotal: plan.nextWaivedLateFeeTotal,
+      lastPaymentDate: asOfDateIso,
+      lastPaymentAmount: plan.finalPayoffAmount,
+      closedAt: nowIso,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  // 4. Write immutable audit log
+  const auditId = generateId('audit');
+  const isDiscounted = plan.discountAmount > 0;
+  const eventType = isDiscounted ? 'LOAN_PAYOFF_DISCOUNTED' : 'LOAN_PAYOFF_FULL';
+  const actionLabel = isDiscounted
+    ? `Saldo con descuento aplicado a ${loan.loanNumber} (${loan.applicantDisplayName}): pagó ${plan.finalPayoffAmount.toFixed(2)} ${loan.currency} (descuento ${plan.discountPercent.toFixed(2)}% / ${plan.discountAmount.toFixed(2)} ${loan.currency})`
+    : `Saldo total aplicado a ${loan.loanNumber} (${loan.applicantDisplayName}) por ${plan.finalPayoffAmount.toFixed(2)} ${loan.currency}`;
+
+  batch.set(doc(db, 'audit_logs', auditId), {
+    id: auditId,
+    organizationId: loan.organizationId,
+    eventType,
+    entityType: 'loans',
+    entityId: loan.id,
+    action: actionLabel,
+    previousState: JSON.stringify({
+      status: loan.status,
+      remainingPrincipal: plan.remainingPrincipal,
+      remainingInterest: plan.remainingInterest,
+      remainingCharges: plan.remainingCharges,
+      remainingLateFee: plan.remainingLateFee,
+      totalOwed: plan.totalOwed,
+    }),
+    newState: JSON.stringify({
+      status: 'PAGADO',
+      mode: plan.mode,
+      finalPayoffAmount: plan.finalPayoffAmount,
+      discountAmount: plan.discountAmount,
+      discountPercent: plan.discountPercent,
+      paymentMethod,
+      referenceNumber: cleanRef,
+      installmentsSettled: plan.installmentUpdates.length,
+    }),
+    justification:
+      sanitizedReason ||
+      (isDiscounted
+        ? `Liquidación anticipada con descuento (${plan.discountPercent.toFixed(2)}%) mediante ${paymentMethod} (${cleanRef}).`
+        : `Liquidación total del saldo adeudado mediante ${paymentMethod} (${cleanRef}).`),
+    transactionId: cleanRef,
+    userId: user.uid,
+    userEmail: user.email,
+    userRole: user.role,
+    timestamp: serverTimestamp(),
+  });
+
+  try {
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `loans/${loan.id}`);
+  }
+
+  return plan;
+}
+
+

@@ -339,7 +339,7 @@ describe('Motor de Decisiones Crediticias AxyCore V2', () => {
     // Score in 50-59 (ALTO) with requestedTerm 12 -> capped to 6 months, rate 5.5%
     const altoRes = evaluateCreditDecisionV2({
       application: makeApplication({
-        requestedAmount: 80000,
+        requestedAmount: 65000,
         requestedTermMonths: 12,
         loanPurpose: 'Consumo',
         loanPurposeDescription: '',
@@ -601,7 +601,7 @@ describe('Motor de Decisiones Crediticias AxyCore V2', () => {
   });
 
   it('recalcula ante cambios financieros preservando historial inmutable', () => {
-    const app = makeApplication({ requestedAmount: 150000 });
+    const app = makeApplication({ requestedAmount: 100000 });
     const exec1 = evaluateCreditDecisionV2({
       application: app,
       customer: makeCustomer(),
@@ -628,6 +628,40 @@ describe('Motor de Decisiones Crediticias AxyCore V2', () => {
     expect(exec1.totalScore).toBe(100);
     expect(exec2.totalScore).toBeLessThan(exec1.totalScore);
     expect(exec1.id).not.toBe(exec2.id);
+  });
+
+  it('evalúa siempre en Tasa Fija por defecto y permite cambiar a Saldo Insoluto cuando se requiera', () => {
+    const app = makeApplication({
+      requestedAmount: 100000,
+      requestedTermMonths: 12,
+      amortizationMethod: 'SALDO_INSOLUTO',
+    });
+
+    const fixedRes = evaluateCreditDecisionV2({
+      application: app,
+      customer: makeCustomer(),
+      policy: BASE_POLICY,
+      executionTrigger: 'INITIAL_SUBMIT',
+      executedBy: 'officer_1',
+    });
+    expect(fixedRes.inputSnapshot.evaluationRateMethod).toBe('INTERES_FIJO');
+    // Tasa fija 4% mensual sobre RD$100,000 a 12 meses: 100000/12 + 100000*0.04 = 12333.33
+    expect(fixedRes.recommendedInstallment).toBe(12333.33);
+
+    const decliningRes = evaluateCreditDecisionV2({
+      application: app,
+      customer: makeCustomer(),
+      policy: BASE_POLICY,
+      evaluationRateMethod: 'SALDO_INSOLUTO',
+      executionTrigger: 'MANUAL_RERUN',
+      executedBy: 'officer_1',
+    });
+    expect(decliningRes.inputSnapshot.evaluationRateMethod).toBe('SALDO_INSOLUTO');
+    // Saldo insoluto 4% mensual sobre RD$100,000 a 12 meses: PMT = 10655.22
+    expect(decliningRes.recommendedInstallment).toBe(10655.22);
+    expect(decliningRes.capacityResult.sustainablePrincipalAtBandRate).toBeGreaterThan(
+      fixedRes.capacityResult.sustainablePrincipalAtBandRate
+    );
   });
 });
 
@@ -1274,7 +1308,7 @@ describe('Diseñador de Flujos de Trabajo (Workflow Builder) y Umbrales V2', () 
     };
 
     const borderlineApp = makeApplication({
-      requestedAmount: 80000,
+      requestedAmount: 65000,
       requestedTermMonths: 12,
       loanPurpose: 'Consumo',
       loanPurposeDescription: '',

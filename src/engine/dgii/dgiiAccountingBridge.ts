@@ -299,15 +299,32 @@ export interface GeneralLedgerAccountSummary {
   }>;
 }
 
+function inferAccountTypeFromCode(code: string): {
+  accountType: string;
+  normalBalance: 'DEBITO' | 'CREDITO';
+} {
+  const c = (code || '').trim();
+  if (c.startsWith('1')) return { accountType: 'ACTIVO', normalBalance: 'DEBITO' };
+  if (c.startsWith('2')) return { accountType: 'PASIVO', normalBalance: 'CREDITO' };
+  if (c.startsWith('3')) return { accountType: 'PATRIMONIO', normalBalance: 'CREDITO' };
+  if (c.startsWith('4109')) return { accountType: 'INGRESO', normalBalance: 'DEBITO' };
+  if (c.startsWith('4')) return { accountType: 'INGRESO', normalBalance: 'CREDITO' };
+  if (c.startsWith('6')) return { accountType: 'COSTO', normalBalance: 'DEBITO' };
+  if (c.startsWith('5')) return { accountType: 'GASTO', normalBalance: 'DEBITO' };
+  return { accountType: 'ACTIVO', normalBalance: 'DEBITO' };
+}
+
 export function computeGeneralLedger(
   accounts: AccountingAccountRecord[],
   entries: JournalEntryRecord[]
 ): GeneralLedgerAccountSummary[] {
   const sortedEntries = [...entries].sort((a, b) => a.entryDate.localeCompare(b.entryDate));
   const map = new Map<string, GeneralLedgerAccountSummary>();
+  const normalBalanceByCode = new Map<string, 'DEBITO' | 'CREDITO'>();
 
   for (const acc of accounts) {
     if (!acc.isPostable) continue;
+    normalBalanceByCode.set(acc.code, acc.normalBalance);
     map.set(acc.code, {
       accountCode: acc.code,
       accountName: acc.name,
@@ -323,10 +340,12 @@ export function computeGeneralLedger(
     for (const line of entry.lines) {
       let bucket = map.get(line.accountCode);
       if (!bucket) {
+        const inferred = inferAccountTypeFromCode(line.accountCode);
+        normalBalanceByCode.set(line.accountCode, inferred.normalBalance);
         bucket = {
           accountCode: line.accountCode,
           accountName: line.accountName,
-          accountType: 'ACTIVO',
+          accountType: inferred.accountType,
           totalDebit: 0,
           totalCredit: 0,
           balance: 0,
@@ -336,10 +355,13 @@ export function computeGeneralLedger(
       }
       bucket.totalDebit = round2(bucket.totalDebit + line.debit);
       bucket.totalCredit = round2(bucket.totalCredit + line.credit);
-      const isCreditNormal = ['PASIVO', 'PATRIMONIO', 'INGRESO'].includes(bucket.accountType);
-      bucket.balance = isCreditNormal
-        ? round2(bucket.totalCredit - bucket.totalDebit)
-        : round2(bucket.totalDebit - bucket.totalCredit);
+      const normalBal =
+        normalBalanceByCode.get(line.accountCode) ||
+        (['PASIVO', 'PATRIMONIO', 'INGRESO'].includes(bucket.accountType) ? 'CREDITO' : 'DEBITO');
+      bucket.balance =
+        normalBal === 'CREDITO'
+          ? round2(bucket.totalCredit - bucket.totalDebit)
+          : round2(bucket.totalDebit - bucket.totalCredit);
       bucket.movements.push({
         entryId: entry.id,
         entryNumber: entry.entryNumber,

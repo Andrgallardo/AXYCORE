@@ -74,6 +74,9 @@ export type NavSectionId =
   | 'cobranza_daily'
   | 'cobranza_urgent'
   | 'cobranza_legal'
+  | 'cobranza_discounts'
+  | 'cobranza_discounts_mora'
+  | 'cobranza_discounts_payoff'
   | 'cobranza_my_actions'
   | 'cobranza_actions'
   | 'cobranza_agreements_today'
@@ -169,7 +172,12 @@ export type CreditPermission =
   | 'MANAGE_REGULA'
   | 'APPROVE_REGULA'
   | 'CONFIGURE_REGULA'
-  | 'USE_REGULA_AI';
+  | 'USE_REGULA_AI'
+  | 'VIEW_IMPULSA'
+  | 'MANAGE_IMPULSA'
+  | 'ASSIGN_IMPULSA'
+  | 'CONVERT_IMPULSA'
+  | 'CONFIGURE_IMPULSA';
 
 export type RiskOpinionStatus = 'PENDIENTE' | 'CONFORME' | 'CON_OBSERVACIONES' | 'RECHAZO_RIESGO';
 
@@ -355,10 +363,179 @@ export interface UserProfile {
   organizationId: string;
   status: UserStatus;
   isSuperAdmin?: boolean;
+  linkedCustomerId?: string;
+  declaredDocumentKey?: string;
+  declaredPhone?: string;
   invitationId?: string;
   invitationStatus?: InvitationStatus;
   invitedBy?: string;
   invitedAt?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type ExternalPortalActionIntent = 'portal' | 'solicitud' | 'registro' | 'ingresar';
+
+export interface PublicInstitutionPortalRecord {
+  id: string;
+  portalCode: string;
+  organizationId: string;
+  name: string;
+  tradeName: string;
+  logoUrl?: string;
+  primaryColor: string;
+  accentColor: string;
+  currency: CurrencyCode;
+  phone?: string;
+  corporateEmail?: string;
+  city?: string;
+  country?: string;
+  status: TenantStatus;
+  portalEnabled: boolean;
+  welcomeHeadline?: string;
+  welcomeSubtitle?: string;
+  updatedAt?: unknown;
+}
+
+export type ClientServiceRequestType =
+  | 'CARTA_SALDO'
+  | 'ESTADO_CUENTA'
+  | 'ACUERDO_PRORROGA'
+  | 'ACTUALIZACION_DATOS'
+  | 'ABONO_EXTRAORDINARIO'
+  | 'VINCULACION_EXPEDIENTE'
+  | 'CONSULTA_RECLAMO';
+
+export type ClientServiceRequestStatus =
+  | 'PENDIENTE'
+  | 'EN_PROCESO'
+  | 'COMPLETADA'
+  | 'RECHAZADA';
+
+export interface ClientServiceRequestRecord {
+  id: string;
+  ticketNumber: string;
+  organizationId: string;
+  clientUid: string;
+  clientEmail: string;
+  clientName: string;
+  customerId?: string | null;
+  loanId?: string | null;
+  loanNumber?: string | null;
+  requestType: ClientServiceRequestType;
+  subject: string;
+  details: string;
+  requestedAmount?: number | null;
+  requestedDate?: string | null;
+  contactPhone?: string | null;
+  documentNumber?: string | null;
+  status: ClientServiceRequestStatus;
+  staffResponse?: string | null;
+  resolvedBy?: string | null;
+  resolvedByName?: string | null;
+  resolvedAt?: string | null;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type PublicCreditApplicationStatus =
+  | 'RECIBIDA_PUBLICA'
+  | 'INGRESADA_MOTOR'
+  | 'DESCARTADA';
+
+export interface PublicApplicantCustomerDetails {
+  firstName: string;
+  lastName: string;
+  birthDate?: string;
+  nationality?: string;
+  maritalStatus?: string;
+  altPhone?: string;
+  municipality?: string;
+  residenceMonths?: number;
+  housingType?: HousingType;
+  housingPayment?: number;
+  socialMediaDeclared?: SocialMediaStatus;
+  socialMediaHandle?: string;
+  altContactName?: string;
+  altContactPhone?: string;
+}
+
+export interface PublicApplicantBusinessDetails {
+  rnc: string;
+  legalName: string;
+  tradeName?: string;
+  companyType?: string;
+  economicActivity?: string;
+  operationsStartDate?: string;
+  authorizedRepName: string;
+  authorizedRepDoc?: string;
+  corporateDocsSummary?: string;
+}
+
+export interface PublicAttachedDocument {
+  category: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  fileDataUrl: string;
+  notes?: string;
+}
+
+export interface PublicBiometricSummary {
+  verdict: string;
+  similarityScore: number;
+  livenessAssessment: string;
+  summary?: string;
+}
+
+export interface PublicCreditApplicationRecord {
+  id: string;
+  trackingNumber: string;
+  organizationId: string;
+  portalCode: string;
+  institutionName: string;
+  applicantType?: ApplicantType;
+  applicantFullName: string;
+  documentType: 'CEDULA' | 'PASAPORTE';
+  documentNumber: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  province?: string;
+  productCode: ProductCode;
+  currency: CurrencyCode;
+  requestedAmount: number;
+  requestedTermMonths: number;
+  paymentFrequency: PaymentFrequency;
+  amortizationMethod?: AmortizationMethod;
+  loanPurpose: string;
+  loanPurposeDescription?: string;
+  proposedCollateral?: string;
+  monthlyIncome: number;
+  monthlyExpenses: number;
+  employerOrActivity?: string;
+  customerDetails?: PublicApplicantCustomerDetails;
+  businessDetails?: PublicApplicantBusinessDetails | null;
+  financialData?: IndividualFinancialInput;
+  businessFinancialData?: BusinessFinancialInput | null;
+  references?: ReferenceItem[];
+  declaredDocumentsSummary?: {
+    hasIdentityDoc: boolean;
+    hasIncomeEvidence: boolean;
+  };
+  attachedDocuments?: PublicAttachedDocument[];
+  biometricSummary?: PublicBiometricSummary | null;
+  indicativeInstallment: number;
+  indicativeRateMonthly: number;
+  consentVersion?: string;
+  consentAccepted: boolean;
+  consentAcceptedAt: string;
+  status: PublicCreditApplicationStatus;
+  convertedApplicationId?: string | null;
+  convertedBy?: string | null;
+  convertedByName?: string | null;
+  convertedAt?: string | null;
+  reviewNotes?: string | null;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -1117,6 +1294,11 @@ export interface LoanRecord {
   paidPrincipalTotal?: number;
   paidInterestTotal?: number;
   paidLateFeeTotal?: number;
+  waivedLateFeeTotal?: number;
+  lateFeeExempt?: boolean;
+  lateFeeExemptReason?: string | null;
+  lateFeeExemptBy?: string | null;
+  lateFeeExemptAt?: string | null;
   closedAt?: string | null;
   closureCertificateNumber?: string | null;
   createdBy: string;
@@ -1141,6 +1323,7 @@ export interface LoanInstallmentRecord {
   paidOtherCharges?: number;
   paidLateFee?: number;
   accruedLateFee?: number;
+  waivedLateFee?: number;
   paidAt?: string | null;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -1578,6 +1761,7 @@ export interface InvestorTransactionRecord {
 
 export * from './collections';
 export * from './altera';
+export * from './impulsa';
 
 
 
