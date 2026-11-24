@@ -30,14 +30,18 @@ service cloud.firestore {
     }
 
     function isBootstrappedAdmin() {
-      return isVerified() && request.auth.token.email.lower() == 'andrygallardo7@gmail.com';
+      return isVerified()
+        && 'email' in request.auth.token
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'andrygallardo7@gmail.com';
     }
 
     function hasValidInvitation(invId, expectedRole, expectedOrgId) {
       let path = /databases/$(database)/documents/user_invitations/$(invId);
-      let inv = exists(path) ? get(path).data : null;
-      return isValidId(invId)
-        && inv != null
+      let inv = isVerified() && isValidId(invId) && exists(path) ? get(path).data : null;
+      return inv != null
+        && 'email' in request.auth.token
+        && request.auth.token.email is string
         && inv.email.lower() == request.auth.token.email.lower()
         && inv.status == 'INVITACION_ENVIADA'
         && inv.role == expectedRole
@@ -45,17 +49,20 @@ service cloud.firestore {
     }
 
     function userExists() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function safeUserDoc() {
+      return isVerified() && userExists() ? userDoc() : null;
+    }
+
     function isActiveStaffDoc() {
-      let existsDoc = userExists();
-      let u = existsDoc ? userDoc() : null;
-      return isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'];
+      let u = safeUserDoc();
+      return u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'];
     }
 
     function isActiveUser() {
@@ -63,57 +70,116 @@ service cloud.firestore {
     }
 
     function hasOrgMembershipDoc(orgId) {
-      return exists(/databases/$(database)/documents/organization_memberships/$('mem_' + orgId + '_' + request.auth.uid)) ||
-        exists(/databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid));
+      return isVerified() && isValidId(orgId) && (
+        exists(/databases/$(database)/documents/organization_memberships/$('mem_' + orgId + '_' + request.auth.uid)) ||
+        exists(/databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid))
+      );
+    }
+
+    function hasActiveMembershipWithRole(orgId, targetRole) {
+      let p1 = /databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid);
+      let p2 = /databases/$(database)/documents/organization_memberships/$('mem_' + orgId + '_' + request.auth.uid);
+      return isVerified() && isValidId(orgId) && (
+        (exists(p1) && get(p1).data.status in ['ACTIVE', 'INVITED'] && get(p1).data.role == targetRole) ||
+        (exists(p2) && get(p2).data.status in ['ACTIVE', 'INVITED'] && get(p2).data.role == targetRole)
+      );
     }
 
     function hasCommitteeMembership(orgId) {
       let p1 = /databases/$(database)/documents/organization_memberships/$('mem_' + orgId + '_' + request.auth.uid);
       let p2 = /databases/$(database)/documents/organization_memberships/$(orgId + '_' + request.auth.uid);
-      return (exists(p1) && get(p1).data.status in ['ACTIVE', 'INVITED'] && get(p1).data.role in ['ADMIN', 'COMMITTEE_MEMBER']) ||
-        (exists(p2) && get(p2).data.status in ['ACTIVE', 'INVITED'] && get(p2).data.role in ['ADMIN', 'COMMITTEE_MEMBER']);
+      return isVerified() && isValidId(orgId) && (
+        (exists(p1) && get(p1).data.status in ['ACTIVE', 'INVITED'] && get(p1).data.role in ['ADMIN', 'COMMITTEE_MEMBER']) ||
+        (exists(p2) && get(p2).data.status in ['ACTIVE', 'INVITED'] && get(p2).data.role in ['ADMIN', 'COMMITTEE_MEMBER'])
+      );
     }
 
     function currentRole() {
-      let u = userExists() ? userDoc() : null;
-      return isBootstrappedAdmin() ? 'ADMIN' : (u != null && 'role' in u ? u.role : 'NONE');
+      return isBootstrappedAdmin() ? 'ADMIN' : currentUserDocRole();
     }
 
-    function inSameOrg(orgId) {
-      let u = userExists() ? userDoc() : null;
-      return isValidId(orgId) && (
-        isBootstrappedAdmin() ||
-        (isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'] && (
-          ('organizationId' in u && u.organizationId == orgId) ||
-          ('role' in u && u.role == 'ADMIN') ||
-          ('isSuperAdmin' in u && u.isSuperAdmin == true) ||
-          hasOrgMembershipDoc(orgId)
-        ))
+    function currentUserDocRole() {
+      let u = safeUserDoc();
+      return u != null && 'role' in u ? u.role : 'NONE';
+    }
+
+    function isVerifiedAdminDoc() {
+      let u = safeUserDoc();
+      return u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'] && (
+        ('role' in u && u.role == 'ADMIN') ||
+        ('isSuperAdmin' in u && u.isSuperAdmin == true)
       );
     }
 
     function isAdmin() {
-      let u = userExists() ? userDoc() : null;
-      return isBootstrappedAdmin() || (
-        isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'] && (
-          ('role' in u && u.role == 'ADMIN') ||
-          ('isSuperAdmin' in u && u.isSuperAdmin == true)
-        )
+      return isBootstrappedAdmin() || isVerifiedAdminDoc();
+    }
+
+    function isVerifiedOrgMember(orgId) {
+      let u = safeUserDoc();
+      return u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED'] && (
+        ('organizationId' in u && u.organizationId == orgId) ||
+        ('role' in u && u.role == 'ADMIN') ||
+        ('isSuperAdmin' in u && u.isSuperAdmin == true) ||
+        hasOrgMembershipDoc(orgId)
+      );
+    }
+
+    function inSameOrg(orgId) {
+      return orgId is string && orgId.size() >= 1 && orgId.size() <= 128 && (
+        isBootstrappedAdmin() || isVerifiedOrgMember(orgId)
+      );
+    }
+
+    function isVerifiedInternalStaffDoc(orgId) {
+      let u = safeUserDoc();
+      return u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED']
+        && 'role' in u && !(u.role in ['EXTERNAL_CLIENT', 'NONE']) && (
+        ('organizationId' in u && u.organizationId == orgId) ||
+        u.role == 'ADMIN' ||
+        ('isSuperAdmin' in u && u.isSuperAdmin == true) ||
+        hasOrgMembershipDoc(orgId)
       );
     }
 
     function isInternalStaff(orgId) {
-      let u = userExists() ? userDoc() : null;
-      return isValidId(orgId) && (
-        isBootstrappedAdmin() ||
-        (isVerified() && u != null && 'status' in u && u.status in ['ACTIVE', 'INVITED']
-          && 'role' in u && !(u.role in ['EXTERNAL_CLIENT', 'NONE']) && (
-          ('organizationId' in u && u.organizationId == orgId) ||
-          u.role == 'ADMIN' ||
-          ('isSuperAdmin' in u && u.isSuperAdmin == true) ||
-          hasOrgMembershipDoc(orgId)
-        ))
+      return orgId is string && orgId.size() >= 1 && orgId.size() <= 128 && (
+        isBootstrappedAdmin() || isVerifiedInternalStaffDoc(orgId)
       );
+    }
+
+    function isInternalStaffAnyOrg() {
+      return isBootstrappedAdmin() || (
+        isActiveStaffDoc() && !(currentUserDocRole() in ['EXTERNAL_CLIENT', 'NONE'])
+      );
+    }
+
+    function canGetStaffDoc() {
+      return (resource == null && isInternalStaffAnyOrg()) || (resource != null && isInternalStaff(resource.data.organizationId));
+    }
+
+    function canListStaffDoc() {
+      return isVerified() && isInternalStaff(resource.data.organizationId);
+    }
+
+    function isSharedCol(c) {
+      return c in [
+        'reconciliation_matches', 'reconciliation_exceptions', 'dgii_receivers', 'dgii_products',
+        'dgii_fiscal_configs', 'dgii_certificates', 'dgii_encf_sequences', 'dgii_audit_logs',
+        'accounting_accounts', 'accounting_journal_entries', 'operating_expenses', 'investors',
+        'collector_targets', 'collection_campaigns', 'message_templates', 'collection_policy_versions',
+        'message_events', 'risk_alerts', 'customer_disputes', 'collection_daily_snapshots',
+        'altera_scenarios', 'altera_recommendations', 'altera_outcomes', 'altera_analyses', 'altera_configs',
+        'impulsa_opportunities', 'impulsa_configs', 'credit_renewals'
+      ];
+    }
+
+    function sameOrgUpdated() {
+      return incoming().id == existing().id && incoming().organizationId == existing().organizationId && incoming().updatedAt == request.time;
+    }
+
+    function createdNow() {
+      return incoming().createdAt == request.time && incoming().updatedAt == request.time;
     }
 
     function hasOrgRole(orgId, roles) {
@@ -154,7 +220,7 @@ service cloud.firestore {
     }
 
     function optId(d, k) {
-      return !(k in d) || d[k] == null || isValidId(d[k]);
+      return !(k in d) || d[k] == null || d[k] == '' || isValidId(d[k]);
     }
 
     function optNum(d, k) {
@@ -326,11 +392,24 @@ service cloud.firestore {
         && data.id == reqId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.clientUid)
         && strLen(data.ticketNumber, 4, 40) && strLen(data.clientEmail, 3, 254) && strLen(data.clientName, 1, 160)
         && optId(data, 'customerId') && optId(data, 'loanId') && optStr(data, 'loanNumber', 64)
-        && data.requestType in ['CARTA_SALDO', 'ESTADO_CUENTA', 'ACUERDO_PRORROGA', 'ACTUALIZACION_DATOS', 'ABONO_EXTRAORDINARIO', 'VINCULACION_EXPEDIENTE', 'CONSULTA_RECLAMO']
+        && data.requestType in ['CARTA_SALDO', 'ESTADO_CUENTA', 'ACUERDO_PRORROGA', 'AYUDA_ATRASO', 'ACTUALIZACION_DATOS', 'ABONO_EXTRAORDINARIO', 'VINCULACION_EXPEDIENTE', 'CONSULTA_RECLAMO']
         && strLen(data.subject, 3, 160) && strLen(data.details, 5, 2000)
         && optNonNeg(data, 'requestedAmount') && optStr(data, 'requestedDate', 30) && optStr(data, 'contactPhone', 40) && optStr(data, 'documentNumber', 40)
         && data.status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'RECHAZADA']
         && optStr(data, 'staffResponse', 2000) && optId(data, 'resolvedBy') && optStr(data, 'resolvedByName', 160) && optStr(data, 'resolvedAt', 40)
+        && data.createdAt is timestamp && data.updatedAt is timestamp;
+    }
+
+    function isValidClientPortalMessage(data, messageId) {
+      return data.keys().hasOnly(['id', 'organizationId', 'clientUid', 'clientEmail', 'clientName', 'customerId', 'loanId', 'loanNumber', 'senderUid', 'senderName', 'senderRole', 'category', 'subject', 'body', 'readByClient', 'readByStaff', 'createdAt', 'updatedAt'])
+        && data.id == messageId && isValidId(data.id) && isValidId(data.organizationId) && isValidId(data.clientUid)
+        && strLen(data.clientEmail, 3, 254) && strLen(data.clientName, 1, 160)
+        && optId(data, 'customerId') && optId(data, 'loanId') && optStr(data, 'loanNumber', 64)
+        && isValidId(data.senderUid) && strLen(data.senderName, 1, 160)
+        && data.senderRole in ['CLIENT', 'ADMIN_STAFF']
+        && data.category in ['CONSULTA_GENERAL', 'PAGOS_Y_CUOTAS', 'RENOVACION', 'AYUDA_ATRASO', 'DOCUMENTOS']
+        && optStr(data, 'subject', 160) && strLen(data.body, 1, 2000)
+        && data.readByClient is bool && data.readByStaff is bool
         && data.createdAt is timestamp && data.updatedAt is timestamp;
     }
 
@@ -934,21 +1013,28 @@ service cloud.firestore {
 
     function isValidTenantLicense(data, licenseId) {
       return data.keys().hasOnly([
-          'id', 'organizationId', 'licenseKey', 'planCode', 'status',
-          'startDate', 'endDate', 'maxUsers', 'enabledModules', 'autoRenew',
-          'notes', 'updatedBy', 'createdAt', 'updatedAt'
+          'id', 'organizationId', 'organizationName', 'licenseKey', 'planCode', 'status',
+          'startDate', 'endDate', 'maxUsers', 'maxStorageGb', 'maxMonthlyOperations',
+          'enabledModules', 'addonModules', 'aiEnabled', 'monthlyFeeUsd', 'currency',
+          'autoRenew', 'notes', 'updatedBy', 'createdAt', 'updatedAt'
         ])
         && data.id == licenseId && isValidId(data.id)
         && isValidId(data.organizationId)
-        && strLen(data.licenseKey, 4, 80)
+        && optStr(data, 'organizationName', 160)
+        && optStr(data, 'licenseKey', 80)
         && data.planCode in ['BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'CORPORATIVO', 'PERSONALIZADO']
         && data.status in ['PENDIENTE', 'ACTIVA', 'PROXIMA_A_VENCER', 'VENCIDA', 'SUSPENDIDA', 'CANCELADA']
         && strLen(data.startDate, 8, 40)
         && strLen(data.endDate, 8, 40)
         && data.maxUsers is number && data.maxUsers >= 1 && data.maxUsers <= 100000
+        && optNonNeg(data, 'maxStorageGb') && optNonNeg(data, 'maxMonthlyOperations')
         && data.enabledModules is list && data.enabledModules.size() <= 60
-        && data.autoRenew is bool
-        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && optList(data, 'addonModules', 30)
+        && optBool(data, 'aiEnabled')
+        && optNonNeg(data, 'monthlyFeeUsd')
+        && (!('currency' in data) || data.currency == null || data.currency in ['DOP', 'USD'])
+        && optBool(data, 'autoRenew')
+        && (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 1000))
         && isValidId(data.updatedBy)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
@@ -956,17 +1042,22 @@ service cloud.firestore {
 
     function isValidTenantSubscription(data, subId) {
       return data.keys().hasOnly([
-          'id', 'organizationId', 'planCode', 'billingCycle', 'amountUsd',
-          'status', 'nextBillingDate', 'lastPaymentDate', 'createdAt', 'updatedAt'
+          'id', 'organizationId', 'organizationName', 'licenseId', 'planCode', 'billingCycle',
+          'amountUsd', 'amount', 'currency', 'status', 'nextBillingDate', 'lastPaymentDate',
+          'createdBy', 'createdAt', 'updatedAt'
         ])
         && data.id == subId && isValidId(data.id)
         && isValidId(data.organizationId)
+        && optStr(data, 'organizationName', 160)
+        && optId(data, 'licenseId')
         && data.planCode in ['BASICO', 'PROFESIONAL', 'EMPRESARIAL', 'CORPORATIVO', 'PERSONALIZADO']
         && data.billingCycle in ['MENSUAL', 'TRIMESTRAL', 'ANUAL']
-        && data.amountUsd is number && data.amountUsd >= 0 && data.amountUsd <= 1000000
-        && data.status in ['AL_DIA', 'PENDIENTE_PAGO', 'EN_GRACIA', 'SUSPENDIDA', 'CANCELADA']
+        && optNonNeg(data, 'amountUsd') && optNonNeg(data, 'amount')
+        && (!('currency' in data) || data.currency == null || data.currency in ['DOP', 'USD'])
+        && data.status in ['AL_DIA', 'ACTIVA', 'PENDIENTE_PAGO', 'EN_GRACIA', 'SUSPENDIDA', 'CANCELADA']
         && strLen(data.nextBillingDate, 8, 40)
         && (!('lastPaymentDate' in data) || data.lastPaymentDate == null || (data.lastPaymentDate is string && data.lastPaymentDate.size() <= 40))
+        && optId(data, 'createdBy')
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -1016,11 +1107,14 @@ service cloud.firestore {
       allow update: if isValidId(userId) && isVerified()
         && isValidUser(incoming(), userId)
         && incoming().uid == existing().uid
-        && incoming().createdAt == existing().createdAt
+        && (!('createdAt' in existing()) || !(existing().createdAt is timestamp) || incoming().createdAt == existing().createdAt)
         && incoming().updatedAt == request.time
         && (
-          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'organizationId', 'isSuperAdmin', 'linkedCustomerId', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'updatedAt'])) ||
+          (isBootstrappedAdmin() && request.auth.uid == userId && incoming().role == 'ADMIN' && incoming().status == 'ACTIVE') ||
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'organizationId', 'isSuperAdmin', 'linkedCustomerId', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'createdAt', 'updatedAt'])) ||
           (isInternalStaff(existing().organizationId) && currentRole() != 'AUDITOR' && existing().role == 'EXTERNAL_CLIENT' && incoming().role == existing().role && incoming().status == existing().status && incoming().organizationId == existing().organizationId && incoming().diff(existing()).affectedKeys().hasOnly(['linkedCustomerId', 'updatedAt'])) ||
+          (request.auth.uid == userId && incoming().status == existing().status && hasActiveMembershipWithRole(incoming().organizationId, incoming().role)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['organizationId', 'role', 'updatedAt'])) ||
           (request.auth.uid == userId && incoming().role == existing().role && incoming().status == existing().status
             && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'organizationId', 'invitationStatus', 'declaredDocumentKey', 'declaredPhone', 'linkedCustomerId', 'updatedAt'])
             && (
@@ -1034,7 +1128,7 @@ service cloud.firestore {
               || incoming().linkedCustomerId == null
             )
           ) ||
-          (request.auth.uid == userId && 'invitationId' in incoming() && incoming().status == 'ACTIVE' && incoming().invitationStatus == 'CONFIRMADA' && hasValidInvitation(incoming().invitationId, incoming().role, incoming().organizationId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'organizationId', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'updatedAt']))
+          (request.auth.uid == userId && 'invitationId' in incoming() && incoming().status == 'ACTIVE' && incoming().invitationStatus == 'CONFIRMADA' && hasValidInvitation(incoming().invitationId, incoming().role, incoming().organizationId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'organizationId', 'invitationId', 'invitationStatus', 'invitedBy', 'invitedAt', 'createdAt', 'updatedAt']))
         );
       allow delete: if false;
     }
@@ -1499,8 +1593,8 @@ service cloud.firestore {
 
     match /financial_analyses/{analysisId} {
       // Strictly internal staff only — EXTERNAL_CLIENT is denied all reads and queries
-      allow read: if (resource == null && isVerified() && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']))
-        || (resource != null && isInternalStaff(resource.data.organizationId));
+      allow get: if isValidId(analysisId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(analysisId)
         && inSameOrg(incoming().organizationId)
         && isValidFinancialAnalysis(incoming(), analysisId)
@@ -1527,8 +1621,8 @@ service cloud.firestore {
 
     match /financial_analysis_installments/{instId} {
       // Strictly internal staff only — EXTERNAL_CLIENT is denied all reads and queries
-      allow read: if (resource == null && isVerified() && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']))
-        || (resource != null && isInternalStaff(resource.data.organizationId));
+      allow get: if isValidId(instId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(instId)
         && hasOrgRole(incoming().organizationId, ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'BUSINESS_OFFICER', 'COMMITTEE_MEMBER', 'MANAGEMENT', 'EXTERNAL_CLIENT'])
         && isValidFinancialAnalysisInstallment(incoming(), instId)
@@ -1543,8 +1637,8 @@ service cloud.firestore {
 
     match /application_decision_history/{historyId} {
       // Strictly internal staff only — EXTERNAL_CLIENT is denied all reads and queries
-      allow read: if (resource == null && isVerified() && !(currentRole() in ['EXTERNAL_CLIENT', 'NONE']))
-        || (resource != null && isInternalStaff(resource.data.organizationId));
+      allow get: if isValidId(historyId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(historyId)
         && inSameOrg(incoming().organizationId)
         && isValidApplicationDecisionHistory(incoming(), historyId)
@@ -1979,27 +2073,26 @@ service cloud.firestore {
     }
 
     match /collection_accounts/{accountId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(accountId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(accountId) && isInternalStaff(incoming().organizationId)
         && isValidCollectionBase(incoming(), accountId)
         && isValidId(incoming().loanId)
         && incoming().id == incoming().loanId
         && incoming().currency in ['DOP', 'USD']
         && incoming().dpd is number && incoming().dpd >= 0
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && createdNow();
       allow update: if isValidId(accountId) && isInternalStaff(existing().organizationId)
         && isValidCollectionBase(incoming(), accountId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
+        && sameOrgUpdated()
         && incoming().loanId == existing().loanId
-        && (incoming().currency == existing().currency || (isAdmin() && incoming().currency in ['DOP', 'USD']))
-        && incoming().updatedAt == request.time;
+        && (incoming().currency == existing().currency || (isAdmin() && incoming().currency in ['DOP', 'USD']));
       allow delete: if isValidId(accountId) && isBootstrappedAdmin();
     }
 
     match /collection_assignments/{assignmentId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(assignmentId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(assignmentId) && canAssignPortfolio(incoming().organizationId)
         && isValidCollectionBase(incoming(), assignmentId)
         && isValidId(incoming().loanId)
@@ -2011,7 +2104,8 @@ service cloud.firestore {
     }
 
     match /collection_actions/{actionId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(actionId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(actionId) && canLogCollections(incoming().organizationId)
         && isValidCollectionBase(incoming(), actionId)
         && isValidId(incoming().loanId)
@@ -2030,21 +2124,19 @@ service cloud.firestore {
     }
 
     match /collection_tasks/{taskId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(taskId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(taskId) && isInternalStaff(incoming().organizationId)
         && isValidCollectionBase(incoming(), taskId)
         && isValidId(incoming().loanId)
         && strLen(incoming().sourceEventKey, 3, 180)
         && incoming().status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA']
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && createdNow();
       allow update: if isValidId(taskId) && (canLogCollections(existing().organizationId) || canAssignPortfolio(existing().organizationId))
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
+        && sameOrgUpdated()
         && incoming().loanId == existing().loanId
         && incoming().sourceEventKey == existing().sourceEventKey
-        && incoming().status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA']
-        && incoming().updatedAt == request.time;
+        && incoming().status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'VENCIDA', 'CANCELADA'];
       allow delete: if isValidId(taskId) && isBootstrappedAdmin();
     }
 
@@ -2185,50 +2277,41 @@ service cloud.firestore {
     }
 
     match /payment_intents/{intentId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(intentId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(intentId) && (canReportPayments(incoming().organizationId) || canManageBot(incoming().organizationId))
         && isValidCollectionBase(incoming(), intentId)
         && isValidId(incoming().loanId)
         && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && createdNow();
       allow update: if isValidId(intentId) && canApplyOrReversePayments(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time;
+        && sameOrgUpdated();
       allow delete: if isValidId(intentId) && isBootstrappedAdmin();
     }
 
     match /bank_transactions/{txId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(txId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(txId) && canReconcileBank(incoming().organizationId)
         && isValidCollectionBase(incoming(), txId)
         && incoming().amount is number && incoming().amount > 0
         && incoming().currency in ['DOP', 'USD']
         && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && createdNow();
       allow update: if isValidId(txId) && canReconcileBank(existing().organizationId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().amount == existing().amount
-        && incoming().updatedAt == request.time;
+        && sameOrgUpdated()
+        && incoming().amount == existing().amount;
       allow delete: if false;
     }
 
     match /{sharedCol}/{docId} {
-      allow read: if sharedCol in [
-          'reconciliation_matches', 'reconciliation_exceptions', 'dgii_receivers', 'dgii_products',
-          'collector_targets', 'collection_campaigns', 'message_templates', 'collection_policy_versions',
-          'message_events', 'risk_alerts', 'customer_disputes', 'collection_daily_snapshots',
-          'altera_scenarios', 'altera_recommendations', 'altera_outcomes', 'altera_analyses', 'altera_configs',
-          'impulsa_opportunities', 'impulsa_configs'
-        ] && isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(docId) && isSharedCol(sharedCol) && canGetStaffDoc();
+      allow list: if isSharedCol(sharedCol) && canListStaffDoc();
       allow create: if isValidId(docId) && (
         (sharedCol in ['reconciliation_matches', 'reconciliation_exceptions']
           && canReconcileBank(incoming().organizationId)
           && isValidCollectionBase(incoming(), docId)
-          && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+          && createdNow()) ||
         (sharedCol == 'collector_targets'
           && canAssignPortfolio(incoming().organizationId)
           && isValidCollectionBase(incoming(), docId)
@@ -2245,12 +2328,12 @@ service cloud.firestore {
         (sharedCol == 'risk_alerts'
           && isInternalStaff(incoming().organizationId)
           && isValidCollectionBase(incoming(), docId)
-          && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+          && createdNow()) ||
         (sharedCol == 'customer_disputes'
           && isInternalStaff(incoming().organizationId)
           && isValidCollectionBase(incoming(), docId)
           && incoming().openedBy == request.auth.uid
-          && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+          && createdNow()) ||
         (sharedCol == 'collection_daily_snapshots'
           && isInternalStaff(incoming().organizationId)
           && isValidCollectionBase(incoming(), docId)
@@ -2258,70 +2341,150 @@ service cloud.firestore {
         (sharedCol in ['dgii_receivers', 'dgii_products']
           && canManageAccountingAndEcf(incoming().organizationId)
           && (sharedCol == 'dgii_receivers' ? isValidDgiiReceiver(incoming(), docId) : isValidDgiiProduct(incoming(), docId))
-          && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+          && incoming().createdBy == request.auth.uid && createdNow()) ||
+        (sharedCol == 'dgii_fiscal_configs'
+          && canManageEcfInfra(incoming().organizationId)
+          && isValidDgiiFiscalConfig(incoming(), docId)
+          && incoming().updatedBy == request.auth.uid && createdNow()) ||
+        (sharedCol == 'dgii_certificates'
+          && canManageEcfInfra(incoming().organizationId)
+          && isValidDgiiCertificate(incoming(), docId)
+          && incoming().uploadedBy == request.auth.uid && createdNow()) ||
+        (sharedCol == 'accounting_accounts'
+          && canManageAccountingAndEcf(incoming().organizationId)
+          && isValidAccountingAccount(incoming(), docId)
+          && incoming().createdBy == request.auth.uid && createdNow()) ||
+        (sharedCol == 'accounting_journal_entries'
+          && canManageAccountingAndEcf(incoming().organizationId)
+          && isValidJournalEntry(incoming(), docId)
+          && incoming().createdBy == request.auth.uid && createdNow()) ||
+        (sharedCol == 'operating_expenses'
+          && canManageGeneralOperations(incoming().organizationId)
+          && isValidOperatingExpense(incoming(), docId)
+          && incoming().status in ['PAGADO', 'PENDIENTE']
+          && incoming().createdBy == request.auth.uid && createdNow()) ||
+        (sharedCol == 'dgii_encf_sequences'
+          && canManageEcfInfra(incoming().organizationId)
+          && isValidDgiiSequence(incoming(), docId)
+          && incoming().createdBy == request.auth.uid && createdNow()) ||
+        (sharedCol == 'investors'
+          && canManageGeneralOperations(incoming().organizationId)
+          && isValidInvestor(incoming(), docId)
+          && incoming().createdBy == request.auth.uid && createdNow()) ||
         (sharedCol in ['altera_scenarios', 'altera_recommendations', 'altera_outcomes', 'altera_analyses', 'altera_configs', 'impulsa_opportunities', 'impulsa_configs']
           && isInternalStaff(incoming().organizationId) && incoming().id == docId && (
             (sharedCol == 'altera_scenarios'
               && !(currentRole() in ['AUDITOR', 'CASHIER', 'FORMALIZATION'])
               && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
-              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+              && createdNow()) ||
             (sharedCol == 'altera_recommendations'
               && currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FINANCE', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
               && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
               && incoming().status in ['GENERADA', 'PENDIENTE_REVISION']
-              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+              && createdNow()) ||
             (sharedCol == 'altera_outcomes'
               && currentRole() in ['ADMIN', 'CREDIT_ANALYST', 'RISK_OFFICER', 'FINANCE', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
               && incoming().createdBy == request.auth.uid && incoming().currency in ['DOP', 'USD']
-              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+              && createdNow()) ||
             (sharedCol == 'altera_analyses'
               && incoming().actorUid == request.auth.uid && incoming().createdAt == request.time) ||
             (sharedCol == 'altera_configs'
               && currentRole() in ['ADMIN', 'RISK_OFFICER', 'COLLECTION_COORDINATOR']
               && incoming().requireHumanApprovalForAllInterventions == true && incoming().updatedBy == request.auth.uid
-              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+              && createdNow()) ||
             (sharedCol == 'impulsa_opportunities'
               && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
               && incoming().currency in ['DOP', 'USD']
-              && incoming().createdAt == request.time && incoming().updatedAt == request.time) ||
+              && createdNow()) ||
             (sharedCol == 'impulsa_configs'
               && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
               && incoming().organizationId == docId
               && incoming().requireExplicitConsentForExternalContact == true
               && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time)
-          ))
+          )) ||
+        (sharedCol == 'dgii_audit_logs'
+          && isInternalStaff(incoming().organizationId)
+          && incoming().keys().hasOnly([
+            'id', 'organizationId', 'eventType', 'ecfDocumentId', 'eNCF',
+            'environment', 'summary', 'details', 'actorUid', 'actorEmail',
+            'actorRole', 'timestampIso', 'createdAt'
+          ])
+          && incoming().id == docId && isValidId(incoming().organizationId)
+          && incoming().environment in ['DESARROLLO', 'PRECERTIFICACION', 'CERTIFICACION', 'PRODUCCION']
+          && incoming().summary is string && incoming().actorUid == request.auth.uid && incoming().createdAt == request.time) ||
+        (sharedCol == 'credit_renewals'
+          && isInternalStaff(incoming().organizationId)
+          && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'MANAGEMENT', 'OPERATIONS', 'FINANCE', 'RISK_OFFICER', 'COMMITTEE_MEMBER']
+          && isValidCreditRenewal(incoming(), docId)
+          && incoming().initiatedBy == request.auth.uid
+          && incoming().status in ['RENOVACION_INICIADA', 'PENDIENTE_EVALUACION', 'PENDIENTE_COMITE']
+          && createdNow())
       );
-      allow update: if isValidId(docId) && (
+      allow update: if isValidId(docId) && sameOrgUpdated() && (
         (sharedCol in ['reconciliation_matches', 'reconciliation_exceptions']
-          && canReconcileBank(existing().organizationId)
-          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
-          && incoming().updatedAt == request.time) ||
+          && canReconcileBank(existing().organizationId)) ||
         (sharedCol == 'collector_targets'
-          && canAssignPortfolio(existing().organizationId)
-          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
-          && incoming().updatedAt == request.time) ||
+          && canAssignPortfolio(existing().organizationId)) ||
         (sharedCol in ['collection_campaigns', 'message_templates', 'collection_policy_versions']
-          && canManageBot(existing().organizationId)
-          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
-          && incoming().updatedAt == request.time) ||
+          && canManageBot(existing().organizationId)) ||
         (sharedCol == 'risk_alerts'
-          && (canResolveDisputesAndAgreements(existing().organizationId) || canAssignPortfolio(existing().organizationId))
-          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
-          && incoming().updatedAt == request.time) ||
+          && (canResolveDisputesAndAgreements(existing().organizationId) || canAssignPortfolio(existing().organizationId))) ||
         (sharedCol == 'customer_disputes'
-          && canResolveDisputesAndAgreements(existing().organizationId)
-          && incoming().id == existing().id && incoming().organizationId == existing().organizationId
-          && incoming().updatedAt == request.time) ||
+          && canResolveDisputesAndAgreements(existing().organizationId)) ||
         (sharedCol in ['dgii_receivers', 'dgii_products']
           && canManageAccountingAndEcf(existing().organizationId)
           && (sharedCol == 'dgii_receivers' ? isValidDgiiReceiver(incoming(), docId) : isValidDgiiProduct(incoming(), docId))
-          && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy
-          && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time) ||
+          && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt) ||
+        (sharedCol == 'dgii_fiscal_configs'
+          && canManageEcfInfra(existing().organizationId)
+          && isValidDgiiFiscalConfig(incoming(), docId)
+          && incoming().createdAt == existing().createdAt && incoming().updatedBy == request.auth.uid) ||
+        (sharedCol == 'dgii_certificates'
+          && canManageEcfInfra(existing().organizationId)
+          && incoming().status in ['ACTIVO', 'POR_VENCER', 'VENCIDO', 'REVOCADO']
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'updatedAt'])) ||
+        (sharedCol == 'accounting_accounts'
+          && canManageAccountingAndEcf(existing().organizationId)
+          && isValidAccountingAccount(incoming(), docId)
+          && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt) ||
+        (sharedCol == 'accounting_journal_entries'
+          && canManageAccountingAndEcf(existing().organizationId)
+          && existing().status == 'CONTABILIZADO' && incoming().status == 'REVERTIDO'
+          && incoming().reversedEntryId is string && isValidId(incoming().reversedEntryId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reversedEntryId', 'updatedAt'])) ||
+        (sharedCol == 'operating_expenses'
+          && canManageGeneralOperations(existing().organizationId)
+          && isValidOperatingExpense(incoming(), docId)
+          && existing().status != 'ANULADO'
+          && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentMethod', 'invoiceNumber', 'notes', 'updatedAt'])) ||
+        (sharedCol == 'dgii_encf_sequences'
+          && (
+            (canManageAccountingAndEcf(existing().organizationId)
+              && incoming().lastUsedSequence is number
+              && incoming().lastUsedSequence >= existing().lastUsedSequence
+              && incoming().lastUsedSequence <= existing().endSequence
+              && incoming().status in ['ACTIVA', 'AGOTADA']
+              && incoming().diff(existing()).affectedKeys().hasOnly(['lastUsedSequence', 'status', 'updatedAt']))
+            || (canManageEcfInfra(existing().organizationId)
+              && incoming().status in ['ACTIVA', 'AGOTADA', 'VENCIDA', 'SUSPENDIDA']
+              && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'expiryDate', 'authorizationNumber', 'updatedAt']))
+          )) ||
+        (sharedCol == 'investors'
+          && canManageGeneralOperations(existing().organizationId)
+          && isValidInvestor(incoming(), docId)
+          && (isAdmin() || (
+            incoming().currency == existing().currency
+            && incoming().createdBy == existing().createdBy
+            && incoming().createdAt == existing().createdAt
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'currentInvestedBalance', 'totalContributed', 'totalWithdrawn', 'totalReturnsPaid',
+              'status', 'annualReturnRatePct', 'phone', 'email', 'notes', 'updatedAt'
+            ])
+          ))) ||
         (sharedCol in ['altera_scenarios', 'altera_recommendations', 'altera_outcomes', 'altera_configs', 'impulsa_opportunities', 'impulsa_configs']
           && isInternalStaff(existing().organizationId)
-          && incoming().id == docId
-          && incoming().organizationId == existing().organizationId
-          && incoming().updatedAt == request.time && (
+          && incoming().id == docId && (
             (sharedCol == 'altera_scenarios'
               && !(currentRole() in ['AUDITOR', 'CASHIER', 'FORMALIZATION'])
               && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt) ||
@@ -2344,7 +2507,17 @@ service cloud.firestore {
             (sharedCol == 'impulsa_configs'
               && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'SUPERVISOR', 'COLLECTION_COORDINATOR', 'MANAGEMENT']
               && incoming().requireExplicitConsentForExternalContact == true && incoming().updatedBy == request.auth.uid)
-          ))
+          )) ||
+        (sharedCol == 'credit_renewals'
+          && isInternalStaff(existing().organizationId)
+          && currentRole() != 'AUDITOR'
+          && isValidCreditRenewal(incoming(), docId)
+          && incoming().originLoanId == existing().originLoanId
+          && incoming().customerId == existing().customerId
+          && incoming().applicationId == existing().applicationId
+          && incoming().initiatedBy == existing().initiatedBy
+          && incoming().createdAt == existing().createdAt
+          && existing().status != 'DESEMBOLSADA')
       );
       allow delete: if false;
     }
@@ -2378,7 +2551,7 @@ service cloud.firestore {
 
     match /organization_memberships/{membershipId} {
       allow get: if isValidId(membershipId) && isVerified()
-        && (isBootstrappedAdmin() || existing().userId == request.auth.uid || (isAdmin() && inSameOrg(existing().organizationId)));
+        && (isBootstrappedAdmin() || (resource == null && (isAdmin() || membershipId.matches('^.+_' + request.auth.uid + '$'))) || (resource != null && (existing().userId == request.auth.uid || (isAdmin() && inSameOrg(existing().organizationId)))));
       allow list: if isVerified()
         && (isBootstrappedAdmin() || resource.data.userId == request.auth.uid || (isAdmin() && inSameOrg(resource.data.organizationId)));
       allow create: if isValidId(membershipId)
@@ -2420,7 +2593,8 @@ service cloud.firestore {
     }
 
     match /licenses/{licenseId} {
-      allow read: if isVerified() && (isBootstrappedAdmin() || inSameOrg(resource.data.organizationId));
+      allow get: if isValidId(licenseId) && isVerified() && (isBootstrappedAdmin() || (resource == null && isAdmin()) || (resource != null && inSameOrg(existing().organizationId)));
+      allow list: if isVerified() && (isBootstrappedAdmin() || inSameOrg(resource.data.organizationId));
       allow create: if isValidId(licenseId)
         && (isBootstrappedAdmin() || (isAdmin() && inSameOrg(incoming().organizationId)))
         && isValidTenantLicense(incoming(), licenseId)
@@ -2438,7 +2612,8 @@ service cloud.firestore {
     }
 
     match /subscriptions/{subId} {
-      allow read: if isVerified() && (isBootstrappedAdmin() || inSameOrg(resource.data.organizationId));
+      allow get: if isValidId(subId) && isVerified() && (isBootstrappedAdmin() || (resource == null && isAdmin()) || (resource != null && inSameOrg(existing().organizationId)));
+      allow list: if isVerified() && (isBootstrappedAdmin() || inSameOrg(resource.data.organizationId));
       allow create: if isValidId(subId)
         && (isBootstrappedAdmin() || (isAdmin() && inSameOrg(incoming().organizationId)))
         && isValidTenantSubscription(incoming(), subId)
@@ -2540,55 +2715,11 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
-    match /operating_expenses/{expenseId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(expenseId) && canManageGeneralOperations(incoming().organizationId)
-        && isValidOperatingExpense(incoming(), expenseId)
-        && incoming().status in ['PAGADO', 'PENDIENTE']
-        && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(expenseId) && canManageGeneralOperations(existing().organizationId)
-        && isValidOperatingExpense(incoming(), expenseId)
-        && existing().status != 'ANULADO'
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().createdBy == existing().createdBy
-        && incoming().createdAt == existing().createdAt
-        && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentMethod', 'invoiceNumber', 'notes', 'updatedAt']);
-      allow delete: if false;
-    }
-
-    match /investors/{investorId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(investorId) && canManageGeneralOperations(incoming().organizationId)
-        && isValidInvestor(incoming(), investorId)
-        && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(investorId) && canManageGeneralOperations(existing().organizationId)
-        && isValidInvestor(incoming(), investorId)
-        && incoming().id == existing().id
-        && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time
-        && (
-          isAdmin() ||
-          (
-            incoming().currency == existing().currency
-            && incoming().createdBy == existing().createdBy
-            && incoming().createdAt == existing().createdAt
-            && incoming().diff(existing()).affectedKeys().hasOnly([
-              'currentInvestedBalance', 'totalContributed', 'totalWithdrawn', 'totalReturnsPaid',
-              'status', 'annualReturnRatePct', 'phone', 'email', 'notes', 'updatedAt'
-            ])
-          )
-        );
-      allow delete: if false;
-    }
+    // --- operating_expenses & investors are enforced in /{sharedCol}/{docId} above ---
 
     match /investor_transactions/{txId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(txId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(txId) && canManageGeneralOperations(incoming().organizationId)
         && isValidInvestorTransaction(incoming(), txId)
         && (
@@ -2597,8 +2728,7 @@ service cloud.firestore {
           existsAfter(/databases/$(database)/documents/investors/$(incoming().investorId))
         )
         && incoming().createdBy == request.auth.uid
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && createdNow();
       allow update: if isValidId(txId) && isAdmin() && inSameOrg(existing().organizationId)
         && isValidInvestorTransaction(incoming(), txId)
         && incoming().id == existing().id
@@ -2626,7 +2756,9 @@ service cloud.firestore {
     }
 
     match /dashboard_widget_configs/{configId} {
-      allow read: if isVerified() && inSameOrg(resource.data.organizationId)
+      allow get: if isValidId(configId) && isVerified()
+        && ((resource == null && isActiveUser()) || (resource != null && inSameOrg(existing().organizationId) && (existing().userId == request.auth.uid || isAdmin())));
+      allow list: if isVerified() && inSameOrg(resource.data.organizationId)
         && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isValidId(configId) && isActiveUser() && inSameOrg(incoming().organizationId)
         && isValidDashboardWidgetConfig(incoming(), configId)
@@ -2828,86 +2960,18 @@ service cloud.firestore {
         && d.createdAt is timestamp && d.updatedAt is timestamp;
     }
 
-    match /accounting_accounts/{accountId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(accountId) && canManageAccountingAndEcf(incoming().organizationId)
-        && isValidAccountingAccount(incoming(), accountId)
-        && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isValidId(accountId) && canManageAccountingAndEcf(existing().organizationId)
-        && isValidAccountingAccount(incoming(), accountId)
-        && incoming().organizationId == existing().organizationId && incoming().createdBy == existing().createdBy
-        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
+    // --- accounting_accounts & accounting_journal_entries are enforced in /{sharedCol}/{docId} above ---
 
-    match /accounting_journal_entries/{entryId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(entryId) && canManageAccountingAndEcf(incoming().organizationId)
-        && isValidJournalEntry(incoming(), entryId)
-        && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isValidId(entryId) && canManageAccountingAndEcf(existing().organizationId)
-        && existing().status == 'CONTABILIZADO' && incoming().status == 'REVERTIDO'
-        && incoming().reversedEntryId is string && isValidId(incoming().reversedEntryId)
-        && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reversedEntryId', 'updatedAt']);
-      allow delete: if false;
-    }
-
-    match /dgii_fiscal_configs/{configId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(configId) && canManageEcfInfra(incoming().organizationId)
-        && isValidDgiiFiscalConfig(incoming(), configId)
-        && incoming().updatedBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isValidId(configId) && canManageEcfInfra(existing().organizationId)
-        && isValidDgiiFiscalConfig(incoming(), configId)
-        && incoming().createdAt == existing().createdAt && incoming().updatedBy == request.auth.uid && incoming().updatedAt == request.time;
-      allow delete: if false;
-    }
-
-    match /dgii_certificates/{certId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(certId) && canManageEcfInfra(incoming().organizationId)
-        && isValidDgiiCertificate(incoming(), certId)
-        && incoming().uploadedBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isValidId(certId) && canManageEcfInfra(existing().organizationId)
-        && incoming().status in ['ACTIVO', 'POR_VENCER', 'VENCIDO', 'REVOCADO']
-        && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'updatedAt']);
-      allow delete: if false;
-    }
-
-    match /dgii_encf_sequences/{seqId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(seqId) && canManageEcfInfra(incoming().organizationId)
-        && isValidDgiiSequence(incoming(), seqId)
-        && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
-      allow update: if isValidId(seqId) && incoming().updatedAt == request.time
-        && (
-          (
-            canManageAccountingAndEcf(existing().organizationId)
-            && incoming().lastUsedSequence is number
-            && incoming().lastUsedSequence >= existing().lastUsedSequence
-            && incoming().lastUsedSequence <= existing().endSequence
-            && incoming().status in ['ACTIVA', 'AGOTADA']
-            && incoming().diff(existing()).affectedKeys().hasOnly(['lastUsedSequence', 'status', 'updatedAt'])
-          )
-          || (
-            canManageEcfInfra(existing().organizationId)
-            && incoming().status in ['ACTIVA', 'AGOTADA', 'VENCIDA', 'SUSPENDIDA']
-            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes', 'expiryDate', 'authorizationNumber', 'updatedAt'])
-          )
-        );
-      allow delete: if false;
-    }
+    // --- dgii_fiscal_configs, dgii_certificates & dgii_encf_sequences are enforced in /{sharedCol}/{docId} above ---
 
     match /dgii_ecf_documents/{docId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
+      allow get: if isValidId(docId) && canGetStaffDoc();
+      allow list: if canListStaffDoc();
       allow create: if isValidId(docId) && canManageAccountingAndEcf(incoming().organizationId)
         && isValidDgiiEcfDocument(incoming(), docId)
-        && incoming().createdBy == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+        && incoming().createdBy == request.auth.uid && createdNow();
       allow update: if isValidId(docId) && canManageAccountingAndEcf(existing().organizationId)
-        && incoming().id == existing().id && incoming().organizationId == existing().organizationId
-        && incoming().updatedAt == request.time
+        && sameOrgUpdated()
         && (
           (existing().status == 'BORRADOR' && isValidDgiiEcfDocument(incoming(), docId) && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt)
           || (
@@ -2924,21 +2988,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    match /dgii_audit_logs/{auditId} {
-      allow read: if isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(auditId) && isInternalStaff(incoming().organizationId)
-        && incoming().keys().hasOnly([
-          'id', 'organizationId', 'eventType', 'ecfDocumentId', 'eNCF',
-          'environment', 'summary', 'details', 'actorUid', 'actorEmail',
-          'actorRole', 'timestampIso', 'createdAt'
-        ])
-        && incoming().id == auditId && isValidId(incoming().id) && isValidId(incoming().organizationId)
-        && incoming().environment in ['DESARROLLO', 'PRECERTIFICACION', 'CERTIFICACION', 'PRODUCCION']
-        && incoming().summary is string && incoming().actorUid == request.auth.uid && incoming().createdAt == request.time;
-      allow update, delete: if false;
-    }
-
-    // --- ALTERA & IMPULSA collections are enforced in the consolidated /{sharedCol}/{docId} block above ---
+    // --- dgii_audit_logs, ALTERA, IMPULSA & credit_renewals are enforced in /{sharedCol}/{docId} above ---
 
     // --- AxyCore REGULA (32 Tenant-Isolated Regulatory, Risk, PLAFTPADM, Control & Audit Entities) ---
 
@@ -2988,16 +3038,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // --- Client Self-Service Requests (Tenant-Isolated Portal Requests) ---
+    // --- Client Self-Service Requests (Tenant- & Owner-Isolated) ---
     match /client_service_requests/{requestId} {
       allow get: if isValidId(requestId) && (
-        (resource == null && isActiveUser()) ||
-        isInternalStaff(existing().organizationId) ||
-        (isActiveStaffDoc() && existing().clientUid == request.auth.uid && existing().organizationId == userDoc().organizationId)
+        (resource == null && isActiveUser())
+        || isInternalStaff(existing().organizationId)
+        || (isActiveStaffDoc() && existing().clientUid == request.auth.uid && existing().organizationId == userDoc().organizationId)
       );
       allow list: if isVerified() && (
-        isInternalStaff(resource.data.organizationId) ||
-        (isActiveStaffDoc() && resource.data.clientUid == request.auth.uid && resource.data.organizationId == userDoc().organizationId)
+        isInternalStaff(resource.data.organizationId)
+        || (isActiveStaffDoc() && resource.data.clientUid == request.auth.uid && resource.data.organizationId == userDoc().organizationId)
       );
       allow create: if isValidId(requestId)
         && isActiveUser()
@@ -3005,18 +3055,16 @@ service cloud.firestore {
         && isValidClientServiceRequest(incoming(), requestId)
         && incoming().clientUid == request.auth.uid
         && incoming().status == 'PENDIENTE'
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && createdNow();
       allow update: if isValidId(requestId)
         && isInternalStaff(existing().organizationId)
         && currentRole() != 'AUDITOR'
-        && isValidClientServiceRequest(incoming(), requestId)
-        && incoming().id == existing().id
-        && incoming().ticketNumber == existing().ticketNumber
-        && incoming().organizationId == existing().organizationId
-        && incoming().clientUid == existing().clientUid
-        && incoming().requestType == existing().requestType
-        && incoming().createdAt == existing().createdAt
+        && incoming().status in ['PENDIENTE', 'EN_PROCESO', 'COMPLETADA', 'RECHAZADA']
+        && optStr(incoming(), 'staffResponse', 2000)
+        && optId(incoming(), 'resolvedBy')
+        && optStr(incoming(), 'resolvedByName', 160)
+        && optStr(incoming(), 'resolvedAt', 40)
+        && optId(incoming(), 'customerId')
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'status', 'staffResponse', 'resolvedBy', 'resolvedByName', 'resolvedAt', 'customerId', 'updatedAt'
@@ -3024,15 +3072,62 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- Client Portal Direct Messaging (Tenant- & Owner-Isolated Bidirectional Chat) ---
+    match /client_portal_messages/{messageId} {
+      allow get: if isValidId(messageId) && (
+        (resource == null && isActiveUser())
+        || isInternalStaff(existing().organizationId)
+        || (isActiveStaffDoc() && existing().clientUid == request.auth.uid && existing().organizationId == userDoc().organizationId)
+      );
+      allow list: if isVerified() && (
+        isInternalStaff(resource.data.organizationId)
+        || (isActiveStaffDoc() && resource.data.clientUid == request.auth.uid && resource.data.organizationId == userDoc().organizationId)
+      );
+      allow create: if isValidId(messageId)
+        && isActiveUser()
+        && inSameOrg(incoming().organizationId)
+        && isValidClientPortalMessage(incoming(), messageId)
+        && incoming().senderUid == request.auth.uid
+        && createdNow()
+        && (
+          (incoming().senderRole == 'CLIENT'
+            && incoming().clientUid == request.auth.uid
+            && incoming().readByClient == true
+            && incoming().readByStaff == false)
+          ||
+          (incoming().senderRole == 'ADMIN_STAFF'
+            && isInternalStaff(incoming().organizationId)
+            && currentRole() != 'AUDITOR'
+            && incoming().readByStaff == true)
+        );
+      allow update: if isValidId(messageId)
+        && incoming().readByClient is bool
+        && incoming().readByStaff is bool
+        && incoming().updatedAt == request.time
+        && (
+          (isActiveStaffDoc()
+            && existing().clientUid == request.auth.uid
+            && existing().organizationId == userDoc().organizationId
+            && incoming().diff(existing()).affectedKeys().hasOnly(['readByClient', 'updatedAt']))
+          ||
+          (isInternalStaff(existing().organizationId)
+            && currentRole() != 'AUDITOR'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['readByStaff', 'updatedAt']))
+        );
+      allow delete: if false;
+    }
+
     // --- Public Web Credit Applications (Write-Only Public Intake, Strictly Staff-Only Reads) ---
     match /public_credit_applications/{pubAppId} {
-      allow get: if isValidId(pubAppId) && isInternalStaff(existing().organizationId);
+      allow get: if isValidId(pubAppId) && (
+        (resource == null && isActiveUser() && currentRole() != 'EXTERNAL_CLIENT') ||
+        isInternalStaff(existing().organizationId)
+      );
       allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
       allow create: if isValidId(pubAppId)
         && isValidPublicCreditApplication(incoming(), pubAppId)
         && incoming().status == 'RECIBIDA_PUBLICA'
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time
+        && createdNow()
         && isActivePublicPortalTarget(incoming().portalCode, incoming().organizationId);
       allow update: if isValidId(pubAppId)
         && isInternalStaff(existing().organizationId)
@@ -3045,7 +3140,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // --- Sistema de Renovaciones y Reenganche de Créditos ---
+    // --- Sistema de Renovaciones y Reenganche de Créditos (Enforced in /{sharedCol}/{docId}) ---
     function isValidCreditRenewal(data, renewalId) {
       return data.id == renewalId && isValidId(data.organizationId)
         && isValidId(data.customerId) && isValidId(data.originLoanId) && isValidId(data.applicationId)
@@ -3061,32 +3156,6 @@ service cloud.firestore {
         && data.initialPayoffBreakdown is map
         && isValidId(data.initiatedBy)
         && data.updatedAt is timestamp;
-    }
-
-    match /credit_renewals/{renewalId} {
-      allow get: if isValidId(renewalId) && ((resource == null && isActiveUser()) || isInternalStaff(existing().organizationId));
-      allow list: if isVerified() && isInternalStaff(resource.data.organizationId);
-      allow create: if isValidId(renewalId)
-        && isInternalStaff(incoming().organizationId)
-        && currentRole() in ['ADMIN', 'BUSINESS_OFFICER', 'CREDIT_ANALYST', 'MANAGEMENT', 'OPERATIONS', 'FINANCE', 'RISK_OFFICER', 'COMMITTEE_MEMBER']
-        && isValidCreditRenewal(incoming(), renewalId)
-        && incoming().initiatedBy == request.auth.uid
-        && incoming().status in ['RENOVACION_INICIADA', 'PENDIENTE_EVALUACION', 'PENDIENTE_COMITE']
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(renewalId)
-        && isInternalStaff(existing().organizationId)
-        && currentRole() != 'AUDITOR'
-        && isValidCreditRenewal(incoming(), renewalId)
-        && incoming().organizationId == existing().organizationId
-        && incoming().originLoanId == existing().originLoanId
-        && incoming().customerId == existing().customerId
-        && incoming().applicationId == existing().applicationId
-        && incoming().initiatedBy == existing().initiatedBy
-        && incoming().createdAt == existing().createdAt
-        && existing().status != 'DESEMBOLSADA'
-        && incoming().updatedAt == request.time;
-      allow delete: if false;
     }
   }
 }

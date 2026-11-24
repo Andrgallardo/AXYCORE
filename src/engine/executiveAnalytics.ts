@@ -1186,6 +1186,11 @@ export function buildScopedAiContext(params: {
   loans: LoanRecord[];
   collectionActions: CollectionActionRecord[];
   riskAlerts: RiskAlertRecord[];
+  collectionAccounts?: CollectionAccountRecord[];
+  payments?: PaymentRecord[];
+  paymentPromises?: PaymentPromiseRecord[];
+  reconciliationExceptionsCount?: number;
+  customersCount?: number;
   hasPermission: (p: CreditPermission) => boolean;
 }): Record<string, unknown> {
   const {
@@ -1203,11 +1208,19 @@ export function buildScopedAiContext(params: {
     loans,
     collectionActions,
     riskAlerts,
+    collectionAccounts = [],
+    payments = [],
+    paymentPromises = [],
+    reconciliationExceptionsCount = 0,
+    customersCount,
     hasPermission,
   } = params;
 
-  const canSeeInbox = hasPermission('VIEW_INTERNAL_INBOX') || hasPermission('ORIGINATE_APPLICATION');
-  const canSeeCollections = hasPermission('VIEW_COLLECTIONS_PORTFOLIO');
+  const isInternalStaff = userProfile.role !== 'EXTERNAL_CLIENT';
+  const canSeeInbox =
+    isInternalStaff &&
+    (hasPermission('VIEW_INTERNAL_INBOX') || hasPermission('ORIGINATE_APPLICATION'));
+  const canSeeCollections = isInternalStaff && hasPermission('VIEW_COLLECTIONS_PORTFOLIO');
   const clock = getSantoDomingoClockInfo();
 
   const summarizeCurrency = (m: ExecutiveCurrencyMetrics) => ({
@@ -1215,8 +1228,10 @@ export function buildScopedAiContext(params: {
     carteraActiva: canSeeCollections || hasPermission('VIEW_REPORTS_AND_EXPORT') ? formatMoney(m.activePortfolioCapital, m.currency) : 'Restringido por RBAC',
     prestamosActivos: m.activeLoansCount,
     desembolsadoPeriodo: canSeeInbox || canSeeCollections ? formatMoney(m.disbursedPeriodTotal, m.currency) : 'Restringido',
+    desembolsosCantidad: canSeeInbox || canSeeCollections ? m.disbursedPeriodCount : null,
     desembolsadoVariacionPct: m.disbursedDeltaPct,
     recuperacionPeriodo: canSeeCollections ? formatMoney(m.recoveryPeriodTotal, m.currency) : 'Restringido',
+    recuperacionPagosCantidad: canSeeCollections ? m.recoveryPaymentsCount : null,
     recuperacionCapital: canSeeCollections ? formatMoney(m.recoveryPrincipal, m.currency) : 'Restringido',
     recuperacionInteres: canSeeCollections ? formatMoney(m.recoveryInterest, m.currency) : 'Restringido',
     par1Pct: canSeeCollections ? m.par1Pct : null,
@@ -1236,6 +1251,93 @@ export function buildScopedAiContext(params: {
     recuperacionPorGestor: canSeeCollections ? m.recoveryByAgent : [],
   });
 
+  // Pipeline distribution by status (strictly RBAC-gated)
+  const pipelineByStatus = canSeeInbox
+    ? applications.reduce<Record<string, { cantidad: number; montoDop: number; montoUsd: number }>>((acc, app) => {
+        const key = APPLICATION_STATUS_LABELS[app.status] || app.status;
+        if (!acc[key]) acc[key] = { cantidad: 0, montoDop: 0, montoUsd: 0 };
+        acc[key].cantidad += 1;
+        if (app.currency === 'USD') acc[key].montoUsd += Number(app.requestedAmount || 0);
+        else acc[key].montoDop += Number(app.requestedAmount || 0);
+        return acc;
+      }, {})
+    : null;
+
+  const activeLoans = loans.filter((l) => l.status === 'ACTIVO' || l.status === 'VENCIDO');
+  const paidLoansCount = loans.filter((l) => l.status === 'PAGADO').length;
+  const cancelledLoansCount = loans.filter((l) => l.status === 'CANCELADO').length;
+
+  const accountByLoanId = new Map<string, CollectionAccountRecord>();
+  for (const ca of collectionAccounts) {
+    accountByLoanId.set(ca.loanId, ca);
+  }
+
+  // Top concentration & top overdue accounts (RBAC-gated)
+  const topConcentrationLoans = canSeeCollections
+    ? [...activeLoans]
+        .sort((a, b) => Number(b.currentPrincipalBalance || 0) - Number(a.currentPrincipalBalance || 0))
+        .slice(0, 8)
+        .map((l) => {
+          const ca = accountByLoanId.get(l.id);
+          return {
+            numero: l.loanNumber,
+            cliente: l.applicantDisplayName,
+            moneda: l.currency,
+            estado: l.status,
+            saldoCapital: formatMoney(l.currentPrincipalBalance, l.currency),
+            montoOriginal: formatMoney(l.approvedPrincipal, l.currency),
+            diasAtraso: ca?.dpd ?? 0,
+            montoVencido: ca ? formatMoney(ca.overdueTotalAmount, l.currency) : null,
+          };
+        })
+    : [];
+
+  const topOverdueAccounts = canSeeCollections
+    ? [...collectionAccounts]
+        .filter((ca) => (ca.dpd || 0) > 0 || (ca.overdueTotalAmount || 0) > 0)
+        .sort((a, b) => (b.overdueTotalAmount || 0) - (a.overdueTotalAmount || 0))
+        .slice(0, 8)
+        .map((ca) => ({
+          prestamo: ca.loanNumber,
+          cliente: ca.applicantDisplayName,
+          moneda: ca.currency,
+          diasAtraso: ca.dpd,
+          tramo: ca.bucket,
+          saldoVencido: formatMoney(ca.overdueTotalAmount, ca.currency),
+          saldoCapitalPendiente: formatMoney(ca.totalOutstandingPrincipal, ca.currency),
+          prioridad: ca.priority,
+          comportamiento: ca.behaviorBand,
+          gestor: ca.assignedCollectorName || 'Sin asignar',
+        }))
+    : [];
+
+  const activeSentinelAlerts = canSeeCollections
+    ? riskAlerts.filter((a) => a.status === 'ACTIVA')
+    : [];
+
+  const pendingPaymentsValidationCount = canSeeCollections
+    ? payments.filter(
+        (p) => p.status === 'REPORTADO' || p.status === 'RECIBIDO_PENDIENTE_VERIFICACION'
+      ).length
+    : null;
+
+  const activePromisesCount = canSeeCollections
+    ? paymentPromises.filter(
+        (p) => p.status === 'VIGENTE' || p.status === 'PENDIENTE_VERIFICACION'
+      ).length
+    : null;
+
+  const dopActiveLoans = activeLoans.filter((l) => l.currency === 'DOP');
+  const usdActiveLoans = activeLoans.filter((l) => l.currency === 'USD');
+  const avgTicketDop =
+    dopActiveLoans.length > 0
+      ? dopActiveLoans.reduce((sum, l) => sum + Number(l.approvedPrincipal || 0), 0) / dopActiveLoans.length
+      : 0;
+  const avgTicketUsd =
+    usdActiveLoans.length > 0
+      ? usdActiveLoans.reduce((sum, l) => sum + Number(l.approvedPrincipal || 0), 0) / usdActiveLoans.length
+      : 0;
+
   return {
     organizacion: organizationName,
     zonaHoraria: SANTO_DOMINGO_TIMEZONE,
@@ -1251,6 +1353,18 @@ export function buildScopedAiContext(params: {
         verAuditoria: hasPermission('VIEW_AUDIT_LOGS'),
       },
     },
+    resumenEstructuralCartera: {
+      totalClientesRegistrados: typeof customersCount === 'number' ? customersCount : null,
+      totalPrestamosHistoricos: loans.length,
+      prestamosVigentesOVencidos: activeLoans.length,
+      prestamosPagados: paidLoansCount,
+      prestamosCancelados: cancelledLoansCount,
+      ticketPromedioDop: canSeeCollections && dopActiveLoans.length > 0 ? formatMoney(avgTicketDop, 'DOP') : null,
+      ticketPromedioUsd: canSeeCollections && usdActiveLoans.length > 0 ? formatMoney(avgTicketUsd, 'USD') : null,
+      pagosPendientesValidacion: pendingPaymentsValidationCount,
+      excepcionesConciliacionAbiertas: canSeeCollections ? reconciliationExceptionsCount : null,
+      promesasVigentesCantidad: activePromisesCount,
+    },
     indicadoresPorMoneda: {
       ...(currencyFilter !== 'USD' ? { DOP: summarizeCurrency(dopMetrics) } : {}),
       ...(currencyFilter !== 'DOP' ? { USD: summarizeCurrency(usdMetrics) } : {}),
@@ -1265,13 +1379,16 @@ export function buildScopedAiContext(params: {
           }
         : {}),
     },
+    embudoSolicitudesPorEstado: pipelineByStatus,
     resumenOperativoHoy: operationalItems.map((i) => ({
       concepto: i.label,
       cantidad: i.count,
       ruta: i.targetSection,
     })),
+    topConcentracionCartera: topConcentrationLoans,
+    topCuentasEnMora: topOverdueAccounts,
     solicitudesRecientesMuestra: canSeeInbox
-      ? applications.slice(0, 12).map((a) => ({
+      ? applications.slice(0, 10).map((a) => ({
           numero: a.applicationNumber,
           solicitante: a.applicantDisplayName,
           estado: APPLICATION_STATUS_LABELS[a.status] || a.status,
@@ -1281,7 +1398,7 @@ export function buildScopedAiContext(params: {
         }))
       : [],
     prestamosRecientesMuestra: canSeeCollections
-      ? loans.slice(0, 12).map((l) => ({
+      ? loans.slice(0, 10).map((l) => ({
           numero: l.loanNumber,
           cliente: l.applicantDisplayName,
           estado: l.status,
@@ -1290,9 +1407,18 @@ export function buildScopedAiContext(params: {
         }))
       : [],
     gestionesRecientesCount: canSeeCollections ? collectionActions.length : null,
-    alertasCentinelaActivas: canSeeCollections
-      ? riskAlerts.filter((a) => a.status === 'ACTIVA').length
-      : null,
+    alertasCentinelaActivas: canSeeCollections ? activeSentinelAlerts.length : null,
+    alertasCentinelaDetalle: canSeeCollections
+      ? activeSentinelAlerts.slice(0, 8).map((a) => ({
+          titulo: a.title,
+          severidad: a.severity,
+          regla: a.ruleCode,
+          metrica: a.metricValue,
+          cliente: a.customerName || null,
+          prestamo: a.loanNumber || null,
+          detalle: a.description.slice(0, 180),
+        }))
+      : [],
     actividadReciente: recentActivity.slice(0, 6).map((r) => ({
       fecha: r.timestampDisplay,
       evento: r.eventType,

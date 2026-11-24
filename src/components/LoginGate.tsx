@@ -117,6 +117,8 @@ export function LoginGate() {
     clearCorporateAccessSelection,
     portalAccessError,
     clearPortalAccessError,
+    retrySessionBootstrap,
+    switchAuthenticatedPortal,
     parsedExternalPortalLink,
     externalInstitutionPortal,
     externalPortalLoading,
@@ -237,6 +239,32 @@ export function LoginGate() {
       setExternalPortalMode(true);
     } else {
       setExternalPortalMode(false);
+    }
+  };
+
+  const handleRetrySessionBootstrap = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      await retrySessionBootstrap();
+    } catch (err) {
+      setErrorMsg(mapFirebaseAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSwitchAuthenticatedPortal = async (nextPortal: PortalAccessMode) => {
+    setLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      await switchAuthenticatedPortal(nextPortal);
+    } catch (err) {
+      setErrorMsg(mapFirebaseAuthError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -530,11 +558,22 @@ export function LoginGate() {
     }
   };
 
+  const isPendingProfileRecovery = Boolean(
+    firebaseUser &&
+      firebaseUser.emailVerified &&
+      !userProfile &&
+      !portalAccessError &&
+      !emailVerificationPending &&
+      !biometricLocked &&
+      !biometricSetupPending
+  );
+
   const isMobileSelectorStage =
     !isExternalInstitutionMode &&
     !emailVerificationPending &&
     !biometricLocked &&
     !biometricSetupPending &&
+    !isPendingProfileRecovery &&
     !(firebaseUser && portalAccessError) &&
     portalMode === null;
 
@@ -543,6 +582,7 @@ export function LoginGate() {
     !emailVerificationPending &&
     !biometricLocked &&
     !biometricSetupPending &&
+    !isPendingProfileRecovery &&
     !(firebaseUser && portalAccessError);
 
   const activePortalMeta = portalMode ? PORTAL_META[portalMode] : null;
@@ -1566,28 +1606,45 @@ export function LoginGate() {
                     </div>
                     <div>
                       <h2 className="font-display text-lg font-bold text-white">
-                        Acceso no autorizado en este portal
+                        Acceso no autorizado o pendiente en este portal
                       </h2>
                       <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                         {portalAccessError}
                       </p>
+                      {firebaseUser.email && (
+                        <p className="text-[11px] text-slate-400 font-mono mt-1.5">
+                          Sesión detectada: {firebaseUser.email}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="space-y-2.5">
                     <button
                       type="button"
-                      onClick={() => selectPortal('corporate')}
-                      className="w-full py-2.5 px-4 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      disabled={loading}
+                      onClick={handleRetrySessionBootstrap}
+                      className="w-full py-2.5 px-4 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
-                      <Building2 className="w-4 h-4" />
+                      <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                      <span>{loading ? 'Validando acceso...' : 'Reintentar acceso'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleSwitchAuthenticatedPortal('corporate')}
+                      className="w-full py-2.5 px-4 rounded-xl border border-[#00B8FF]/25 bg-white/[0.04] hover:bg-white/[0.08] text-slate-100 text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <Building2 className="w-4 h-4 text-[#00B8FF]" />
                       <span>Cambiar a Acceso Corporativo</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => selectPortal('client')}
-                      className="w-full py-2.5 px-4 rounded-xl border border-[#00B8FF]/25 bg-white/[0.04] hover:bg-white/[0.08] text-slate-100 text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      disabled={loading}
+                      onClick={() => handleSwitchAuthenticatedPortal('client')}
+                      className="w-full py-2.5 px-4 rounded-xl border border-[#00B8FF]/25 bg-white/[0.04] hover:bg-white/[0.08] text-slate-100 text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       <Wallet className="w-4 h-4 text-emerald-400" />
                       <span>Cambiar a Portal de Clientes</span>
@@ -1595,11 +1652,59 @@ export function LoginGate() {
 
                     <button
                       type="button"
-                      onClick={() => selectPortal('axycore_admin')}
-                      className="w-full py-2.5 px-4 rounded-xl border border-[#E2B35E]/30 bg-white/[0.03] hover:bg-white/[0.07] text-[#E2B35E] text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      disabled={loading}
+                      onClick={() => handleSwitchAuthenticatedPortal('axycore_admin')}
+                      className="w-full py-2.5 px-4 rounded-xl border border-[#E2B35E]/30 bg-white/[0.03] hover:bg-white/[0.07] text-[#E2B35E] text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       <ShieldCheck className="w-4 h-4" />
                       <span>Ir a Administrador de AxyCore</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={logout}
+                      className="w-full py-2 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      Cerrar sesión e iniciar con otra cuenta
+                    </button>
+                  </div>
+                </div>
+              ) : /* 4B. AUTHENTICATED USER WAITING FOR PROFILE RECOVERY */
+              isPendingProfileRecovery && firebaseUser ? (
+                <div className="space-y-5">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-xl bg-[#0066FF]/20 border border-[#00B8FF]/35 text-[#00D1FF] shrink-0">
+                      <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                    </div>
+                    <div>
+                      <h2 className="font-display text-lg font-bold text-white">
+                        Completando acceso seguro
+                      </h2>
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        Tu cuenta{' '}
+                        <span className="font-semibold text-white">{firebaseUser.email}</span>{' '}
+                        ya está autenticada. Si el panel no abrió automáticamente, presiona
+                        reintentar para cargar tu perfil y permisos.
+                      </p>
+                    </div>
+                  </div>
+
+                  {errorMsg && (
+                    <div className="p-3 rounded-xl border border-rose-500/35 bg-rose-500/10 text-xs text-rose-200 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2.5">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={handleRetrySessionBootstrap}
+                      className="w-full py-2.5 px-4 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                      <span>{loading ? 'Cargando perfil...' : 'Reintentar acceso ahora'}</span>
                     </button>
 
                     <button

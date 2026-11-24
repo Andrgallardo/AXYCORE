@@ -35,6 +35,7 @@ import {
   type AlertWidgetId,
 } from '../../engine/dashboardWidgetConfig';
 import type { DirectorAnalysisResponse, NavSectionId } from '../../types/axycore';
+import { prefetchDirectorView } from '../../utils/lazyPrefetch';
 
 const PRIORITY_FILTERS: Array<{ value: 'ALL' | SmartAlertPriority; label: string }> = [
   { value: 'ALL', label: 'Todas' },
@@ -83,6 +84,7 @@ export function AxyCoreIntelligencePanel({
   canRunAi,
   directorAnalysis,
   directorLoading,
+  directorError,
   onRunDeepDiagnosis,
   onNavigate,
 }: {
@@ -91,6 +93,7 @@ export function AxyCoreIntelligencePanel({
   canRunAi: boolean;
   directorAnalysis: DirectorAnalysisResponse | null;
   directorLoading: boolean;
+  directorError?: string | null;
   onRunDeepDiagnosis: () => void;
   onNavigate: (sec: NavSectionId) => void;
 }) {
@@ -106,6 +109,28 @@ export function AxyCoreIntelligencePanel({
     ATENCION: 'Requiere Atención',
     OPORTUNIDAD: 'Oportunidad',
     OPTIMA: 'Desempeño Óptimo',
+  };
+
+  const healthMeta: Record<
+    NonNullable<DirectorAnalysisResponse['healthStatus']>,
+    { label: string; className: string }
+  > = {
+    OPTIMA: {
+      label: 'Salud Óptima',
+      className: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/12 border-emerald-500/30',
+    },
+    ESTABLE: {
+      label: 'Operación Estable',
+      className: 'text-[#0052CC] dark:text-[#00D1FF] bg-[#0066FF]/10 border-[#0066FF]/25',
+    },
+    ATENCION: {
+      label: 'Requiere Atención',
+      className: 'text-amber-700 dark:text-amber-300 bg-amber-500/12 border-amber-500/30',
+    },
+    CRITICA: {
+      label: 'Riesgo Crítico',
+      className: 'text-rose-700 dark:text-rose-300 bg-rose-500/12 border-rose-500/30',
+    },
   };
 
   return (
@@ -147,6 +172,8 @@ export function AxyCoreIntelligencePanel({
             {canRunAi && (
               <button
                 type="button"
+                onMouseEnter={() => prefetchDirectorView()}
+                onFocus={() => prefetchDirectorView()}
                 onClick={() => onNavigate('director')}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6 text-xs font-semibold text-slate-800 dark:text-white transition-colors cursor-pointer whitespace-nowrap"
               >
@@ -157,20 +184,74 @@ export function AxyCoreIntelligencePanel({
           </div>
         </div>
 
+        {directorError && (
+          <div className="p-3.5 rounded-xl border border-rose-300/70 dark:border-rose-500/35 bg-rose-50 dark:bg-rose-950/40 text-xs text-rose-700 dark:text-rose-200 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-start gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+              <span>{directorError}</span>
+            </div>
+            {canRunAi && aiConfigured && (
+              <button
+                type="button"
+                disabled={directorLoading}
+                onClick={onRunDeepDiagnosis}
+                className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                Reintentar
+              </button>
+            )}
+          </div>
+        )}
+
         {directorAnalysis?.executiveSummary && (
-          <div className="p-4 rounded-xl bg-[#0066FF]/6 dark:bg-[#040C1E]/85 border border-[#0066FF]/20 dark:border-[#00B8FF]/25 space-y-1.5">
-            <div className="flex items-center justify-between gap-2 text-[11px] text-[#0052CC] dark:text-[#00D1FF] font-semibold">
-              <span className="flex items-center gap-1.5">
+          <div className="p-4 rounded-xl bg-[#0066FF]/6 dark:bg-[#040C1E]/85 border border-[#0066FF]/20 dark:border-[#00B8FF]/25 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#0052CC] dark:text-[#00D1FF] font-semibold">
+              <span className="flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Síntesis Ejecutiva IA Verificada</span>
+                {directorAnalysis.healthStatus && (
+                  <span
+                    className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold ${
+                      healthMeta[directorAnalysis.healthStatus].className
+                    }`}
+                  >
+                    {healthMeta[directorAnalysis.healthStatus].label}
+                  </span>
+                )}
               </span>
               <span className="font-mono text-slate-500 dark:text-slate-400">
+                {directorAnalysis.periodLabel ? `${directorAnalysis.periodLabel} · ` : ''}
                 {directorAnalysis.generatedAtIso.slice(0, 16).replace('T', ' ')}
               </span>
             </div>
+            {directorAnalysis.executiveHeadline && (
+              <p className="font-display text-sm font-bold text-slate-950 dark:text-white">
+                {directorAnalysis.executiveHeadline}
+              </p>
+            )}
             <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-100 leading-relaxed">
               {directorAnalysis.executiveSummary}
             </p>
+            {canRunAi && (
+              <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {directorAnalysis.priorityRisks?.length
+                    ? `${directorAnalysis.priorityRisks.length} riesgo(s) priorizado(s) · `
+                    : ''}
+                  {directorAnalysis.recommendedActions?.length || 0} acción(es) recomendada(s)
+                </span>
+                <button
+                  type="button"
+                  onMouseEnter={() => prefetchDirectorView()}
+                  onFocus={() => prefetchDirectorView()}
+                  onClick={() => onNavigate('director')}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0052CC] dark:text-[#00D1FF] hover:underline cursor-pointer"
+                >
+                  <span>Ver dictamen completo en AxyCore Director</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 

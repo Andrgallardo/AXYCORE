@@ -4,30 +4,42 @@ import {
   ArrowRight,
   Bell,
   BellOff,
+  Calculator,
   CalendarClock,
   CheckCircle2,
   CreditCard,
   Eye,
   FilePlus2,
   FileText,
+  HeartHandshake,
   Landmark,
   Link2,
+  MessageCircle,
   MessageSquarePlus,
   Receipt,
   RefreshCw,
   Send,
   ShieldCheck,
+  Sparkles,
   Upload,
   Wallet,
   X,
 } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import {
+  analyzeLoanHealth,
+  simulateClientRenewal,
+} from '../engine/clientPortalHealthEngine';
+import {
   CLIENT_SERVICE_REQUEST_CATALOG,
   CLIENT_SERVICE_REQUEST_STATUS_LABELS,
   getServiceRequestCatalogItem,
 } from '../engine/externalPortalEngine';
 import { createClientServiceRequest } from '../services/externalPortalService';
+import { ClientAmortizationPanel } from '../components/clientPortal/ClientAmortizationPanel';
+import { ClientCreditHealthHero } from '../components/clientPortal/ClientCreditHealthHero';
+import { ClientHardshipReliefTab } from '../components/clientPortal/ClientHardshipReliefTab';
+import { ClientMessagingCenter } from '../components/clientPortal/ClientMessagingCenter';
 import { InstitutionalLogoBadge } from '../components/InstitutionalLogoBadge';
 import { PaymentEvidencePreviewModal } from '../components/PaymentEvidencePreviewModal';
 import { PaymentReceiptModal } from '../components/PaymentReceiptModal';
@@ -83,6 +95,8 @@ type ClientPortalTab =
   | 'MIS_PRESTAMOS'
   | 'REGISTRAR_PAGO'
   | 'SOLICITAR_RENOVACION'
+  | 'ALIVIO_FINANCIERO'
+  | 'MENSAJES_ADMIN'
   | 'GESTIONES_SERVICIO'
   | 'MIS_SOLICITUDES';
 
@@ -104,28 +118,6 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   REVERTIDO: 'Revertido',
 };
 
-const INSTALLMENT_STATUS_META: Record<
-  LoanInstallmentRecord['status'],
-  { label: string; colorClass: string }
-> = {
-  PAGADA: {
-    label: 'Pagada',
-    colorClass: 'text-emerald-600 dark:text-emerald-400',
-  },
-  PARCIAL: {
-    label: 'Pago parcial',
-    colorClass: 'text-sky-600 dark:text-[#00D1FF]',
-  },
-  VENCIDA: {
-    label: 'Vencida',
-    colorClass: 'text-rose-600 dark:text-rose-400',
-  },
-  PENDIENTE: {
-    label: 'Pendiente',
-    colorClass: 'text-amber-600 dark:text-[#E2B35E]',
-  },
-};
-
 export function ClientPortalView() {
   const {
     userProfile,
@@ -143,6 +135,7 @@ export function ClientPortalView() {
     disableFcmPush,
     sendTestPush,
     clientServiceRequests,
+    clientPortalMessages,
     verifyAndLinkClientProfile,
   } = useAxyCore();
   const [testingClientPush, setTestingClientPush] = useState(false);
@@ -427,10 +420,44 @@ export function ClientPortalView() {
     );
   }, [customers, selectedLoan, userProfile]);
 
-  const openPaymentForLoan = (loan: LoanRecord) => {
+  const selectedLoanHealth = useMemo(() => {
+    if (!selectedLoan) return null;
+    return analyzeLoanHealth(selectedLoan, installments);
+  }, [selectedLoan, installments]);
+
+  const unreadAdminMessagesCount = useMemo(() => {
+    if (!userProfile) return 0;
+    return clientPortalMessages.filter(
+      (m) => m.clientUid === userProfile.uid && m.senderRole === 'ADMIN_STAFF' && !m.readByClient
+    ).length;
+  }, [clientPortalMessages, userProfile]);
+
+  const renewalBaseLoan = useMemo(
+    () => clientLoans.find((l) => l.id === renewalBaseLoanId) || selectedLoan || null,
+    [clientLoans, renewalBaseLoanId, selectedLoan]
+  );
+
+  const renewalSimulation = useMemo(() => {
+    if (!renewalBaseLoan) return null;
+    const reqAmt = Number(renewalAmount) || 0;
+    const reqTerm = Number(renewalTermMonths) || 12;
+    const baseInstallments =
+      selectedLoan && renewalBaseLoan.id === selectedLoan.id ? installments : [];
+    return simulateClientRenewal({
+      baseLoan: renewalBaseLoan,
+      installments: baseInstallments,
+      requestedAmount: reqAmt,
+      requestedTermMonths: reqTerm,
+      frequency: renewalFrequency,
+    });
+  }, [renewalBaseLoan, renewalAmount, renewalTermMonths, renewalFrequency, selectedLoan, installments]);
+
+  const openPaymentWithPrefill = (loan: LoanRecord, amount?: number, note?: string) => {
     setPayLoanId(loan.id);
     setSelectedLoanId(loan.id);
-    if (nextDueInstallment && nextDueInstallment.loanId === loan.id) {
+    if (typeof amount === 'number' && amount > 0) {
+      setPayAmount(amount.toFixed(2));
+    } else if (nextDueInstallment && nextDueInstallment.loanId === loan.id) {
       setPayAmount(String(nextDueInstallment.totalAmount));
     } else if (!payAmount) {
       const approxCuota =
@@ -438,6 +465,9 @@ export function ClientPortalView() {
           ? Math.round((loan.totalFinancedPrincipal / loan.termMonths) * (1 + loan.contractualRateMonthly))
           : 0;
       setPayAmount(approxCuota > 0 ? String(approxCuota) : '');
+    }
+    if (note) {
+      setPayNotes(note);
     }
     setPayError(null);
     setPaySuccess(null);
@@ -447,7 +477,11 @@ export function ClientPortalView() {
   const openRenewalForLoan = (loan: LoanRecord) => {
     setRenewalBaseLoanId(loan.id);
     setRenewalProductCode(loan.productCode);
-    setRenewalAmount(String(loan.approvedPrincipal || 75000));
+    const suggestedAmt = Math.max(
+      loan.approvedPrincipal || 75000,
+      Math.ceil(((loan.currentPrincipalBalance || 0) * 1.35) / 1000) * 1000
+    );
+    setRenewalAmount(String(suggestedAmt));
     setRenewalTermMonths(String(loan.termMonths || 12));
     setRenewalFrequency(loan.frequency || 'MENSUAL');
     setRenewalError(null);
@@ -704,10 +738,15 @@ export function ClientPortalView() {
 
   return (
     <div className="space-y-6 pb-10">
-      {/* Client Self-Service Header */}
-      <section className="relative overflow-hidden rounded-2xl bg-[#040C1E] border border-[#00B8FF]/25 p-6 text-white shadow-xl">
+      {/* Client Self-Service Command Header */}
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#040C1E] via-[#071530] to-[#0A1E44] border border-[#00B8FF]/25 p-6 text-white shadow-xl">
         <div aria-hidden="true" className="absolute top-0 inset-x-0 h-[2px] axy-infinity-line" />
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#0066FF]/15 blur-3xl"
+        />
+
+        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
           <div className="flex items-start gap-4 min-w-0">
             <InstitutionalLogoBadge
               logoUrl={organization.logoUrl}
@@ -719,57 +758,62 @@ export function ClientPortalView() {
             />
             <div className="space-y-1.5 min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#00D1FF]">
-                Portal de Clientes · {organization.tradeName || organization.name}
+                Espacio de Autogestión · {organization.tradeName || organization.name}
                 {organization.phone ? ` · Tel. ${organization.phone}` : ''}
               </p>
               <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                Bienvenido, {userProfile?.displayName}
+                Hola, {userProfile?.displayName}
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-                Consulta el estado de tus préstamos y calendario de cuotas, registra comprobantes de pago y solicita renovaciones o nuevos financiamientos.
+                Controla tu tabla de amortización, estatus crediticio, pagos, renovaciones, planes de alivio y mensajería directa con los administradores de tu institución.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('REGISTRAR_PAGO')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-[#00B8FF]/30 text-white text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-[#00B8FF]/30 text-white text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
             >
               <CreditCard className="w-4 h-4 text-[#00D1FF]" />
-              <span>Registrar Pago</span>
+              <span>Realizar Pago</span>
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('GESTIONES_SERVICIO')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
+              onClick={() => setActiveTab('MENSAJES_ADMIN')}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-emerald-400/30 text-white text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
             >
-              <MessageSquarePlus className="w-4 h-4 text-[#00D1FF]" />
-              <span>Solicitar Gestión</span>
+              <MessageCircle className="w-4 h-4 text-emerald-400" />
+              <span>Mensajes a Admin</span>
+              {unreadAdminMessagesCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-md bg-emerald-500 text-[10px] font-mono font-bold text-white leading-none">
+                  {unreadAdminMessagesCount}
+                </span>
+              )}
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('SOLICITAR_RENOVACION')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shadow-[0_8px_20px_-6px_rgba(0,102,255,0.6)] transition-all"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl axy-brand-gradient hover:brightness-110 text-white text-xs font-semibold cursor-pointer whitespace-nowrap shadow-[0_8px_20px_-6px_rgba(0,102,255,0.6)] transition-all"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Solicitar Renovación</span>
+              <span>Renovar Crédito</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('new_application')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#E2B35E]/40 bg-[#E2B35E]/15 hover:bg-[#E2B35E]/25 text-[#E2B35E] text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-[#E2B35E]/40 bg-[#E2B35E]/15 hover:bg-[#E2B35E]/25 text-[#E2B35E] text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors"
             >
               <FilePlus2 className="w-4 h-4" />
-              <span>Nueva Solicitud de Crédito</span>
+              <span>Nueva Solicitud</span>
             </button>
           </div>
         </div>
 
         {/* Client Web Push VAPID Subscription Bar */}
         {fcmStatus !== 'unsupported' && fcmStatus !== 'vapid_missing' && (
-          <div className="mt-4 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+          <div className="relative mt-4 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
               <span
                 className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
@@ -783,8 +827,8 @@ export function ClientPortalView() {
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-white truncate">
                   {fcmStatus === 'active'
-                    ? 'Notificaciones Push activas para tus solicitudes de crédito'
-                    : 'Recibe alertas Push cuando cambie el estado de tus solicitudes'}
+                    ? 'Notificaciones Push activas para tus préstamos y solicitudes'
+                    : 'Recibe alertas Push cuando cambie el estado de tus solicitudes o pagos'}
                 </p>
                 <p className="text-[11px] text-slate-400 truncate">
                   {fcmStatus === 'active'
@@ -838,24 +882,41 @@ export function ClientPortalView() {
         )}
 
         {/* Navigation Tabs */}
-        <div className="mt-6 pt-4 border-t border-white/10 flex flex-wrap gap-2">
+        <div className="relative mt-5 pt-4 border-t border-white/10 flex flex-wrap gap-2">
           {[
-            { id: 'MIS_PRESTAMOS' as const, label: 'Mis Préstamos y Cuotas', icon: Landmark },
-            { id: 'REGISTRAR_PAGO' as const, label: 'Registrar Pago', icon: Receipt },
-            { id: 'SOLICITAR_RENOVACION' as const, label: 'Solicitar Renovación', icon: RefreshCw },
+            { id: 'MIS_PRESTAMOS' as const, label: 'Mi Crédito y Amortización', icon: Landmark },
+            { id: 'REGISTRAR_PAGO' as const, label: 'Realizar Pago', icon: Receipt },
+            { id: 'SOLICITAR_RENOVACION' as const, label: 'Renovación', icon: RefreshCw },
+            {
+              id: 'ALIVIO_FINANCIERO' as const,
+              label: selectedLoanHealth?.needsHardshipAssistance
+                ? 'Ayuda por Atraso · Disponible'
+                : 'Ayuda por Atraso',
+              icon: HeartHandshake,
+              highlightAlert: Boolean(selectedLoanHealth?.needsHardshipAssistance),
+            },
+            {
+              id: 'MENSAJES_ADMIN' as const,
+              label:
+                unreadAdminMessagesCount > 0
+                  ? `Mensajes (${unreadAdminMessagesCount} nuevos)`
+                  : 'Mensajes a Admin',
+              icon: MessageCircle,
+            },
             {
               id: 'GESTIONES_SERVICIO' as const,
-              label: `Gestiones y Cartas (${sortedServiceRequests.length})`,
+              label: `Gestiones (${sortedServiceRequests.length})`,
               icon: MessageSquarePlus,
             },
             {
               id: 'MIS_SOLICITUDES' as const,
-              label: `Mis Solicitudes (${applications.length})`,
+              label: `Solicitudes (${applications.length})`,
               icon: FileText,
             },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const isAlert = 'highlightAlert' in tab && tab.highlightAlert && !isActive;
             return (
               <button
                 key={tab.id}
@@ -864,7 +925,9 @@ export function ClientPortalView() {
                 className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'axy-brand-gradient text-white shadow-[0_6px_16px_-4px_rgba(0,102,255,0.55)]'
-                    : 'bg-[#08132B] text-slate-300 hover:text-white border border-[#00B8FF]/15'
+                    : isAlert
+                    ? 'bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 border border-rose-400/40'
+                    : 'bg-[#08132B]/90 text-slate-300 hover:text-white border border-[#00B8FF]/15'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -1098,198 +1161,35 @@ export function ClientPortalView() {
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Loan Cards List */}
-              <div className="lg:col-span-5 space-y-3">
-                <h2 className="font-display text-sm font-bold text-slate-900 dark:text-white">
-                  Tus Préstamos ({clientLoans.length})
-                </h2>
-                {clientLoans.map((loan) => {
-                  const isSelected = selectedLoan?.id === loan.id;
-                  const paidPct =
-                    loan.totalFinancedPrincipal > 0
-                      ? Math.min(
-                          100,
-                          Math.max(
-                            0,
-                            Math.round(
-                              ((loan.totalFinancedPrincipal - loan.currentPrincipalBalance) /
-                                loan.totalFinancedPrincipal) *
-                                100
-                            )
-                          )
-                        )
-                      : 0;
-                  return (
-                    <div
-                      key={loan.id}
-                      onClick={() => setSelectedLoanId(loan.id)}
-                      className={`rounded-2xl border p-5 transition-all cursor-pointer space-y-3 ${
-                        isSelected
-                          ? 'bg-white dark:bg-[#08132B] border-[#0066FF] dark:border-[#00B8FF] shadow-[0_8px_24px_-10px_rgba(0,102,255,0.28)]'
-                          : 'bg-white/90 dark:bg-[#08132B]/75 border-slate-200/85 dark:border-[#00B8FF]/15 hover:border-[#00B8FF]/45'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-mono text-xs font-bold text-[#0052CC] dark:text-[#00D1FF]">
-                            {loan.loanNumber}
-                          </p>
-                          <p className="font-display text-base font-bold text-slate-950 dark:text-white mt-0.5">
-                            {formatMoney(loan.currentPrincipalBalance, loan.currency)}
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Saldo pendiente de {formatMoney(loan.totalFinancedPrincipal, loan.currency)}
-                          </p>
-                        </div>
-                        <span
-                          className={`text-xs font-mono font-bold ${
-                            loan.status === 'ACTIVO'
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : loan.status === 'VENCIDO'
-                              ? 'text-rose-600 dark:text-rose-400'
-                              : 'text-slate-500 dark:text-slate-400'
-                          }`}
-                        >
-                          {loan.status}
-                        </span>
-                      </div>
+          ) : selectedLoan && selectedLoanHealth ? (
+            <div className="space-y-6">
+              <ClientCreditHealthHero
+                loans={clientLoans}
+                selectedLoan={selectedLoan}
+                health={selectedLoanHealth}
+                onSelectLoan={(loanId) => setSelectedLoanId(loanId)}
+                onPayNextInstallment={(amount, note) =>
+                  openPaymentWithPrefill(selectedLoan, amount, note)
+                }
+                onOpenRenewal={() => openRenewalForLoan(selectedLoan)}
+                onOpenHardshipRelief={() => setActiveTab('ALIVIO_FINANCIERO')}
+                onOpenMessages={() => setActiveTab('MENSAJES_ADMIN')}
+              />
 
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                          <span>Amortizado {paidPct}%</span>
-                          <span>
-                            {loan.termMonths} cuotas · {loan.frequency} · Tasa{' '}
-                            {formatRatePct(loan.contractualRateMonthly)}
-                          </span>
-                        </div>
-                        <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-[#040C1E] overflow-hidden">
-                          <div
-                            className="h-full axy-brand-gradient"
-                            style={{ width: `${paidPct}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100 dark:border-white/[0.06] flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openPaymentForLoan(loan);
-                          }}
-                          className="px-3 py-1.5 rounded-lg axy-brand-gradient text-white text-[11px] font-semibold cursor-pointer whitespace-nowrap"
-                        >
-                          Registrar Pago
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openRenewalForLoan(loan);
-                          }}
-                          className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-[#00B8FF]/25 hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-800 dark:text-slate-200 text-[11px] font-semibold cursor-pointer whitespace-nowrap"
-                        >
-                          Solicitar Renovación
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Installment Schedule */}
-              <div className="lg:col-span-7 rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/20 p-5 sm:p-6 shadow-xs space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="font-display text-base font-bold text-slate-950 dark:text-white">
-                      Calendario de Cuotas · {selectedLoan?.loanNumber}
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Desembolso {formatShortDate(selectedLoan?.disbursementDate)} · Vencimiento{' '}
-                      {formatShortDate(selectedLoan?.maturityDate)}
-                    </p>
-                  </div>
-                  {selectedLoan && (
-                    <button
-                      type="button"
-                      onClick={() => openPaymentForLoan(selectedLoan)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0066FF]/10 text-[#0052CC] dark:text-[#00D1FF] text-xs font-semibold hover:bg-[#0066FF]/20 cursor-pointer whitespace-nowrap"
-                    >
-                      <CreditCard className="w-3.5 h-3.5" />
-                      <span>Reportar Pago de Cuota</span>
-                    </button>
-                  )}
-                </div>
-
-                {loadingInstallments ? (
-                  <p className="py-10 text-center text-xs text-slate-500 dark:text-slate-400">
-                    Cargando tabla de cuotas del préstamo...
-                  </p>
-                ) : installments.length === 0 ? (
-                  <p className="py-10 text-center text-xs text-slate-500 dark:text-slate-400">
-                    No se encontraron cuotas generadas para este préstamo.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-200 dark:border-white/10 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          <th className="py-2.5 pr-3">#</th>
-                          <th className="py-2.5 pr-3">Vencimiento</th>
-                          <th className="py-2.5 pr-3 text-right">Capital</th>
-                          <th className="py-2.5 pr-3 text-right">Interés</th>
-                          <th className="py-2.5 pr-3 text-right">Cuota Total</th>
-                          <th className="py-2.5 pr-3 text-right">Saldo</th>
-                          <th className="py-2.5 text-right">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06] font-mono tabular-nums">
-                        {installments.map((inst) => {
-                          const meta = INSTALLMENT_STATUS_META[inst.status] || {
-                            label: inst.status,
-                            colorClass: 'text-slate-500',
-                          };
-                          return (
-                            <tr
-                              key={inst.id}
-                              className="hover:bg-slate-50/80 dark:hover:bg-white/[0.02]"
-                            >
-                              <td className="py-2.5 pr-3 font-bold text-slate-900 dark:text-white">
-                                #{inst.installmentNumber}
-                              </td>
-                              <td className="py-2.5 pr-3 font-sans text-slate-600 dark:text-slate-300">
-                                {formatShortDate(inst.dueDate)}
-                              </td>
-                              <td className="py-2.5 pr-3 text-right text-slate-700 dark:text-slate-300">
-                                {formatMoney(inst.principalAmount, selectedLoan?.currency || 'DOP')}
-                              </td>
-                              <td className="py-2.5 pr-3 text-right text-slate-700 dark:text-slate-300">
-                                {formatMoney(inst.interestAmount, selectedLoan?.currency || 'DOP')}
-                              </td>
-                              <td className="py-2.5 pr-3 text-right font-bold text-slate-950 dark:text-white">
-                                {formatMoney(inst.totalAmount, selectedLoan?.currency || 'DOP')}
-                              </td>
-                              <td className="py-2.5 pr-3 text-right text-slate-500 dark:text-slate-400">
-                                {formatMoney(
-                                  inst.remainingPrincipalBalance,
-                                  selectedLoan?.currency || 'DOP'
-                                )}
-                              </td>
-                              <td className={`py-2.5 text-right font-sans font-semibold ${meta.colorClass}`}>
-                                {meta.label}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+              <ClientAmortizationPanel
+                loan={selectedLoan}
+                installments={installments}
+                loading={loadingInstallments}
+                onPayInstallment={(amount, installmentNumber, dueDate) =>
+                  openPaymentWithPrefill(
+                    selectedLoan,
+                    amount,
+                    `Pago Cuota #${installmentNumber} (vence ${dueDate}) · ${selectedLoan.loanNumber}`
+                  )
+                }
+              />
             </div>
-          )}
+          ) : null}
         </section>
       )}
 
@@ -1342,6 +1242,76 @@ export function ClientPortalView() {
                   )}
                 </select>
               </div>
+
+              {/* 1-Click Quick-Fill Payment Buttons */}
+              {selectedLoan && selectedLoanHealth && payLoanId === selectedLoan.id && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    Autocompletar monto rápido
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {selectedLoanHealth.nextDueRemainingAmount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayAmount(selectedLoanHealth.nextDueRemainingAmount.toFixed(2));
+                          if (selectedLoanHealth.nextDueInstallment) {
+                            setPayNotes(
+                              `Pago Cuota #${selectedLoanHealth.nextDueInstallment.installmentNumber} · ${selectedLoan.loanNumber}`
+                            );
+                          }
+                        }}
+                        className="text-left px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#040C1E] hover:bg-[#0066FF]/10 border border-slate-200 dark:border-[#00B8FF]/20 transition-colors cursor-pointer"
+                      >
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Próxima cuota
+                        </span>
+                        <span className="font-mono tabular-nums text-xs font-bold text-slate-950 dark:text-white">
+                          {formatMoney(selectedLoanHealth.nextDueRemainingAmount, selectedLoan.currency)}
+                        </span>
+                      </button>
+                    )}
+
+                    {selectedLoanHealth.needsHardshipAssistance && selectedLoanHealth.amountToCatchUp > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayAmount(selectedLoanHealth.amountToCatchUp.toFixed(2));
+                          setPayNotes(
+                            `Regularización total de atraso (${selectedLoanHealth.overdueInstallmentsCount} cuota(s)) · ${selectedLoan.loanNumber}`
+                          );
+                        }}
+                        className="text-left px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-colors cursor-pointer"
+                      >
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-300">
+                          Ponerse al día
+                        </span>
+                        <span className="font-mono tabular-nums text-xs font-bold text-rose-700 dark:text-rose-200">
+                          {formatMoney(selectedLoanHealth.amountToCatchUp, selectedLoan.currency)}
+                        </span>
+                      </button>
+                    )}
+
+                    {selectedLoanHealth.estimatedPayoffTotal > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayAmount(selectedLoanHealth.estimatedPayoffTotal.toFixed(2));
+                          setPayNotes(`Cancelación total estimada · ${selectedLoan.loanNumber}`);
+                        }}
+                        className="text-left px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#040C1E] hover:bg-emerald-500/10 border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
+                      >
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Saldo estimado
+                        </span>
+                        <span className="font-mono tabular-nums text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                          {formatMoney(selectedLoanHealth.estimatedPayoffTotal, selectedLoan.currency)}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1628,15 +1598,87 @@ export function ClientPortalView() {
 
       {/* TAB 3: SOLICITAR RENOVACIÓN */}
       {activeTab === 'SOLICITAR_RENOVACION' && (
-        <section className="max-w-3xl mx-auto rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/20 p-6 sm:p-8 shadow-xs space-y-5">
-          <div>
-            <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
-              Solicitud Exprés de Renovación de Crédito
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Precalifica automáticamente tu renovación con el Motor de Decisiones AxyCore V2 y envíala a evaluación prioritaria.
-            </p>
+        <section className="max-w-4xl mx-auto rounded-2xl bg-white dark:bg-[#08132B] border border-slate-200/85 dark:border-[#00B8FF]/20 p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0066FF] dark:text-[#00D1FF]">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Simulador + Precalificación Motor V2</span>
+              </div>
+              <h2 className="font-display text-lg sm:text-xl font-bold text-slate-950 dark:text-white mt-0.5">
+                Solicitud Exprés de Renovación / Reenganche
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Calcula en vivo cuánto efectivo neto recibirías al liquidar tu saldo vigente y envía tu renovación a evaluación prioritaria.
+              </p>
+            </div>
+            {selectedLoanHealth?.isCriticalArrears && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('ALIVIO_FINANCIERO')}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-semibold cursor-pointer shrink-0"
+              >
+                <HeartHandshake className="w-4 h-4" />
+                <span>¿Atraso alto? Ver Alivio</span>
+              </button>
+            )}
           </div>
+
+          {/* Live Renewal Simulator Preview */}
+          {renewalBaseLoan && renewalSimulation && (
+            <div className="rounded-2xl bg-gradient-to-br from-[#040C1E] to-[#0A1E44] border border-[#00B8FF]/30 p-5 text-white space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#00D1FF]">
+                  <Calculator className="w-4 h-4" />
+                  <span>Simulación Estimada en Tiempo Real · {renewalBaseLoan.loanNumber}</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-300">
+                  {renewalSimulation.periodCount} cuotas · Tasa ref.{' '}
+                  {formatRatePct(renewalSimulation.monthlyRateUsed)}/mes
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-xl bg-white/[0.06] border border-white/10 p-3.5">
+                  <span className="text-[11px] text-slate-300 block">
+                    Liquidación Saldo Actual
+                  </span>
+                  <span className="mt-1 block font-mono tabular-nums text-base font-bold text-slate-100">
+                    - {formatMoney(renewalSimulation.estimatedPayoff, renewalBaseLoan.currency)}
+                  </span>
+                </div>
+                <div className="rounded-xl bg-emerald-500/15 border border-emerald-400/30 p-3.5">
+                  <span className="text-[11px] text-emerald-200 block">
+                    Efectivo Neto Estimado a Recibir
+                  </span>
+                  <span
+                    className={`mt-1 block font-mono tabular-nums text-lg font-bold ${
+                      renewalSimulation.coversPayoff ? 'text-emerald-300' : 'text-rose-300'
+                    }`}
+                  >
+                    {renewalSimulation.coversPayoff
+                      ? formatMoney(renewalSimulation.estimatedNetDisbursement, renewalBaseLoan.currency)
+                      : 'Monto menor al saldo'}
+                  </span>
+                </div>
+                <div className="rounded-xl bg-white/[0.06] border border-white/10 p-3.5">
+                  <span className="text-[11px] text-slate-300 block">
+                    Cuota Estimada ({renewalFrequency})
+                  </span>
+                  <span className="mt-1 block font-mono tabular-nums text-base font-bold text-[#00D1FF]">
+                    {formatMoney(renewalSimulation.estimatedInstallment, renewalBaseLoan.currency)}
+                  </span>
+                </div>
+              </div>
+
+              {!renewalSimulation.coversPayoff && (
+                <p className="text-[11px] text-amber-300">
+                  El monto solicitado debe superar el saldo estimado de cancelación (
+                  {formatMoney(renewalSimulation.estimatedPayoff, renewalBaseLoan.currency)}) para generar efectivo neto disponible.
+                </p>
+              )}
+            </div>
+          )}
 
           {renewalError && (
             <div className="p-3 rounded-xl border border-rose-500/35 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-200 flex items-start gap-2">
@@ -2180,6 +2222,32 @@ export function ClientPortalView() {
             )}
           </div>
         </section>
+      )}
+
+      {/* TAB: AYUDA POR ATRASO / ALIVIO FINANCIERO */}
+      {activeTab === 'ALIVIO_FINANCIERO' && userProfile && (
+        <ClientHardshipReliefTab
+          userProfile={userProfile}
+          organization={organization}
+          loans={clientLoans}
+          selectedLoan={selectedLoan}
+          selectedLoanHealth={selectedLoanHealth}
+          customer={existingClientCustomer}
+          serviceRequests={clientServiceRequests}
+          onGoToMessages={() => setActiveTab('MENSAJES_ADMIN')}
+        />
+      )}
+
+      {/* TAB: MENSAJERÍA DIRECTA CON ADMINISTRADORES */}
+      {activeTab === 'MENSAJES_ADMIN' && userProfile && (
+        <ClientMessagingCenter
+          userProfile={userProfile}
+          organization={organization}
+          loans={clientLoans}
+          selectedLoan={selectedLoan}
+          customer={existingClientCustomer}
+          messages={clientPortalMessages}
+        />
       )}
 
       <PaymentEvidencePreviewModal

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { OfflineIndicator } from './OfflineIndicator';
 import {
@@ -93,6 +93,7 @@ import {
 } from '../engine/collections/priorityAndTasksEngine';
 import { classifyAgreementsForManagement } from '../engine/collections/promisesAndActionsEngine';
 import { APPLICATION_STATUS_LABELS, formatMoney } from '../utils/formatters';
+import { prefetchSectionChunk } from '../utils/lazyPrefetch';
 
 interface NavItem {
   id: NavSectionId;
@@ -576,7 +577,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   const handleSelectNav = (id: NavSectionId) => {
-    setActiveSection(id);
+    prefetchSectionChunk(id);
+    startTransition(() => {
+      setActiveSection(id);
+    });
     if (
       id === 'ecf_dashboard' ||
       id === 'accounting' ||
@@ -1251,6 +1255,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           <div className="flex items-center gap-0.5">
                             <button
                               type="button"
+                              onMouseEnter={() => prefetchSectionChunk(item.id)}
+                              onFocus={() => prefetchSectionChunk(item.id)}
                               onClick={() => handleSelectNav(item.id)}
                               title={
                                 collapsed

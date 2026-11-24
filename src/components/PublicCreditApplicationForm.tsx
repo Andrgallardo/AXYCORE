@@ -16,6 +16,18 @@ import {
   type PendingIdentityFileItem,
 } from './BiometricIdentityVerifier';
 import { InstitutionalLogoBadge } from './InstitutionalLogoBadge';
+import {
+  FieldValidationFeedback,
+  getValidatedInputClass,
+} from './ui/FieldValidationFeedback';
+import { OriginationProgressBar } from './ui/OriginationProgressBar';
+import {
+  ALL_APPLICATION_FIELDS,
+  STEP_FIELDS,
+  validateApplicationFormFields,
+  type ApplicationFieldName,
+  type ApplicationFormStep,
+} from '../engine/applicationFieldValidation';
 import { BIOMETRIC_VERDICT_LABELS } from '../engine/biometricVerification';
 import {
   computeIndicativePublicInstallment,
@@ -40,7 +52,6 @@ import type {
 import {
   PRODUCT_LABELS,
   formatMoney,
-  formatUserFacingError,
 } from '../utils/formatters';
 
 interface PublicCreditApplicationFormProps {
@@ -57,13 +68,99 @@ const CONSENT_VERSION = 'v1.0-Ley172-13';
 const MAX_PUBLIC_FILE_BYTES = 250 * 1024;
 const MAX_TOTAL_PUBLIC_FILE_BYTES = 500 * 1024;
 
-const STEP_ITEMS: Array<[1 | 2 | 3 | 4 | 5, string]> = [
-  [1, '1. Solicitante'],
-  [2, '2. Laboral y Finanzas'],
-  [3, '3. Condiciones'],
-  [4, '4. Referencias y Docs'],
-  [5, '5. Consentimiento'],
-];
+function estimateDataUrlBytes(dataUrl: string): number {
+  const commaIdx = dataUrl.indexOf(',');
+  if (commaIdx === -1) return dataUrl.length;
+  return Math.ceil(((dataUrl.length - commaIdx - 1) * 3) / 4);
+}
+
+async function compressPublicImageFile(
+  file: File,
+  maxBytes: number
+): Promise<{ dataUrl: string; sizeBytes: number; mimeType: string; fileName: string } | null> {
+  if (typeof document === 'undefined' || !file.type.startsWith('image/')) {
+    return null;
+  }
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('No se pudo procesar la imagen seleccionada.'));
+      el.src = objectUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const maxDims = [1280, 960, 720, 540];
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'documento';
+
+    for (const maxDim of maxDims) {
+      const ratio = Math.min(1, maxDim / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+      canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * ratio));
+      canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * ratio));
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      for (let quality = 0.82; quality >= 0.42; quality -= 0.1) {
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const sizeBytes = estimateDataUrlBytes(dataUrl);
+        if (sizeBytes <= maxBytes) {
+          return {
+            dataUrl,
+            sizeBytes,
+            mimeType: 'image/jpeg',
+            fileName: `${baseName}.jpg`,
+          };
+        }
+      }
+    }
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function formatPublicSubmissionError(
+  err: unknown,
+  instName: string,
+  instPhone?: string
+): string {
+  const contactHint = instPhone
+    ? ` Si el problema persiste, comunícate con ${instName} al ${instPhone}.`
+    : ` Si el problema persiste, comunícate directamente con ${instName}.`;
+  const raw = err instanceof Error ? err.message : String(err || '');
+  const lower = raw.toLowerCase();
+
+  // Preserve clear client-side validation or portal-disabled messages
+  if (
+    raw &&
+    !raw.trim().startsWith('{') &&
+    !lower.includes('permission') &&
+    !lower.includes('firestore') &&
+    !lower.includes('public_credit_applications') &&
+    !lower.includes('insufficient') &&
+    !lower.includes('network') &&
+    !lower.includes('unavailable') &&
+    !lower.includes('failed-precondition') &&
+    !lower.includes('resource-exhausted') &&
+    !lower.includes('invalid-argument')
+  ) {
+    return raw;
+  }
+
+  if (lower.includes('unavailable') || lower.includes('network') || lower.includes('offline')) {
+    return `No pudimos conectar con el servidor en este momento. Verifica tu conexión a internet e intenta enviar nuevamente.${contactHint}`;
+  }
+
+  if (lower.includes('exceeds the maximum allowed size') || lower.includes('resource-exhausted')) {
+    return 'Los documentos adjuntos superan el tamaño permitido para envío en línea. Quita o reduce alguno de los archivos en el Paso 4 e intenta nuevamente.';
+  }
+
+  return `No pudimos completar el envío de tu solicitud en este momento. Verifica que todos los datos obligatorios estén completos e intenta nuevamente.${contactHint}`;
+}
 
 const INPUT_CLASS =
   'w-full px-3 py-2 rounded-lg bg-[#030816]/85 border border-white/15 text-sm text-white placeholder:text-slate-500 focus:border-[#00B8FF] focus:outline-none disabled:opacity-45';
@@ -82,10 +179,17 @@ export function PublicCreditApplicationForm({
   const instName = portal.tradeName || portal.name || 'Institución Financiera';
 
   const topAnchorRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [step, setStep] = useState<ApplicationFormStep>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<ApplicationFieldName, boolean>>>(
+    {}
+  );
+  const [attemptedSteps, setAttemptedSteps] = useState<
+    Partial<Record<ApplicationFormStep, boolean>>
+  >({});
   const [submittedRecord, setSubmittedRecord] = useState<PublicCreditApplicationRecord | null>(null);
 
   // Step 1: Applicant & Personal / Business Info (1:1 parity with NewApplicationView)
@@ -203,7 +307,163 @@ export function PublicCreditApplicationForm({
     return Number.isFinite(n) ? n : null;
   };
 
-  const goToStep = (nextStep: 1 | 2 | 3 | 4 | 5) => {
+  const validation = useMemo(
+    () =>
+      validateApplicationFormFields({
+        applicantType,
+        documentType,
+        documentNumber,
+        birthDate,
+        firstName,
+        lastName,
+        phone,
+        email,
+        residenceMonths,
+        housingPayment,
+        socialMediaDeclared,
+        socialMediaHandle,
+        altContactPhone,
+        rnc,
+        legalName,
+        authorizedRepName,
+        authorizedRepDoc,
+        operationsStartDate,
+        employmentMonths,
+        incomeSourceType,
+        primaryNetIncome,
+        additionalIncomeStatus,
+        additionalNetIncome,
+        declaredTotalMonthlyIncome,
+        grossSales,
+        operatingCosts,
+        netMonthlyFlow,
+        essentialExpenses,
+        debtDeclarationStatus,
+        debtCount,
+        totalDebtBalance,
+        currentDebtPayments,
+        bankDebtPayment,
+        financeDebtPayment,
+        cardDebtPayment,
+        informalDebtPayment,
+        otherDebtPayment,
+        currency: derivedCurrency,
+        requestedAmount,
+        requestedTermMonths,
+        loanPurpose,
+        ref1Name,
+        ref1Rel,
+        ref1Phone,
+        ref2Name,
+        ref2Rel,
+        ref2Phone,
+        consentAccepted,
+      }),
+    [
+      applicantType,
+      documentType,
+      documentNumber,
+      birthDate,
+      firstName,
+      lastName,
+      phone,
+      email,
+      residenceMonths,
+      housingPayment,
+      socialMediaDeclared,
+      socialMediaHandle,
+      altContactPhone,
+      rnc,
+      legalName,
+      authorizedRepName,
+      authorizedRepDoc,
+      operationsStartDate,
+      employmentMonths,
+      incomeSourceType,
+      primaryNetIncome,
+      additionalIncomeStatus,
+      additionalNetIncome,
+      declaredTotalMonthlyIncome,
+      grossSales,
+      operatingCosts,
+      netMonthlyFlow,
+      essentialExpenses,
+      debtDeclarationStatus,
+      debtCount,
+      totalDebtBalance,
+      currentDebtPayments,
+      bankDebtPayment,
+      financeDebtPayment,
+      cardDebtPayment,
+      informalDebtPayment,
+      otherDebtPayment,
+      derivedCurrency,
+      requestedAmount,
+      requestedTermMonths,
+      loanPurpose,
+      ref1Name,
+      ref1Rel,
+      ref1Phone,
+      ref2Name,
+      ref2Rel,
+      ref2Phone,
+      consentAccepted,
+    ]
+  );
+
+  const markTouched = (field: ApplicationFieldName) => {
+    setTouchedFields((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
+  };
+
+  const markStepTouched = (targetStep: ApplicationFormStep) => {
+    setAttemptedSteps((prev) => ({ ...prev, [targetStep]: true }));
+    setTouchedFields((prev) => {
+      const next = { ...prev };
+      for (const f of STEP_FIELDS[targetStep]) next[f] = true;
+      return next;
+    });
+  };
+
+  const markAllTouched = () => {
+    setAttemptedSteps({ 1: true, 2: true, 3: true, 4: true, 5: true });
+    const all: Partial<Record<ApplicationFieldName, boolean>> = {};
+    for (const f of ALL_APPLICATION_FIELDS) all[f] = true;
+    setTouchedFields(all);
+  };
+
+  const focusField = (field?: ApplicationFieldName) => {
+    if (!field || typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      const el = formRef.current?.querySelector<HTMLElement>(`[data-field="${field}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus({ preventScroll: true });
+      }
+    });
+  };
+
+  const getFieldError = (field: ApplicationFieldName): string | undefined =>
+    touchedFields[field] ? validation.errors[field] : undefined;
+
+  const getFieldWarning = (field: ApplicationFieldName): string | undefined =>
+    touchedFields[field] && !validation.errors[field] ? validation.warnings[field] : undefined;
+
+  const fieldInputClass = (
+    field: ApplicationFieldName,
+    baseClass: string,
+    hasValue: boolean
+  ): string => {
+    const err = getFieldError(field);
+    if (err) return getValidatedInputClass(baseClass, 'error', 'dark');
+    const warn = getFieldWarning(field);
+    if (warn) return getValidatedInputClass(baseClass, 'warning', 'dark');
+    if (touchedFields[field] && hasValue) {
+      return getValidatedInputClass(baseClass, 'valid', 'dark');
+    }
+    return baseClass;
+  };
+
+  const goToStep = (nextStep: ApplicationFormStep) => {
     setErrorMsg(null);
     setStep(nextStep);
     topAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -211,66 +471,68 @@ export function PublicCreditApplicationForm({
 
   const handleNextStep = () => {
     setErrorMsg(null);
-    if (step === 1) {
-      if (!firstName.trim() || !lastName.trim() || !documentNumber.trim() || !phone.trim()) {
-        setErrorMsg(
-          'Complete los datos de identificación mínimos del solicitante (Nombres, Apellidos, Número de Documento y Teléfono Principal).'
-        );
-        return;
-      }
-      if (applicantType === 'BUSINESS') {
-        if (!rnc.trim() || !legalName.trim() || !authorizedRepName.trim()) {
-          setErrorMsg(
-            'Para solicitudes empresariales debe completar RNC, Razón Social y Representante Autorizado.'
-          );
-          return;
-        }
-      }
+    markStepTouched(step);
+    const errCount = validation.stepErrorCounts[step];
+    if (errCount > 0) {
+      const firstField = validation.firstInvalidFieldByStep[step];
+      setErrorMsg(
+        errCount === 1
+          ? 'Corrige el campo señalado en este paso antes de continuar.'
+          : `Corrige los ${errCount} campos señalados en este paso antes de continuar.`
+      );
+      focusField(firstField);
+      return;
     }
-    if (step === 2) {
-      if (applicantType === 'BUSINESS') {
-        const flow = Number(netMonthlyFlow);
-        if (!Number.isFinite(flow) || flow <= 0) {
-          setErrorMsg('Indica el Flujo Neto Mensual Disponible de la empresa (mayor a 0).');
-          return;
-        }
-      } else if (incomeSourceType !== 'SIN_INGRESOS') {
-        const inc = Number(primaryNetIncome);
-        if (!Number.isFinite(inc) || inc <= 0) {
-          setErrorMsg('Indica el Ingreso Principal Neto Mensual (mayor a 0).');
-          return;
-        }
-      }
-    }
-    if (step === 3) {
-      const amt = Number(requestedAmount);
-      const term = Number(requestedTermMonths);
-      if (!Number.isFinite(amt) || amt <= 0 || amt > 100_000_000) {
-        setErrorMsg('El monto solicitado debe ser mayor que 0 y no superar 100,000,000.');
-        return;
-      }
-      if (!Number.isFinite(term) || term < 1 || term > 360) {
-        setErrorMsg('El plazo solicitado debe estar entre 1 y 360 meses.');
-        return;
-      }
-    }
-    goToStep((step + 1) as 1 | 2 | 3 | 4 | 5);
+    goToStep((step + 1) as ApplicationFormStep);
   };
 
-  const handleFileAttach = (category: string, file: File | null) => {
+  const handleFileAttach = async (category: string, file: File | null) => {
     if (!file) return;
     setErrorMsg(null);
     if (pendingFiles.length >= 3) {
       setErrorMsg('Puedes adjuntar hasta 3 archivos en la solicitud pública. Quita uno para reemplazarlo.');
       return;
     }
+
+    const currentTotal = pendingFiles.reduce((acc, item) => acc + item.sizeBytes, 0);
+    const remainingBudget = MAX_TOTAL_PUBLIC_FILE_BYTES - currentTotal;
+    const targetLimit = Math.min(MAX_PUBLIC_FILE_BYTES, remainingBudget);
+
+    if (targetLimit < 20 * 1024) {
+      setErrorMsg('El tamaño combinado de los archivos adjuntos no debe superar 500 KB. Quita un archivo para agregar otro.');
+      return;
+    }
+
+    // Auto-compress oversized phone camera photos (JPG/PNG/WEBP) so mobile prospects don't hit the 250 KB wall
+    if (file.size > targetLimit && file.type.startsWith('image/')) {
+      try {
+        const compressed = await compressPublicImageFile(file, Math.min(235 * 1024, targetLimit));
+        if (compressed) {
+          setPendingFiles((prev) => [
+            ...prev,
+            {
+              category,
+              fileName: compressed.fileName,
+              mimeType: compressed.mimeType,
+              sizeBytes: compressed.sizeBytes,
+              fileDataUrl: compressed.dataUrl,
+            },
+          ]);
+          if (category === 'Identidad') setHasIdentityDoc(true);
+          if (category === 'Ingresos') setHasIncomeEvidence(true);
+          return;
+        }
+      } catch {
+        // Fall through to standard size validation message
+      }
+    }
+
     if (file.size > MAX_PUBLIC_FILE_BYTES) {
       setErrorMsg(
         'Para envío público seguro, cada archivo no debe superar 250 KB. Comprime la imagen o PDF e intenta nuevamente.'
       );
       return;
     }
-    const currentTotal = pendingFiles.reduce((acc, item) => acc + item.sizeBytes, 0);
     if (currentTotal + file.size > MAX_TOTAL_PUBLIC_FILE_BYTES) {
       setErrorMsg('El tamaño combinado de los archivos adjuntos no debe superar 500 KB.');
       return;
@@ -332,23 +594,19 @@ export function PublicCreditApplicationForm({
       return;
     }
     setErrorMsg(null);
+    markAllTouched();
 
-    if (!firstName.trim() || !lastName.trim() || !documentNumber.trim() || !phone.trim()) {
-      setStep(1);
+    if (!validation.isFormValid && validation.firstInvalidStep) {
+      const targetStep = validation.firstInvalidStep;
+      const firstField = validation.firstInvalidFieldByStep[targetStep];
+      const totalErrors = Object.keys(validation.errors).length;
+      setStep(targetStep);
       setErrorMsg(
-        'Complete los datos de identificación mínimos del solicitante (Nombres, Apellidos, Documento y Teléfono) en el Paso 1.'
+        totalErrors === 1
+          ? 'Hay 1 campo incompleto o con formato incorrecto. Revísalo antes de enviar.'
+          : `Hay ${totalErrors} campos incompletos o con formato incorrecto. Revisa los campos señalados antes de enviar.`
       );
-      return;
-    }
-
-    if (
-      applicantType === 'BUSINESS' &&
-      (!rnc.trim() || !legalName.trim() || !authorizedRepName.trim())
-    ) {
-      setStep(1);
-      setErrorMsg(
-        'Para solicitudes empresariales debe completar RNC, Razón Social y Representante Autorizado en el Paso 1.'
-      );
+      focusField(firstField);
       return;
     }
 
@@ -508,12 +766,7 @@ export function PublicCreditApplicationForm({
       setSubmittedRecord(saved);
       onSubmitted?.(saved);
     } catch (err) {
-      setErrorMsg(
-        formatUserFacingError(
-          err,
-          'No pudimos registrar tu solicitud en este momento. Verifica tu conexión o intenta nuevamente.'
-        )
-      );
+      setErrorMsg(formatPublicSubmissionError(err, instName, portal.phone));
     } finally {
       setSubmitting(false);
     }
@@ -525,6 +778,8 @@ export function PublicCreditApplicationForm({
     setConsentAccepted(false);
     setPendingFiles([]);
     setBiometricResult(null);
+    setTouchedFields({});
+    setAttemptedSteps({});
     setStep(1);
   };
 
@@ -633,7 +888,7 @@ export function PublicCreditApplicationForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-5">
       <div ref={topAnchorRef} />
 
       {/* Institutional Identity Header */}
@@ -660,30 +915,25 @@ export function PublicCreditApplicationForm({
         </span>
       </div>
 
-      {/* 5-Step Stepper — exact same 5 stages as main platform NewApplicationView */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-        {STEP_ITEMS.map(([num, label]) => (
-          <button
-            key={num}
-            type="button"
-            onClick={() => goToStep(num)}
-            className={`py-2 px-2.5 rounded-lg border text-[11px] font-medium text-left truncate cursor-pointer transition-colors ${
-              step === num
-                ? 'border-[#00B8FF] bg-[#0066FF]/20 text-white font-semibold'
-                : num < step
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15'
-                : 'border-white/10 bg-[#030816]/60 text-slate-400 hover:text-slate-200 hover:border-white/20'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Visual Origination Progress Bar + Interactive 5-Step Milestones */}
+      <OriginationProgressBar
+        currentStep={step}
+        stepValid={validation.stepValid}
+        stepErrorCounts={validation.stepErrorCounts}
+        attemptedSteps={attemptedSteps}
+        onSelectStep={goToStep}
+        variant="dark"
+        primaryColor={instPrimary}
+        accentColor={instAccent}
+      />
 
       {errorMsg && (
-        <div className="p-3 rounded-xl border border-rose-500/35 bg-rose-500/10 text-xs text-rose-200 flex items-start gap-2">
+        <div
+          role="alert"
+          className="p-3 rounded-xl border border-rose-500/35 bg-rose-500/10 text-xs text-rose-200 flex items-start gap-2 overflow-hidden"
+        >
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{errorMsg}</span>
+          <span className="min-w-0 flex-1 break-words leading-relaxed">{errorMsg}</span>
         </div>
       )}
 
@@ -740,12 +990,35 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-docnum"
+                data-field="documentNumber"
                 type="text"
                 maxLength={40}
                 value={documentNumber}
-                onChange={(e) => setDocumentNumber(e.target.value)}
-                placeholder="001-0000000-0"
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setDocumentNumber(e.target.value);
+                  markTouched('documentNumber');
+                }}
+                onBlur={() => markTouched('documentNumber')}
+                aria-invalid={Boolean(getFieldError('documentNumber'))}
+                placeholder={documentType === 'CEDULA' ? '001-0000000-0' : 'AA1234567'}
+                className={fieldInputClass(
+                  'documentNumber',
+                  INPUT_MONO_CLASS,
+                  Boolean(documentNumber.trim())
+                )}
+              />
+              <FieldValidationFeedback
+                variant="dark"
+                error={getFieldError('documentNumber')}
+                validHint={
+                  touchedFields.documentNumber &&
+                  !validation.errors.documentNumber &&
+                  documentNumber.trim()
+                    ? documentType === 'CEDULA'
+                      ? 'Cédula válida (11 dígitos)'
+                      : 'Pasaporte válido'
+                    : undefined
+                }
               />
             </div>
             <div>
@@ -754,11 +1027,18 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-birthdate"
+                data-field="birthDate"
                 type="date"
                 value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-                className={INPUT_CLASS}
+                onChange={(e) => {
+                  setBirthDate(e.target.value);
+                  markTouched('birthDate');
+                }}
+                onBlur={() => markTouched('birthDate')}
+                aria-invalid={Boolean(getFieldError('birthDate'))}
+                className={fieldInputClass('birthDate', INPUT_CLASS, Boolean(birthDate.trim()))}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('birthDate')} />
             </div>
             <div>
               <label htmlFor="pub-phone" className={LABEL_CLASS}>
@@ -766,12 +1046,27 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-phone"
+                data-field="phone"
                 type="tel"
                 maxLength={40}
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  markTouched('phone');
+                }}
+                onBlur={() => markTouched('phone')}
+                aria-invalid={Boolean(getFieldError('phone'))}
                 placeholder="809-555-0000"
-                className={INPUT_MONO_CLASS}
+                className={fieldInputClass('phone', INPUT_MONO_CLASS, Boolean(phone.trim()))}
+              />
+              <FieldValidationFeedback
+                variant="dark"
+                error={getFieldError('phone')}
+                validHint={
+                  touchedFields.phone && !validation.errors.phone && phone.trim()
+                    ? 'Teléfono válido'
+                    : undefined
+                }
               />
             </div>
             <div>
@@ -780,12 +1075,19 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-firstname"
+                data-field="firstName"
                 type="text"
                 maxLength={120}
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className={INPUT_CLASS}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  markTouched('firstName');
+                }}
+                onBlur={() => markTouched('firstName')}
+                aria-invalid={Boolean(getFieldError('firstName'))}
+                className={fieldInputClass('firstName', INPUT_CLASS, Boolean(firstName.trim()))}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('firstName')} />
             </div>
             <div>
               <label htmlFor="pub-lastname" className={LABEL_CLASS}>
@@ -793,12 +1095,19 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-lastname"
+                data-field="lastName"
                 type="text"
                 maxLength={120}
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className={INPUT_CLASS}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  markTouched('lastName');
+                }}
+                onBlur={() => markTouched('lastName')}
+                aria-invalid={Boolean(getFieldError('lastName'))}
+                className={fieldInputClass('lastName', INPUT_CLASS, Boolean(lastName.trim()))}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('lastName')} />
             </div>
             <div>
               <label htmlFor="pub-email" className={LABEL_CLASS}>
@@ -806,13 +1115,20 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-email"
+                data-field="email"
                 type="email"
                 maxLength={254}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  markTouched('email');
+                }}
+                onBlur={() => markTouched('email')}
+                aria-invalid={Boolean(getFieldError('email'))}
                 placeholder="correo@ejemplo.com"
-                className={INPUT_CLASS}
+                className={fieldInputClass('email', INPUT_CLASS, Boolean(email.trim()))}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('email')} />
             </div>
             <div>
               <label htmlFor="pub-nationality" className={LABEL_CLASS}>
@@ -881,12 +1197,19 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-resmonths"
+                data-field="residenceMonths"
                 type="number"
                 min={0}
                 value={residenceMonths}
-                onChange={(e) => setResidenceMonths(Number(e.target.value))}
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setResidenceMonths(Number(e.target.value));
+                  markTouched('residenceMonths');
+                }}
+                onBlur={() => markTouched('residenceMonths')}
+                aria-invalid={Boolean(getFieldError('residenceMonths'))}
+                className={fieldInputClass('residenceMonths', INPUT_MONO_CLASS, residenceMonths >= 0)}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('residenceMonths')} />
             </div>
             <div>
               <label htmlFor="pub-housing-type" className={LABEL_CLASS}>
@@ -911,12 +1234,19 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-housing-pay"
+                data-field="housingPayment"
                 type="number"
                 min={0}
                 value={housingPayment}
-                onChange={(e) => setHousingPayment(Number(e.target.value))}
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setHousingPayment(Number(e.target.value));
+                  markTouched('housingPayment');
+                }}
+                onBlur={() => markTouched('housingPayment')}
+                aria-invalid={Boolean(getFieldError('housingPayment'))}
+                className={fieldInputClass('housingPayment', INPUT_MONO_CLASS, housingPayment >= 0)}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('housingPayment')} />
             </div>
           </div>
 
@@ -942,14 +1272,25 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-social-handle"
+                data-field="socialMediaHandle"
                 type="text"
                 maxLength={120}
                 value={socialMediaHandle}
-                onChange={(e) => setSocialMediaHandle(e.target.value)}
+                onChange={(e) => {
+                  setSocialMediaHandle(e.target.value);
+                  markTouched('socialMediaHandle');
+                }}
+                onBlur={() => markTouched('socialMediaHandle')}
+                aria-invalid={Boolean(getFieldError('socialMediaHandle'))}
                 disabled={socialMediaDeclared !== 'YES'}
                 placeholder="@usuario"
-                className={INPUT_CLASS}
+                className={fieldInputClass(
+                  'socialMediaHandle',
+                  INPUT_CLASS,
+                  Boolean(socialMediaHandle.trim())
+                )}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('socialMediaHandle')} />
             </div>
             <div>
               <label htmlFor="pub-alt-name" className={LABEL_CLASS}>
@@ -970,12 +1311,23 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-alt-phone"
+                data-field="altContactPhone"
                 type="tel"
                 maxLength={40}
                 value={altContactPhone}
-                onChange={(e) => setAltContactPhone(e.target.value)}
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setAltContactPhone(e.target.value);
+                  markTouched('altContactPhone');
+                }}
+                onBlur={() => markTouched('altContactPhone')}
+                aria-invalid={Boolean(getFieldError('altContactPhone'))}
+                className={fieldInputClass(
+                  'altContactPhone',
+                  INPUT_MONO_CLASS,
+                  Boolean(altContactPhone.trim())
+                )}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('altContactPhone')} />
             </div>
           </div>
 
@@ -989,11 +1341,27 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-rnc"
+                    data-field="rnc"
                     type="text"
                     maxLength={40}
                     value={rnc}
-                    onChange={(e) => setRnc(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setRnc(e.target.value);
+                      markTouched('rnc');
+                    }}
+                    onBlur={() => markTouched('rnc')}
+                    aria-invalid={Boolean(getFieldError('rnc'))}
+                    placeholder="1-31-99887-2"
+                    className={fieldInputClass('rnc', INPUT_MONO_CLASS, Boolean(rnc.trim()))}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('rnc')}
+                    validHint={
+                      touchedFields.rnc && !validation.errors.rnc && rnc.trim()
+                        ? 'RNC válido'
+                        : undefined
+                    }
                   />
                 </div>
                 <div>
@@ -1002,12 +1370,19 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-legal-name"
+                    data-field="legalName"
                     type="text"
                     maxLength={200}
                     value={legalName}
-                    onChange={(e) => setLegalName(e.target.value)}
-                    className={INPUT_CLASS}
+                    onChange={(e) => {
+                      setLegalName(e.target.value);
+                      markTouched('legalName');
+                    }}
+                    onBlur={() => markTouched('legalName')}
+                    aria-invalid={Boolean(getFieldError('legalName'))}
+                    className={fieldInputClass('legalName', INPUT_CLASS, Boolean(legalName.trim()))}
                   />
+                  <FieldValidationFeedback variant="dark" error={getFieldError('legalName')} />
                 </div>
                 <div>
                   <label htmlFor="pub-trade-name" className={LABEL_CLASS}>
@@ -1054,10 +1429,24 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-ops-start"
+                    data-field="operationsStartDate"
                     type="date"
                     value={operationsStartDate}
-                    onChange={(e) => setOperationsStartDate(e.target.value)}
-                    className={INPUT_CLASS}
+                    onChange={(e) => {
+                      setOperationsStartDate(e.target.value);
+                      markTouched('operationsStartDate');
+                    }}
+                    onBlur={() => markTouched('operationsStartDate')}
+                    aria-invalid={Boolean(getFieldError('operationsStartDate'))}
+                    className={fieldInputClass(
+                      'operationsStartDate',
+                      INPUT_CLASS,
+                      Boolean(operationsStartDate.trim())
+                    )}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('operationsStartDate')}
                   />
                 </div>
                 <div>
@@ -1066,11 +1455,25 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-rep-name"
+                    data-field="authorizedRepName"
                     type="text"
                     maxLength={160}
                     value={authorizedRepName}
-                    onChange={(e) => setAuthorizedRepName(e.target.value)}
-                    className={INPUT_CLASS}
+                    onChange={(e) => {
+                      setAuthorizedRepName(e.target.value);
+                      markTouched('authorizedRepName');
+                    }}
+                    onBlur={() => markTouched('authorizedRepName')}
+                    aria-invalid={Boolean(getFieldError('authorizedRepName'))}
+                    className={fieldInputClass(
+                      'authorizedRepName',
+                      INPUT_CLASS,
+                      Boolean(authorizedRepName.trim())
+                    )}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('authorizedRepName')}
                   />
                 </div>
                 <div>
@@ -1079,11 +1482,25 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-rep-doc"
+                    data-field="authorizedRepDoc"
                     type="text"
                     maxLength={40}
                     value={authorizedRepDoc}
-                    onChange={(e) => setAuthorizedRepDoc(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setAuthorizedRepDoc(e.target.value);
+                      markTouched('authorizedRepDoc');
+                    }}
+                    onBlur={() => markTouched('authorizedRepDoc')}
+                    aria-invalid={Boolean(getFieldError('authorizedRepDoc'))}
+                    className={fieldInputClass(
+                      'authorizedRepDoc',
+                      INPUT_MONO_CLASS,
+                      Boolean(authorizedRepDoc.trim())
+                    )}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('authorizedRepDoc')}
                   />
                 </div>
                 <div>
@@ -1155,12 +1572,19 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-empmonths"
+                data-field="employmentMonths"
                 type="number"
                 min={0}
                 value={employmentMonths}
-                onChange={(e) => setEmploymentMonths(Number(e.target.value))}
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setEmploymentMonths(Number(e.target.value));
+                  markTouched('employmentMonths');
+                }}
+                onBlur={() => markTouched('employmentMonths')}
+                aria-invalid={Boolean(getFieldError('employmentMonths'))}
+                className={fieldInputClass('employmentMonths', INPUT_MONO_CLASS, employmentMonths >= 0)}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('employmentMonths')} />
             </div>
             <div>
               <label htmlFor="pub-incsource" className={LABEL_CLASS}>
@@ -1206,12 +1630,23 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-gross-sales"
+                    data-field="grossSales"
                     type="number"
                     min={0}
                     value={grossSales}
-                    onChange={(e) => setGrossSales(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setGrossSales(e.target.value);
+                      markTouched('grossSales');
+                    }}
+                    onBlur={() => markTouched('grossSales')}
+                    aria-invalid={Boolean(getFieldError('grossSales'))}
+                    className={fieldInputClass(
+                      'grossSales',
+                      INPUT_MONO_CLASS,
+                      Boolean(grossSales.trim())
+                    )}
                   />
+                  <FieldValidationFeedback variant="dark" error={getFieldError('grossSales')} />
                 </div>
                 <div>
                   <label htmlFor="pub-op-costs" className={LABEL_CLASS}>
@@ -1219,12 +1654,23 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-op-costs"
+                    data-field="operatingCosts"
                     type="number"
                     min={0}
                     value={operatingCosts}
-                    onChange={(e) => setOperatingCosts(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setOperatingCosts(e.target.value);
+                      markTouched('operatingCosts');
+                    }}
+                    onBlur={() => markTouched('operatingCosts')}
+                    aria-invalid={Boolean(getFieldError('operatingCosts'))}
+                    className={fieldInputClass(
+                      'operatingCosts',
+                      INPUT_MONO_CLASS,
+                      Boolean(operatingCosts.trim())
+                    )}
                   />
+                  <FieldValidationFeedback variant="dark" error={getFieldError('operatingCosts')} />
                 </div>
                 <div>
                   <label htmlFor="pub-net-flow" className={LABEL_CLASS}>
@@ -1232,11 +1678,26 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-net-flow"
+                    data-field="netMonthlyFlow"
                     type="number"
                     min={0}
                     value={netMonthlyFlow}
-                    onChange={(e) => setNetMonthlyFlow(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setNetMonthlyFlow(e.target.value);
+                      markTouched('netMonthlyFlow');
+                    }}
+                    onBlur={() => markTouched('netMonthlyFlow')}
+                    aria-invalid={Boolean(getFieldError('netMonthlyFlow'))}
+                    className={fieldInputClass(
+                      'netMonthlyFlow',
+                      INPUT_MONO_CLASS,
+                      Boolean(netMonthlyFlow.trim())
+                    )}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('netMonthlyFlow')}
+                    warning={getFieldWarning('netMonthlyFlow')}
                   />
                 </div>
                 <div>
@@ -1258,16 +1719,27 @@ export function PublicCreditApplicationForm({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               <div>
                 <label htmlFor="pub-primary-inc" className={LABEL_CLASS}>
-                  Ingreso Principal Neto Mensual
+                  Ingreso Principal Neto Mensual {incomeSourceType !== 'SIN_INGRESOS' ? '*' : ''}
                 </label>
                 <input
                   id="pub-primary-inc"
+                  data-field="primaryNetIncome"
                   type="number"
                   min={0}
                   value={primaryNetIncome}
-                  onChange={(e) => setPrimaryNetIncome(e.target.value)}
-                  className={INPUT_MONO_CLASS}
+                  onChange={(e) => {
+                    setPrimaryNetIncome(e.target.value);
+                    markTouched('primaryNetIncome');
+                  }}
+                  onBlur={() => markTouched('primaryNetIncome')}
+                  aria-invalid={Boolean(getFieldError('primaryNetIncome'))}
+                  className={fieldInputClass(
+                    'primaryNetIncome',
+                    INPUT_MONO_CLASS,
+                    Boolean(primaryNetIncome.trim())
+                  )}
                 />
+                <FieldValidationFeedback variant="dark" error={getFieldError('primaryNetIncome')} />
               </div>
               <div>
                 <label htmlFor="pub-add-inc-status" className={LABEL_CLASS}>
@@ -1295,12 +1767,26 @@ export function PublicCreditApplicationForm({
                 </label>
                 <input
                   id="pub-add-inc"
+                  data-field="additionalNetIncome"
                   type="number"
                   min={0}
                   value={additionalNetIncome}
-                  onChange={(e) => setAdditionalNetIncome(e.target.value)}
+                  onChange={(e) => {
+                    setAdditionalNetIncome(e.target.value);
+                    markTouched('additionalNetIncome');
+                  }}
+                  onBlur={() => markTouched('additionalNetIncome')}
+                  aria-invalid={Boolean(getFieldError('additionalNetIncome'))}
                   disabled={additionalIncomeStatus === 'EXPLICIT_NONE'}
-                  className={INPUT_MONO_CLASS}
+                  className={fieldInputClass(
+                    'additionalNetIncome',
+                    INPUT_MONO_CLASS,
+                    additionalIncomeStatus !== 'EXPLICIT_NONE' && Boolean(additionalNetIncome.trim())
+                  )}
+                />
+                <FieldValidationFeedback
+                  variant="dark"
+                  error={getFieldError('additionalNetIncome')}
                 />
               </div>
               <div>
@@ -1309,12 +1795,26 @@ export function PublicCreditApplicationForm({
                 </label>
                 <input
                   id="pub-decl-total"
+                  data-field="declaredTotalMonthlyIncome"
                   type="number"
                   min={0}
                   value={declaredTotalMonthlyIncome}
-                  onChange={(e) => setDeclaredTotalMonthlyIncome(e.target.value)}
+                  onChange={(e) => {
+                    setDeclaredTotalMonthlyIncome(e.target.value);
+                    markTouched('declaredTotalMonthlyIncome');
+                  }}
+                  onBlur={() => markTouched('declaredTotalMonthlyIncome')}
+                  aria-invalid={Boolean(getFieldError('declaredTotalMonthlyIncome'))}
                   placeholder="Opcional para conciliación"
-                  className={INPUT_MONO_CLASS}
+                  className={fieldInputClass(
+                    'declaredTotalMonthlyIncome',
+                    INPUT_MONO_CLASS,
+                    Boolean(declaredTotalMonthlyIncome.trim())
+                  )}
+                />
+                <FieldValidationFeedback
+                  variant="dark"
+                  error={getFieldError('declaredTotalMonthlyIncome')}
                 />
               </div>
             </div>
@@ -1323,16 +1823,27 @@ export function PublicCreditApplicationForm({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-3 border-t border-white/10">
             <div>
               <label htmlFor="pub-essential-exp" className={LABEL_CLASS}>
-                Gastos Esenciales Mensuales (sin cuotas de deuda)
+                Gastos Esenciales Mensuales (sin cuotas de deuda) *
               </label>
               <input
                 id="pub-essential-exp"
+                data-field="essentialExpenses"
                 type="number"
                 min={0}
                 value={essentialExpenses}
-                onChange={(e) => setEssentialExpenses(e.target.value)}
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setEssentialExpenses(e.target.value);
+                  markTouched('essentialExpenses');
+                }}
+                onBlur={() => markTouched('essentialExpenses')}
+                aria-invalid={Boolean(getFieldError('essentialExpenses'))}
+                className={fieldInputClass(
+                  'essentialExpenses',
+                  INPUT_MONO_CLASS,
+                  Boolean(essentialExpenses.trim())
+                )}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('essentialExpenses')} />
             </div>
             <div className="flex items-end pb-1.5">
               <label className="inline-flex items-start gap-2 text-xs text-slate-300 cursor-pointer">
@@ -1381,44 +1892,80 @@ export function PublicCreditApplicationForm({
               </div>
               <div>
                 <label htmlFor="pub-debt-count" className={LABEL_CLASS}>
-                  Cantidad de Deudas
+                  Cantidad de Deudas {debtDeclarationStatus === 'HAS_DEBTS' ? '*' : ''}
                 </label>
                 <input
                   id="pub-debt-count"
+                  data-field="debtCount"
                   type="number"
                   min={0}
                   value={debtCount}
-                  onChange={(e) => setDebtCount(e.target.value)}
+                  onChange={(e) => {
+                    setDebtCount(e.target.value);
+                    markTouched('debtCount');
+                  }}
+                  onBlur={() => markTouched('debtCount')}
+                  aria-invalid={Boolean(getFieldError('debtCount'))}
                   disabled={debtDeclarationStatus !== 'HAS_DEBTS'}
-                  className={INPUT_MONO_CLASS}
+                  className={fieldInputClass(
+                    'debtCount',
+                    INPUT_MONO_CLASS,
+                    debtDeclarationStatus === 'HAS_DEBTS' && Boolean(debtCount.trim())
+                  )}
                 />
+                <FieldValidationFeedback variant="dark" error={getFieldError('debtCount')} />
               </div>
               <div>
                 <label htmlFor="pub-debt-bal" className={LABEL_CLASS}>
-                  Saldo Total Adeudado
+                  Saldo Total Adeudado {debtDeclarationStatus === 'HAS_DEBTS' ? '*' : ''}
                 </label>
                 <input
                   id="pub-debt-bal"
+                  data-field="totalDebtBalance"
                   type="number"
                   min={0}
                   value={totalDebtBalance}
-                  onChange={(e) => setTotalDebtBalance(e.target.value)}
+                  onChange={(e) => {
+                    setTotalDebtBalance(e.target.value);
+                    markTouched('totalDebtBalance');
+                  }}
+                  onBlur={() => markTouched('totalDebtBalance')}
+                  aria-invalid={Boolean(getFieldError('totalDebtBalance'))}
                   disabled={debtDeclarationStatus !== 'HAS_DEBTS'}
-                  className={INPUT_MONO_CLASS}
+                  className={fieldInputClass(
+                    'totalDebtBalance',
+                    INPUT_MONO_CLASS,
+                    debtDeclarationStatus === 'HAS_DEBTS' && Boolean(totalDebtBalance.trim())
+                  )}
                 />
+                <FieldValidationFeedback variant="dark" error={getFieldError('totalDebtBalance')} />
               </div>
               <div>
                 <label htmlFor="pub-debt-pmt" className={LABEL_CLASS}>
-                  Cuotas Mensuales Totales (D)
+                  Cuotas Mensuales Totales (D) {debtDeclarationStatus === 'HAS_DEBTS' ? '*' : ''}
                 </label>
                 <input
                   id="pub-debt-pmt"
+                  data-field="currentDebtPayments"
                   type="number"
                   min={0}
                   value={currentDebtPayments}
-                  onChange={(e) => setCurrentDebtPayments(e.target.value)}
+                  onChange={(e) => {
+                    setCurrentDebtPayments(e.target.value);
+                    markTouched('currentDebtPayments');
+                  }}
+                  onBlur={() => markTouched('currentDebtPayments')}
+                  aria-invalid={Boolean(getFieldError('currentDebtPayments'))}
                   disabled={debtDeclarationStatus !== 'HAS_DEBTS'}
-                  className={INPUT_MONO_CLASS}
+                  className={fieldInputClass(
+                    'currentDebtPayments',
+                    INPUT_MONO_CLASS,
+                    debtDeclarationStatus === 'HAS_DEBTS' && Boolean(currentDebtPayments.trim())
+                  )}
+                />
+                <FieldValidationFeedback
+                  variant="dark"
+                  error={getFieldError('currentDebtPayments')}
                 />
               </div>
             </div>
@@ -1431,12 +1978,23 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-debt-bank"
+                    data-field="bankDebtPayment"
                     type="number"
                     min={0}
                     value={bankDebtPayment}
-                    onChange={(e) => setBankDebtPayment(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setBankDebtPayment(e.target.value);
+                      markTouched('bankDebtPayment');
+                    }}
+                    onBlur={() => markTouched('bankDebtPayment')}
+                    aria-invalid={Boolean(getFieldError('bankDebtPayment'))}
+                    className={fieldInputClass(
+                      'bankDebtPayment',
+                      INPUT_MONO_CLASS,
+                      Boolean(bankDebtPayment.trim())
+                    )}
                   />
+                  <FieldValidationFeedback variant="dark" error={getFieldError('bankDebtPayment')} />
                 </div>
                 <div>
                   <label htmlFor="pub-debt-fin" className="block mb-1 text-slate-400">
@@ -1444,11 +2002,25 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-debt-fin"
+                    data-field="financeDebtPayment"
                     type="number"
                     min={0}
                     value={financeDebtPayment}
-                    onChange={(e) => setFinanceDebtPayment(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setFinanceDebtPayment(e.target.value);
+                      markTouched('financeDebtPayment');
+                    }}
+                    onBlur={() => markTouched('financeDebtPayment')}
+                    aria-invalid={Boolean(getFieldError('financeDebtPayment'))}
+                    className={fieldInputClass(
+                      'financeDebtPayment',
+                      INPUT_MONO_CLASS,
+                      Boolean(financeDebtPayment.trim())
+                    )}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('financeDebtPayment')}
                   />
                 </div>
                 <div>
@@ -1457,12 +2029,23 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-debt-card"
+                    data-field="cardDebtPayment"
                     type="number"
                     min={0}
                     value={cardDebtPayment}
-                    onChange={(e) => setCardDebtPayment(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setCardDebtPayment(e.target.value);
+                      markTouched('cardDebtPayment');
+                    }}
+                    onBlur={() => markTouched('cardDebtPayment')}
+                    aria-invalid={Boolean(getFieldError('cardDebtPayment'))}
+                    className={fieldInputClass(
+                      'cardDebtPayment',
+                      INPUT_MONO_CLASS,
+                      Boolean(cardDebtPayment.trim())
+                    )}
                   />
+                  <FieldValidationFeedback variant="dark" error={getFieldError('cardDebtPayment')} />
                 </div>
                 <div>
                   <label htmlFor="pub-debt-inf" className="block mb-1 text-slate-400">
@@ -1470,11 +2053,25 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-debt-inf"
+                    data-field="informalDebtPayment"
                     type="number"
                     min={0}
                     value={informalDebtPayment}
-                    onChange={(e) => setInformalDebtPayment(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setInformalDebtPayment(e.target.value);
+                      markTouched('informalDebtPayment');
+                    }}
+                    onBlur={() => markTouched('informalDebtPayment')}
+                    aria-invalid={Boolean(getFieldError('informalDebtPayment'))}
+                    className={fieldInputClass(
+                      'informalDebtPayment',
+                      INPUT_MONO_CLASS,
+                      Boolean(informalDebtPayment.trim())
+                    )}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('informalDebtPayment')}
                   />
                 </div>
                 <div>
@@ -1483,11 +2080,25 @@ export function PublicCreditApplicationForm({
                   </label>
                   <input
                     id="pub-debt-other"
+                    data-field="otherDebtPayment"
                     type="number"
                     min={0}
                     value={otherDebtPayment}
-                    onChange={(e) => setOtherDebtPayment(e.target.value)}
-                    className={INPUT_MONO_CLASS}
+                    onChange={(e) => {
+                      setOtherDebtPayment(e.target.value);
+                      markTouched('otherDebtPayment');
+                    }}
+                    onBlur={() => markTouched('otherDebtPayment')}
+                    aria-invalid={Boolean(getFieldError('otherDebtPayment'))}
+                    className={fieldInputClass(
+                      'otherDebtPayment',
+                      INPUT_MONO_CLASS,
+                      Boolean(otherDebtPayment.trim())
+                    )}
+                  />
+                  <FieldValidationFeedback
+                    variant="dark"
+                    error={getFieldError('otherDebtPayment')}
                   />
                 </div>
               </div>
@@ -1527,12 +2138,27 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-amount"
+                data-field="requestedAmount"
                 type="number"
                 min={1}
                 max={100000000}
                 value={requestedAmount}
-                onChange={(e) => setRequestedAmount(e.target.value)}
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setRequestedAmount(e.target.value);
+                  markTouched('requestedAmount');
+                }}
+                onBlur={() => markTouched('requestedAmount')}
+                aria-invalid={Boolean(getFieldError('requestedAmount'))}
+                className={fieldInputClass(
+                  'requestedAmount',
+                  INPUT_MONO_CLASS,
+                  Boolean(requestedAmount.trim())
+                )}
+              />
+              <FieldValidationFeedback
+                variant="dark"
+                error={getFieldError('requestedAmount')}
+                warning={getFieldWarning('requestedAmount')}
               />
             </div>
             <div>
@@ -1541,12 +2167,27 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-term"
+                data-field="requestedTermMonths"
                 type="number"
                 min={1}
                 max={360}
                 value={requestedTermMonths}
-                onChange={(e) => setRequestedTermMonths(e.target.value)}
-                className={INPUT_MONO_CLASS}
+                onChange={(e) => {
+                  setRequestedTermMonths(e.target.value);
+                  markTouched('requestedTermMonths');
+                }}
+                onBlur={() => markTouched('requestedTermMonths')}
+                aria-invalid={Boolean(getFieldError('requestedTermMonths'))}
+                className={fieldInputClass(
+                  'requestedTermMonths',
+                  INPUT_MONO_CLASS,
+                  Boolean(requestedTermMonths.trim())
+                )}
+              />
+              <FieldValidationFeedback
+                variant="dark"
+                error={getFieldError('requestedTermMonths')}
+                warning={getFieldWarning('requestedTermMonths')}
               />
             </div>
             <div>
@@ -1571,12 +2212,19 @@ export function PublicCreditApplicationForm({
               </label>
               <input
                 id="pub-purpose"
+                data-field="loanPurpose"
                 type="text"
                 maxLength={120}
                 value={loanPurpose}
-                onChange={(e) => setLoanPurpose(e.target.value)}
-                className={INPUT_CLASS}
+                onChange={(e) => {
+                  setLoanPurpose(e.target.value);
+                  markTouched('loanPurpose');
+                }}
+                onBlur={() => markTouched('loanPurpose')}
+                aria-invalid={Boolean(getFieldError('loanPurpose'))}
+                className={fieldInputClass('loanPurpose', INPUT_CLASS, Boolean(loanPurpose.trim()))}
               />
+              <FieldValidationFeedback variant="dark" error={getFieldError('loanPurpose')} />
             </div>
             <div>
               <label htmlFor="pub-collateral" className={LABEL_CLASS}>
@@ -1662,56 +2310,104 @@ export function PublicCreditApplicationForm({
               Referencias Personales / Comerciales (no requieren llamada previa al scoring)
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input
-                type="text"
-                maxLength={120}
-                placeholder="Referencia 1: Nombre completo"
-                value={ref1Name}
-                onChange={(e) => setRef1Name(e.target.value)}
-                className={INPUT_CLASS}
-              />
-              <input
-                type="text"
-                maxLength={80}
-                placeholder="Relación (Ej. Hermano, Proveedor)"
-                value={ref1Rel}
-                onChange={(e) => setRef1Rel(e.target.value)}
-                className={INPUT_CLASS}
-              />
-              <input
-                type="tel"
-                maxLength={40}
-                placeholder="Teléfono"
-                value={ref1Phone}
-                onChange={(e) => setRef1Phone(e.target.value)}
-                className={INPUT_MONO_CLASS}
-              />
+              <div>
+                <input
+                  data-field="ref1Name"
+                  type="text"
+                  maxLength={120}
+                  placeholder="Referencia 1: Nombre completo"
+                  value={ref1Name}
+                  onChange={(e) => {
+                    setRef1Name(e.target.value);
+                    markTouched('ref1Name');
+                  }}
+                  onBlur={() => markTouched('ref1Name')}
+                  aria-invalid={Boolean(getFieldError('ref1Name'))}
+                  className={fieldInputClass('ref1Name', INPUT_CLASS, Boolean(ref1Name.trim()))}
+                />
+                <FieldValidationFeedback variant="dark" error={getFieldError('ref1Name')} />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  maxLength={80}
+                  placeholder="Relación (Ej. Hermano, Proveedor)"
+                  value={ref1Rel}
+                  onChange={(e) => setRef1Rel(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div>
+                <input
+                  data-field="ref1Phone"
+                  type="tel"
+                  maxLength={40}
+                  placeholder="Teléfono (ej. 809-555-0000)"
+                  value={ref1Phone}
+                  onChange={(e) => {
+                    setRef1Phone(e.target.value);
+                    markTouched('ref1Phone');
+                  }}
+                  onBlur={() => markTouched('ref1Phone')}
+                  aria-invalid={Boolean(getFieldError('ref1Phone'))}
+                  className={fieldInputClass(
+                    'ref1Phone',
+                    INPUT_MONO_CLASS,
+                    Boolean(ref1Phone.trim())
+                  )}
+                />
+                <FieldValidationFeedback variant="dark" error={getFieldError('ref1Phone')} />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input
-                type="text"
-                maxLength={120}
-                placeholder="Referencia 2: Nombre completo"
-                value={ref2Name}
-                onChange={(e) => setRef2Name(e.target.value)}
-                className={INPUT_CLASS}
-              />
-              <input
-                type="text"
-                maxLength={80}
-                placeholder="Relación"
-                value={ref2Rel}
-                onChange={(e) => setRef2Rel(e.target.value)}
-                className={INPUT_CLASS}
-              />
-              <input
-                type="tel"
-                maxLength={40}
-                placeholder="Teléfono"
-                value={ref2Phone}
-                onChange={(e) => setRef2Phone(e.target.value)}
-                className={INPUT_MONO_CLASS}
-              />
+              <div>
+                <input
+                  data-field="ref2Name"
+                  type="text"
+                  maxLength={120}
+                  placeholder="Referencia 2: Nombre completo"
+                  value={ref2Name}
+                  onChange={(e) => {
+                    setRef2Name(e.target.value);
+                    markTouched('ref2Name');
+                  }}
+                  onBlur={() => markTouched('ref2Name')}
+                  aria-invalid={Boolean(getFieldError('ref2Name'))}
+                  className={fieldInputClass('ref2Name', INPUT_CLASS, Boolean(ref2Name.trim()))}
+                />
+                <FieldValidationFeedback variant="dark" error={getFieldError('ref2Name')} />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  maxLength={80}
+                  placeholder="Relación"
+                  value={ref2Rel}
+                  onChange={(e) => setRef2Rel(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div>
+                <input
+                  data-field="ref2Phone"
+                  type="tel"
+                  maxLength={40}
+                  placeholder="Teléfono (ej. 809-555-0000)"
+                  value={ref2Phone}
+                  onChange={(e) => {
+                    setRef2Phone(e.target.value);
+                    markTouched('ref2Phone');
+                  }}
+                  onBlur={() => markTouched('ref2Phone')}
+                  aria-invalid={Boolean(getFieldError('ref2Phone'))}
+                  className={fieldInputClass(
+                    'ref2Phone',
+                    INPUT_MONO_CLASS,
+                    Boolean(ref2Phone.trim())
+                  )}
+                />
+                <FieldValidationFeedback variant="dark" error={getFieldError('ref2Phone')} />
+              </div>
             </div>
           </div>
 
@@ -1740,20 +2436,28 @@ export function PublicCreditApplicationForm({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="p-3.5 rounded-xl border border-dashed border-[#00B8FF]/35 bg-[#030816]/60 flex items-center gap-3 text-xs text-slate-200 cursor-pointer hover:border-[#00B8FF] transition-colors">
                 <Upload className="w-4 h-4 text-[#00D1FF] shrink-0" />
-                <span>Adjuntar Cédula / Identidad (máx. 250 KB)</span>
+                <span>Adjuntar Cédula / Identidad (foto o PDF)</span>
                 <input
                   type="file"
+                  accept="image/*,application/pdf"
                   className="hidden"
-                  onChange={(e) => handleFileAttach('Identidad', e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    void handleFileAttach('Identidad', e.target.files?.[0] ?? null);
+                    e.currentTarget.value = '';
+                  }}
                 />
               </label>
               <label className="p-3.5 rounded-xl border border-dashed border-[#00B8FF]/35 bg-[#030816]/60 flex items-center gap-3 text-xs text-slate-200 cursor-pointer hover:border-[#00B8FF] transition-colors">
                 <Upload className="w-4 h-4 text-[#00D1FF] shrink-0" />
-                <span>Adjuntar Evidencia de Ingresos (máx. 250 KB)</span>
+                <span>Adjuntar Evidencia de Ingresos (foto o PDF)</span>
                 <input
                   type="file"
+                  accept="image/*,application/pdf"
                   className="hidden"
-                  onChange={(e) => handleFileAttach('Ingresos', e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    void handleFileAttach('Ingresos', e.target.files?.[0] ?? null);
+                    e.currentTarget.value = '';
+                  }}
                 />
               </label>
             </div>
@@ -1785,9 +2489,12 @@ export function PublicCreditApplicationForm({
               documentType={documentType}
               documentNumber={documentNumber}
               identityFiles={pendingFiles.filter((f) => f.category === 'Identidad')}
-              onAttachIdentityFile={(file) => handleFileAttach('Identidad', file)}
+              onAttachIdentityFile={(file) => {
+                void handleFileAttach('Identidad', file);
+              }}
               onSaveBiometricCapture={handleSaveBiometricCapture}
               onBiometricResultChange={setBiometricResult}
+              maxCaptureBytes={230 * 1024}
             />
           </div>
         </div>
@@ -1859,18 +2566,70 @@ export function PublicCreditApplicationForm({
             </p>
           </div>
 
-          <label className="flex items-start gap-2.5 p-3 rounded-xl border border-white/12 bg-white/[0.02] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={consentAccepted}
-              onChange={(e) => setConsentAccepted(e.target.checked)}
-              className="mt-0.5 rounded border-white/25 bg-[#030816]"
-            />
-            <span className="text-xs text-slate-200 leading-relaxed">
-              Acepto expresamente los términos y autorizo el tratamiento de datos bajo la versión{' '}
-              <strong className="font-mono text-white">{CONSENT_VERSION}</strong>.
-            </span>
-          </label>
+          {([1, 2, 3, 4] as const).some((s) => validation.stepErrorCounts[s] > 0) && (
+            <div className="p-3.5 rounded-xl border border-amber-400/35 bg-amber-500/10 text-xs text-amber-200 space-y-2">
+              <div className="flex items-center gap-2 font-semibold text-amber-100">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-300" />
+                <span>Tienes campos pendientes o con formato inválido antes de enviar:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {([1, 2, 3, 4] as const)
+                  .filter((s) => validation.stepErrorCounts[s] > 0)
+                  .map((s) => {
+                    const labels: Record<1 | 2 | 3 | 4, string> = {
+                      1: '1. Solicitante',
+                      2: '2. Laboral y Finanzas',
+                      3: '3. Condiciones',
+                      4: '4. Referencias',
+                    };
+                    const count = validation.stepErrorCounts[s];
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => {
+                          markStepTouched(s);
+                          goToStep(s);
+                          focusField(validation.firstInvalidFieldByStep[s]);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-300/35 text-[11px] font-semibold text-amber-100 cursor-pointer transition-colors"
+                      >
+                        {labels[s]} ({count} {count === 1 ? 'campo' : 'campos'}) →
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label
+              className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer select-none transition-colors ${
+                getFieldError('consentAccepted')
+                  ? 'border-rose-400/60 bg-rose-500/10'
+                  : consentAccepted
+                    ? 'border-emerald-400/45 bg-emerald-500/[0.06]'
+                    : 'border-white/12 bg-white/[0.02]'
+              }`}
+            >
+              <input
+                data-field="consentAccepted"
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(e) => {
+                  setConsentAccepted(e.target.checked);
+                  markTouched('consentAccepted');
+                }}
+                aria-invalid={Boolean(getFieldError('consentAccepted'))}
+                className="mt-0.5 rounded border-white/25 bg-[#030816]"
+              />
+              <span className="text-xs text-slate-200 leading-relaxed">
+                Acepto expresamente los términos y autorizo el tratamiento de datos bajo la versión{' '}
+                <strong className="font-mono text-white">{CONSENT_VERSION}</strong>.
+              </span>
+            </label>
+            <FieldValidationFeedback variant="dark" error={getFieldError('consentAccepted')} />
+          </div>
         </div>
       )}
 

@@ -81,6 +81,19 @@ export const CLIENT_SERVICE_REQUEST_CATALOG: ClientServiceRequestCatalogItem[] =
     estimatedSla: '24 a 48 horas laborables',
   },
   {
+    type: 'AYUDA_ATRASO',
+    label: 'Plan de Alivio Financiero por Atraso',
+    shortLabel: 'Ayuda por Atraso',
+    description:
+      'Asistencia prioritaria para clientes con cuotas vencidas: acuerdo de pago, prórroga temporal, reestructuración de plazo o evaluación de descuento de mora.',
+    requiresLoan: true,
+    showAmountField: true,
+    showDateField: true,
+    placeholderDetails:
+      'Cuéntanos tu situación actual, qué cuota mensual puedes asumir cómodamente y en qué fecha podrías retomar tus pagos.',
+    estimatedSla: 'Prioritario · Menos de 24 horas laborables',
+  },
+  {
     type: 'ABONO_EXTRAORDINARIO',
     label: 'Abono Extraordinario o Cancelación Anticipada',
     shortLabel: 'Abono / Cancelación',

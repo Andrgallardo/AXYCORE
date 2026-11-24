@@ -5,7 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginGate } from './components/LoginGate';
 import { AppShell } from './components/AppShell';
 import { ApplicationDetailDrawer } from './components/ApplicationDetailDrawer';
-import { ExecutiveDashboardView } from './views/ExecutiveDashboardView';
+import { DirectorCommandSkeleton } from './components/director/DirectorSkeletons';
 import { CustomerLoan360Drawer } from './views/collections/CustomerLoan360Drawer';
 import { AXYCORE_MODULE_CATALOG } from './engine/multiTenantEngine';
 import { runPendingAutoPortfolioRemigrationIfNeeded } from './services/appsheetMigrationService';
@@ -16,6 +16,9 @@ import type { DgiiEcfDocumentRecord } from './types/dgiiEcf';
 import type { EcfAdjustmentPrefill } from './views/operations/dgii/DgiiEmitInvoiceView';
 
 // Route-level code splitting for faster initial load and lighter main bundle
+const ExecutiveDashboardView = React.lazy(() =>
+  import('./views/ExecutiveDashboardView').then((m) => ({ default: m.ExecutiveDashboardView }))
+);
 const DirectorDedicatedView = React.lazy(() =>
   import('./components/DirectorSection').then((m) => ({ default: m.DirectorDedicatedView }))
 );
@@ -796,7 +799,13 @@ function AxyCoreRouter() {
           </button>
         </div>
       )}
-      <Suspense fallback={<ViewLoadingSkeleton />}>{renderSection()}</Suspense>
+      <Suspense
+        fallback={
+          activeSection === 'director' ? <DirectorCommandSkeleton /> : <ViewLoadingSkeleton />
+        }
+      >
+        {renderSection()}
+      </Suspense>
       <ApplicationDetailDrawer
         applicationId={selectedApplicationId}
         onClose={() => setSelectedApplicationId(null)}

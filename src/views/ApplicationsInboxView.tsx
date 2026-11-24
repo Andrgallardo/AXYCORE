@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, ArrowRight, Bell, CheckCheck, CheckCircle2, Cpu, Eye, Link2, Mail, MessageSquareText, Radio, RefreshCw, Search, Send, SlidersHorizontal, UserCheck, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, Bell, CheckCheck, CheckCircle2, Cpu, Eye, Link2, Mail, MessageCircle, MessageSquareText, Radio, RefreshCw, Search, Send, SlidersHorizontal, UserCheck, X } from 'lucide-react';
 import { useAxyCore } from '../context/AxyCoreContext';
 import { ApplicationDetailDrawer, type ApplicationDrawerTab } from '../components/ApplicationDetailDrawer';
 import { ApplicationEditModal } from '../components/ApplicationEditModal';
 import { ConditionAdjustmentModal } from '../components/ConditionAdjustmentModal';
 import { PreEvaluationValidationAlert } from '../components/PreEvaluationValidationAlert';
+import { AdminClientMessagesPanel } from '../components/clientPortal/AdminClientMessagesPanel';
 import { EMAIL_EVENT_LABELS } from '../engine/emailTemplates';
 import { PAYMENT_FREQUENCY_LABELS } from '../engine/integratedCreditEngine';
 import {
@@ -66,11 +67,18 @@ export function ApplicationsInboxView() {
     emailNotifications,
     smtpConfigured,
     clientServiceRequests,
+    clientPortalMessages,
     publicCreditApplications,
+    organization,
     rbac,
   } = useAxyCore();
 
-  const [activeTab, setActiveTab] = useState<'applications' | 'public_web' | 'client_requests' | 'emails'>('applications');
+  const [activeTab, setActiveTab] = useState<'applications' | 'public_web' | 'client_requests' | 'client_messages' | 'emails'>('applications');
+
+  const unreadClientMessagesCount = useMemo(
+    () => clientPortalMessages.filter((m) => m.senderRole === 'CLIENT' && !m.readByStaff).length,
+    [clientPortalMessages]
+  );
   const [pubAppStatusFilter, setPubAppStatusFilter] = useState<'ALL' | PublicCreditApplicationStatus>('ALL');
   const [selectedPublicApp, setSelectedPublicApp] = useState<PublicCreditApplicationRecord | null>(null);
   const [convertingPubAppId, setConvertingPubAppId] = useState<string | null>(null);
@@ -500,6 +508,18 @@ export function ApplicationsInboxView() {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('client_messages')}
+            className={`min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+              activeTab === 'client_messages'
+                ? 'bg-[#0066FF] text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            Mensajes Clientes ({unreadClientMessagesCount > 0 ? `${unreadClientMessagesCount} nuevos` : clientPortalMessages.length})
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('emails')}
             className={`min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
               activeTab === 'emails'
@@ -891,7 +911,14 @@ export function ApplicationsInboxView() {
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <p className="font-semibold text-slate-800 dark:text-slate-100">{cat.label}</p>
+                            <p className="font-semibold text-slate-800 dark:text-slate-100">
+                              {cat.label}
+                              {req.requestType === 'AYUDA_ATRASO' && (
+                                <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                                  · Prioridad Alivio
+                                </span>
+                              )}
+                            </p>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">{req.subject}</p>
                           </td>
                           <td className="py-3 px-4 max-w-xs">
@@ -935,6 +962,25 @@ export function ApplicationsInboxView() {
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {activeTab === 'client_messages' && userProfile && (
+        <section className="space-y-4">
+          <div>
+            <h3 className="font-display text-base font-bold text-slate-900 dark:text-white">
+              Mensajería Directa con Clientes del Portal
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Responde consultas, solicitudes de alivio por atraso, comprobantes y renovaciones en tiempo real.
+            </p>
+          </div>
+          <AdminClientMessagesPanel
+            messages={clientPortalMessages}
+            staffProfile={userProfile}
+            organization={organization}
+            isReadOnlyAuditor={rbac.isReadOnlyAuditor}
+          />
         </section>
       )}
 

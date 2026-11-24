@@ -1850,23 +1850,52 @@ export async function bootstrapUserAndOrg(
   const isPrimaryAdmin = isPrimarySuperAdminEmail(cleanEmail) && fbUser.emailVerified;
 
   if (isPrimaryAdmin) {
-    const existingData = snap && snap.exists() ? (snap.data() as UserProfile) : null;
+    const existingData =
+      snap && snap.exists()
+        ? (snap.data() as UserProfile & { createdAt?: unknown })
+        : null;
+    const hasValidExistingCreatedAt = Boolean(
+      existingData?.createdAt &&
+        typeof existingData.createdAt === 'object' &&
+        ('seconds' in (existingData.createdAt as Record<string, unknown>) ||
+          typeof (existingData.createdAt as { toMillis?: unknown }).toMillis === 'function')
+    );
     const forcedAdminProfile = cleanObject({
-      ...(existingData || {}),
       uid: fbUser.uid,
       email: cleanEmail || 'andrygallardo7@gmail.com',
-      displayName: fbUser.displayName || existingData?.displayName || 'Andry Gallardo',
+      displayName: (fbUser.displayName || existingData?.displayName || 'Andry Gallardo').trim(),
       role: 'ADMIN' as const,
       organizationId: existingData?.organizationId || DEFAULT_ORG_ID,
       isSuperAdmin: true,
       status: 'ACTIVE' as const,
-      createdAt: existingData?.createdAt || serverTimestamp(),
+      linkedCustomerId: existingData?.linkedCustomerId,
+      declaredDocumentKey: existingData?.declaredDocumentKey,
+      declaredPhone: existingData?.declaredPhone,
+      invitationId: existingData?.invitationId,
+      invitationStatus: existingData?.invitationStatus,
+      invitedBy: existingData?.invitedBy,
+      invitedAt: existingData?.invitedAt,
+      createdAt: hasValidExistingCreatedAt ? existingData!.createdAt : serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    const alreadyActiveAdmin = Boolean(
+      existingData &&
+        existingData.role === 'ADMIN' &&
+        existingData.status === 'ACTIVE' &&
+        existingData.organizationId
+    );
     try {
-      await setDoc(userRef, forcedAdminProfile, { merge: true });
+      // Full sanitized write heals legacy keys that could fail strict isValidUser hasOnly rules
+      await setDoc(userRef, forcedAdminProfile);
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `users/${fbUser.uid}`);
+      if (alreadyActiveAdmin) {
+        console.warn(
+          'No se pudo refrescar el perfil del SuperAdministrador; continuando con sesión activa:',
+          err
+        );
+      } else {
+        handleFirestoreError(err, OperationType.WRITE, `users/${fbUser.uid}`);
+      }
     }
     profile = {
       uid: forcedAdminProfile.uid,
@@ -1876,6 +1905,9 @@ export async function bootstrapUserAndOrg(
       organizationId: forcedAdminProfile.organizationId,
       isSuperAdmin: true,
       status: 'ACTIVE',
+      ...(forcedAdminProfile.linkedCustomerId
+        ? { linkedCustomerId: forcedAdminProfile.linkedCustomerId }
+        : {}),
     };
   } else {
     const existingProfile = snap && snap.exists() ? (snap.data() as UserProfile) : null;
@@ -2095,7 +2127,7 @@ export async function bootstrapUserAndOrg(
         updatedAt: serverTimestamp(),
       });
       await setDoc(orgRef, orgDoc).catch((err) =>
-        handleFirestoreError(err, OperationType.CREATE, `organizations/${DEFAULT_ORG_ID}`)
+        console.warn(`No se pudo inicializar organizations/${DEFAULT_ORG_ID}:`, err)
       );
     } else if (orgSnap && orgSnap.exists()) {
       const currentOrg = orgSnap.data() as OrganizationRecord;
@@ -2183,14 +2215,16 @@ export async function bootstrapUserAndOrg(
       const licRef = doc(db, 'licenses', 'lic_org_axycore_main');
       const licSnap = await getDoc(licRef).catch(() => null);
       if (licSnap && !licSnap.exists()) {
-        const licDoc: TenantLicenseRecord = {
+        const licDoc: TenantLicenseRecord & { licenseKey?: string; autoRenew?: boolean } = {
           id: 'lic_org_axycore_main',
           organizationId: DEFAULT_ORG_ID,
           organizationName: SU_GLORIA_MANO_AMIGA_ORG.name,
+          licenseKey: 'AXY-SGMA-CORP-2025',
           planCode: 'CORPORATIVO',
           status: 'ACTIVA',
           startDate: '2025-01-01',
           endDate: '2027-12-31',
+          autoRenew: true,
           maxUsers: 200,
           maxStorageGb: 500,
           maxMonthlyOperations: 250000,
@@ -2238,7 +2272,7 @@ export async function bootstrapUserAndOrg(
       const subRef = doc(db, 'subscriptions', 'sub_org_axycore_main');
       const subSnap = await getDoc(subRef).catch(() => null);
       if (subSnap && !subSnap.exists()) {
-        const subDoc: TenantSubscriptionRecord = {
+        const subDoc: TenantSubscriptionRecord & { amountUsd?: number } = {
           id: 'sub_org_axycore_main',
           organizationId: DEFAULT_ORG_ID,
           organizationName: SU_GLORIA_MANO_AMIGA_ORG.name,
@@ -2246,6 +2280,7 @@ export async function bootstrapUserAndOrg(
           planCode: 'CORPORATIVO',
           billingCycle: 'ANUAL',
           amount: 1490,
+          amountUsd: 1490,
           currency: 'USD',
           status: 'ACTIVA',
           nextBillingDate: '2027-01-01',
@@ -2290,7 +2325,7 @@ export async function bootstrapUserAndOrg(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }).catch((err) =>
-        handleFirestoreError(err, OperationType.CREATE, `credit_policies/${DEFAULT_POLICY_V2.id}`)
+        console.warn(`No se pudo inicializar credit_policies/${DEFAULT_POLICY_V2.id}:`, err)
       );
     }
   }
@@ -8457,8 +8492,19 @@ export async function inviteStaffUserByAdmin(params: {
 
 export async function fetchDirectorAnalysisFromApi(payload: {
   question?: string;
+  focusMode?: string;
+  periodLabel?: string;
+  currencyScope?: string;
+  previousBriefingSummary?: string;
   scopedContext: Record<string, unknown>;
   actorId: string;
+  organization?: {
+    id: string;
+    name: string;
+    status?: string;
+    licenseStatus?: string;
+    enabledModules?: string[];
+  };
 }) {
   const resp = await fetch('/api/ai/director', {
     method: 'POST',
@@ -8477,6 +8523,13 @@ export async function fetchBelaAssistantFromApi(payload: {
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
   scopedContext: Record<string, unknown>;
   actorId: string;
+  organization?: {
+    id: string;
+    name: string;
+    status?: string;
+    licenseStatus?: string;
+    enabledModules?: string[];
+  };
 }) {
   const resp = await fetch('/api/ai/bela', {
     method: 'POST',

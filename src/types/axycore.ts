@@ -436,6 +436,7 @@ export type ClientServiceRequestType =
   | 'CARTA_SALDO'
   | 'ESTADO_CUENTA'
   | 'ACUERDO_PRORROGA'
+  | 'AYUDA_ATRASO'
   | 'ACTUALIZACION_DATOS'
   | 'ABONO_EXTRAORDINARIO'
   | 'VINCULACION_EXPEDIENTE'
@@ -469,6 +470,36 @@ export interface ClientServiceRequestRecord {
   resolvedBy?: string | null;
   resolvedByName?: string | null;
   resolvedAt?: string | null;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type ClientPortalMessageCategory =
+  | 'CONSULTA_GENERAL'
+  | 'PAGOS_Y_CUOTAS'
+  | 'RENOVACION'
+  | 'AYUDA_ATRASO'
+  | 'DOCUMENTOS';
+
+export type ClientPortalMessageSenderRole = 'CLIENT' | 'ADMIN_STAFF';
+
+export interface ClientPortalMessageRecord {
+  id: string;
+  organizationId: string;
+  clientUid: string;
+  clientEmail: string;
+  clientName: string;
+  customerId?: string | null;
+  loanId?: string | null;
+  loanNumber?: string | null;
+  senderUid: string;
+  senderName: string;
+  senderRole: ClientPortalMessageSenderRole;
+  category: ClientPortalMessageCategory;
+  subject?: string | null;
+  body: string;
+  readByClient: boolean;
+  readByStaff: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -1702,18 +1733,60 @@ export type ExecutivePeriodPreset =
 
 export type ExecutiveCurrencyMode = 'DOP' | 'USD' | 'SEPARATED';
 
+export type DirectorFocusMode =
+  | 'INTEGRAL'
+  | 'RIESGO_MORA'
+  | 'ORIGINACION'
+  | 'COBRANZA_FLUJO'
+  | 'ESCENARIOS_STRESS';
+
+export type DirectorHealthStatus = 'OPTIMA' | 'ESTABLE' | 'ATENCION' | 'CRITICA';
+
+export interface DirectorPriorityRisk {
+  title: string;
+  severity: 'CRITICA' | 'ALTA' | 'MEDIA';
+  area: string;
+  evidence: string;
+  mitigation: string;
+  targetSection?: NavSectionId;
+}
+
+export interface DirectorStrategicOpportunity {
+  title: string;
+  detail: string;
+  expectedImpact: string;
+  targetSection?: NavSectionId;
+}
+
 export interface DirectorAnalysisResponse {
+  analysisId?: string;
   modelUsed: string;
   generatedAtIso: string;
+  focusMode?: DirectorFocusMode;
+  periodLabel?: string;
+  currencyScope?: string;
+  questionAsked?: string;
+  healthStatus?: DirectorHealthStatus;
+  executiveHeadline?: string;
   executiveSummary: string;
+  keyMetricsCited?: Array<{
+    label: string;
+    value: string;
+    context?: string;
+  }>;
   verifiedObservations: string[];
   inferences: string[];
+  priorityRisks?: DirectorPriorityRisk[];
+  strategicOpportunities?: DirectorStrategicOpportunity[];
   recommendedActions: Array<{
     title: string;
     detail: string;
+    priority?: 'INMEDIATA' | 'CORTO_PLAZO' | 'ESTRATEGICA';
+    ownerRole?: string;
     targetSection?: NavSectionId;
   }>;
   dataLimitations: string[];
+  followUpQuestions?: string[];
 }
 
 export interface BelaActionSuggestion {

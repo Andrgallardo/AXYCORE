@@ -15,7 +15,7 @@ import {
   auth,
   db,
   googleProvider,
-  handleFirestoreError,
+  logFirestoreError,
   OperationType,
   testFirestoreConnection,
 } from '../firebase/config';
@@ -195,6 +195,7 @@ import type {
   BankTransactionRecord,
   BelaChatMessage,
   BusinessRecord,
+  ClientPortalMessageRecord,
   ClientServiceRequestRecord,
   CollectionAccountRecord,
   CollectionActionRecord,
@@ -214,6 +215,7 @@ import type {
   CustomerDisputeRecord,
   CustomerRecord,
   DirectorAnalysisResponse,
+  DirectorFocusMode,
   DisbursementRecord,
   EmailNotificationRecord,
   ExecutiveCurrencyMode,
@@ -358,6 +360,8 @@ interface AxyCoreContextValue {
   clearCorporateAccessSelection: () => void;
   portalAccessError: string | null;
   clearPortalAccessError: () => void;
+  retrySessionBootstrap: () => Promise<void>;
+  switchAuthenticatedPortal: (mode: PortalAccessMode) => Promise<void>;
   parsedExternalPortalLink: ParsedExternalPortalLink;
   externalInstitutionPortal: PublicInstitutionPortalRecord | null;
   externalPortalLoading: boolean;
@@ -366,6 +370,7 @@ interface AxyCoreContextValue {
   setExternalPortalIntent: (intent: ExternalPortalActionIntent) => void;
   exitExternalInstitutionLink: () => void;
   clientServiceRequests: ClientServiceRequestRecord[];
+  clientPortalMessages: ClientPortalMessageRecord[];
   publicCreditApplications: PublicCreditApplicationRecord[];
   verifyAndLinkClientProfile: (params?: {
     documentNumber?: string;
@@ -406,9 +411,20 @@ interface AxyCoreContextValue {
   recentActivityItems: RecentActivityItem[];
   aiConfigured: boolean;
   directorAnalysis: DirectorAnalysisResponse | null;
+  directorHistory: DirectorAnalysisResponse[];
   directorLoading: boolean;
   directorError: string | null;
-  runDirectorAnalysis: (question?: string) => Promise<void>;
+  runDirectorAnalysis: (
+    question?: string,
+    options?: {
+      focusMode?: DirectorFocusMode;
+      periodOverride?: ExecutivePeriodPreset;
+      currencyOverride?: ExecutiveCurrencyMode;
+      followUp?: boolean;
+    }
+  ) => Promise<void>;
+  selectDirectorHistoryItem: (analysisId: string) => void;
+  clearDirectorHistory: () => void;
   belaOpen: boolean;
   setBelaOpen: (open: boolean) => void;
   belaMessages: BelaChatMessage[];
@@ -722,6 +738,10 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   resolvedCorporateOrgRef.current = resolvedCorporateOrg;
 
   const [portalAccessError, setPortalAccessError] = useState<string | null>(null);
+  const finalizeSessionRef = useRef<((fbUser: FirebaseUser) => Promise<void>) | null>(null);
+  const inFlightSessionKeyRef = useRef<string | null>(null);
+  const inFlightSessionPromiseRef = useRef<Promise<void> | null>(null);
+  const bootstrapSeqRef = useRef<number>(0);
 
   const [biometricSupported, setBiometricSupported] = useState<boolean>(false);
   const [biometricLabel, setBiometricLabel] = useState<string>(() => detectBiometricPlatformLabel());
@@ -792,6 +812,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
 
   const [aiConfigured, setAiConfigured] = useState<boolean>(false);
   const [directorAnalysis, setDirectorAnalysis] = useState<DirectorAnalysisResponse | null>(null);
+  const [directorHistory, setDirectorHistory] = useState<DirectorAnalysisResponse[]>([]);
   const [directorLoading, setDirectorLoading] = useState<boolean>(false);
   const [directorError, setDirectorError] = useState<string | null>(null);
 
@@ -917,6 +938,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
   const [impulsaConfigs, setImpulsaConfigs] = useState<ImpulsaEngineConfig[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
   const [clientServiceRequests, setClientServiceRequests] = useState<ClientServiceRequestRecord[]>([]);
+  const [clientPortalMessages, setClientPortalMessages] = useState<ClientPortalMessageRecord[]>([]);
   const [publicCreditApplications, setPublicCreditApplications] = useState<PublicCreditApplicationRecord[]>([]);
   const [emailNotifications, setEmailNotifications] = useState<EmailNotificationRecord[]>([]);
   const [smtpConfigured, setSmtpConfigured] = useState<boolean>(false);
@@ -1029,7 +1051,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           setExternalPortalError(
             `No encontramos una institución activa registrada con el código "${parsedExternalPortalLink.portalCode}". Verifica el enlace con tu entidad financiera.`
           );
-        } else if (!portal.portalEnabled || portal.status !== 'ACTIVA') {
+        } else if (!portal.portalEnabled || (portal.status !== 'ACTIVA' && portal.status !== 'PRUEBA')) {
           setExternalInstitutionPortal(portal);
           externalInstitutionPortalRef.current = portal;
           setExternalPortalError(
@@ -1160,7 +1182,13 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
 
     testFirestoreConnection();
     const finalizeAuthenticatedSession = async (fbUser: FirebaseUser) => {
-      try {
+      const inFlightKey = `${fbUser.uid}|${portalModeRef.current || ''}|${resolvedCorporateOrgRef.current?.id || ''}`;
+      if (inFlightSessionPromiseRef.current && inFlightSessionKeyRef.current === inFlightKey) {
+        return inFlightSessionPromiseRef.current;
+      }
+      const seq = ++bootstrapSeqRef.current;
+      const run = (async () => {
+        try {
         // If user arrived via an institution external link, resolve the institution's organizationId first
         let preferredExternalOrgId = externalInstitutionPortalRef.current?.organizationId;
         if (!preferredExternalOrgId && typeof window !== 'undefined') {
@@ -1319,12 +1347,45 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             }).catch(() => {});
           }
         }
+        if (seq !== bootstrapSeqRef.current) return;
       } catch (err) {
         console.error('Bootstrap error:', err);
+        if (seq !== bootstrapSeqRef.current) return;
+        const raw = err instanceof Error ? err.message : String(err);
+        const lower = raw.toLowerCase();
+        if (
+          lower.includes('missing or insufficient permissions') ||
+          lower.includes('permission-denied')
+        ) {
+          setPortalAccessError(
+            'No pudimos validar los permisos de tu cuenta en la base de datos en este momento. Presiona "Reintentar acceso" o cierra sesión e inicia nuevamente.'
+          );
+        } else if (
+          lower.includes('offline') ||
+          lower.includes('network') ||
+          lower.includes('unavailable')
+        ) {
+          setPortalAccessError(
+            'No hay conexión estable con el servidor de datos de AxyCore. Verifica tu internet y presiona "Reintentar acceso".'
+          );
+        } else {
+          setPortalAccessError(
+            'Ocurrió un inconveniente al inicializar tu sesión. Presiona "Reintentar acceso" o cierra sesión e intenta de nuevo.'
+          );
+        }
       } finally {
+        if (inFlightSessionKeyRef.current === inFlightKey) {
+          inFlightSessionKeyRef.current = null;
+          inFlightSessionPromiseRef.current = null;
+        }
         setAuthReady(true);
       }
+      })();
+      inFlightSessionKeyRef.current = inFlightKey;
+      inFlightSessionPromiseRef.current = run;
+      return run;
     };
+    finalizeSessionRef.current = finalizeAuthenticatedSession;
 
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
@@ -1399,6 +1460,11 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     const isAdmin = userProfile.role === 'ADMIN';
     const superAdmin = isSuperAdminUser(userProfile, firebaseUser.emailVerified);
     const unsubs: Array<() => void> = [];
+    const handleSnapshotError = (err: unknown, path: string) => {
+      if (!auth.currentUser) return;
+      logFirestoreError(err, OperationType.LIST, path);
+      setDataLoading(false);
+    };
 
     const allOrgsQuery = collection(db, 'organizations');
     unsubs.push(
@@ -1560,7 +1626,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             }
           }
         },
-        (err) => handleFirestoreError(err, OperationType.LIST, 'organizations')
+        (err) => handleSnapshotError(err, 'organizations')
       )
     );
 
@@ -1641,7 +1707,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             setPolicies(snap.docs.map((d) => d.data() as CreditPolicyRecord));
           }
         },
-        (err) => handleFirestoreError(err, OperationType.LIST, 'credit_policies')
+        (err) => handleSnapshotError(err, 'credit_policies')
       )
     );
 
@@ -1734,7 +1800,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             }
           }
         },
-        (err) => handleFirestoreError(err, OperationType.LIST, 'applications')
+        (err) => handleSnapshotError(err, 'applications')
       )
     );
 
@@ -1754,7 +1820,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             createdCustomers = snap.docs.map((d) => d.data() as CustomerRecord);
             emitMergedCustomers();
           },
-          (err) => handleFirestoreError(err, OperationType.LIST, 'customers')
+          (err) => handleSnapshotError(err, 'customers')
         )
       );
       if (linkedCustId) {
@@ -1774,7 +1840,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         onSnapshot(
           query(collection(db, 'customers'), where('organizationId', '==', orgId)),
           (snap) => setCustomers(snap.docs.map((d) => d.data() as CustomerRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'customers')
+          (err) => handleSnapshotError(err, 'customers')
         )
       );
     }
@@ -1786,7 +1852,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       onSnapshot(
         bizQuery,
         (snap) => setBusinesses(snap.docs.map((d) => d.data() as BusinessRecord)),
-        (err) => handleFirestoreError(err, OperationType.LIST, 'businesses')
+        (err) => handleSnapshotError(err, 'businesses')
       )
     );
 
@@ -1797,7 +1863,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       onSnapshot(
         docQuery,
         (snap) => setDocuments(snap.docs.map((d) => d.data() as ApplicationDocumentRecord)),
-        (err) => handleFirestoreError(err, OperationType.LIST, 'application_documents')
+        (err) => handleSnapshotError(err, 'application_documents')
       )
     );
 
@@ -1808,7 +1874,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       onSnapshot(
         scoreQuery,
         (snap) => setScoringExecutions(snap.docs.map((d) => d.data() as ScoringExecutionRecord)),
-        (err) => handleFirestoreError(err, OperationType.LIST, 'scoring_executions')
+        (err) => handleSnapshotError(err, 'scoring_executions')
       )
     );
 
@@ -1828,7 +1894,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             createdLoans = snap.docs.map((d) => d.data() as LoanRecord);
             emitMergedLoans();
           },
-          (err) => handleFirestoreError(err, OperationType.LIST, 'loans')
+          (err) => handleSnapshotError(err, 'loans')
         )
       );
       if (linkedCustId) {
@@ -1852,7 +1918,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         onSnapshot(
           query(collection(db, 'loans'), where('organizationId', '==', orgId)),
           (snap) => setLoans(snap.docs.map((d) => d.data() as LoanRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'loans')
+          (err) => handleSnapshotError(err, 'loans')
         )
       );
     }
@@ -1864,7 +1930,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       onSnapshot(
         emailQuery,
         (snap) => setEmailNotifications(snap.docs.map((d) => d.data() as EmailNotificationRecord)),
-        (err) => handleFirestoreError(err, OperationType.LIST, 'email_notifications')
+        (err) => handleSnapshotError(err, 'email_notifications')
       )
     );
 
@@ -1884,6 +1950,22 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
+    const portalMessagesQuery = isExternal
+      ? query(
+          collection(db, 'client_portal_messages'),
+          where('organizationId', '==', orgId),
+          where('clientUid', '==', userProfile.uid)
+        )
+      : query(collection(db, 'client_portal_messages'), where('organizationId', '==', orgId));
+    unsubs.push(
+      onSnapshot(
+        portalMessagesQuery,
+        (snap) =>
+          setClientPortalMessages(snap.docs.map((d) => d.data() as ClientPortalMessageRecord)),
+        () => {}
+      )
+    );
+
     // Internal-only operational collections (NEVER subscribed for EXTERNAL_CLIENT)
     if (!isExternal) {
       unsubs.push(
@@ -1893,14 +1975,14 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             setPublicCreditApplications(
               snap.docs.map((d) => d.data() as PublicCreditApplicationRecord)
             ),
-          () => {}
+          (err) => handleSnapshotError(err, 'public_credit_applications')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'financial_analyses'), where('organizationId', '==', orgId)),
           (snap) => setFinancialAnalyses(snap.docs.map((d) => d.data() as FinancialAnalysisRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'financial_analyses')
+          (err) => handleSnapshotError(err, 'financial_analyses')
         )
       );
       unsubs.push(
@@ -1910,49 +1992,49 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             setApplicationDecisionHistory(
               snap.docs.map((d) => d.data() as ApplicationDecisionHistoryRecord)
             ),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'application_decision_history')
+          (err) => handleSnapshotError(err, 'application_decision_history')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'credit_evaluations'), where('organizationId', '==', orgId)),
           (snap) => setEvaluations(snap.docs.map((d) => d.data() as CreditEvaluationRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'credit_evaluations')
+          (err) => handleSnapshotError(err, 'credit_evaluations')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'committee_decisions'), where('organizationId', '==', orgId)),
           (snap) => setCommitteeDecisions(snap.docs.map((d) => d.data() as CommitteeDecisionRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'committee_decisions')
+          (err) => handleSnapshotError(err, 'committee_decisions')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'formalizations'), where('organizationId', '==', orgId)),
           (snap) => setFormalizations(snap.docs.map((d) => d.data() as FormalizationRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'formalizations')
+          (err) => handleSnapshotError(err, 'formalizations')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'disbursements'), where('organizationId', '==', orgId)),
           (snap) => setDisbursements(snap.docs.map((d) => d.data() as DisbursementRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'disbursements')
+          (err) => handleSnapshotError(err, 'disbursements')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'credit_renewals'), where('organizationId', '==', orgId)),
           (snap) => setCreditRenewals(snap.docs.map((d) => d.data() as CreditRenewalRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'credit_renewals')
+          (err) => handleSnapshotError(err, 'credit_renewals')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'audit_logs'), where('organizationId', '==', orgId)),
           (snap) => setAuditLogs(snap.docs.map((d) => d.data() as AuditLogRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'audit_logs')
+          (err) => handleSnapshotError(err, 'audit_logs')
         )
       );
 
@@ -1961,147 +2043,147 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         onSnapshot(
           query(collection(db, 'loan_installments'), where('organizationId', '==', orgId)),
           (snap) => setLoanInstallments(snap.docs.map((d) => d.data() as LoanInstallmentRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'loan_installments')
+          (err) => handleSnapshotError(err, 'loan_installments')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collection_accounts'), where('organizationId', '==', orgId)),
           (snap) => setCollectionAccounts(snap.docs.map((d) => d.data() as CollectionAccountRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_accounts')
+          (err) => handleSnapshotError(err, 'collection_accounts')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collection_assignments'), where('organizationId', '==', orgId)),
           (snap) => setCollectionAssignments(snap.docs.map((d) => d.data() as CollectionAssignmentRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_assignments')
+          (err) => handleSnapshotError(err, 'collection_assignments')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collection_actions'), where('organizationId', '==', orgId)),
           (snap) => setCollectionActions(snap.docs.map((d) => d.data() as CollectionActionRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_actions')
+          (err) => handleSnapshotError(err, 'collection_actions')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collection_tasks'), where('organizationId', '==', orgId)),
           (snap) => setCollectionTasks(snap.docs.map((d) => d.data() as CollectionTaskRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_tasks')
+          (err) => handleSnapshotError(err, 'collection_tasks')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'payment_promises'), where('organizationId', '==', orgId)),
           (snap) => setPaymentPromises(snap.docs.map((d) => d.data() as PaymentPromiseRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'payment_promises')
+          (err) => handleSnapshotError(err, 'payment_promises')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'payment_agreements'), where('organizationId', '==', orgId)),
           (snap) => setPaymentAgreements(snap.docs.map((d) => d.data() as PaymentAgreementRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'payment_agreements')
+          (err) => handleSnapshotError(err, 'payment_agreements')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'payments'), where('organizationId', '==', orgId)),
           (snap) => setPayments(snap.docs.map((d) => d.data() as PaymentRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'payments')
+          (err) => handleSnapshotError(err, 'payments')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'payment_allocations'), where('organizationId', '==', orgId)),
           (snap) => setPaymentAllocations(snap.docs.map((d) => d.data() as PaymentAllocationRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'payment_allocations')
+          (err) => handleSnapshotError(err, 'payment_allocations')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'payment_reversals'), where('organizationId', '==', orgId)),
           (snap) => setPaymentReversals(snap.docs.map((d) => d.data() as PaymentReversalRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'payment_reversals')
+          (err) => handleSnapshotError(err, 'payment_reversals')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collection_receipts'), where('organizationId', '==', orgId)),
           (snap) => setCollectionReceipts(snap.docs.map((d) => d.data() as CollectionReceiptRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_receipts')
+          (err) => handleSnapshotError(err, 'collection_receipts')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'payment_intents'), where('organizationId', '==', orgId)),
           (snap) => setPaymentIntents(snap.docs.map((d) => d.data() as PaymentIntentRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'payment_intents')
+          (err) => handleSnapshotError(err, 'payment_intents')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'bank_transactions'), where('organizationId', '==', orgId)),
           (snap) => setBankTransactions(snap.docs.map((d) => d.data() as BankTransactionRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'bank_transactions')
+          (err) => handleSnapshotError(err, 'bank_transactions')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'reconciliation_matches'), where('organizationId', '==', orgId)),
           (snap) => setReconciliationMatches(snap.docs.map((d) => d.data() as ReconciliationMatchRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'reconciliation_matches')
+          (err) => handleSnapshotError(err, 'reconciliation_matches')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'reconciliation_exceptions'), where('organizationId', '==', orgId)),
           (snap) => setReconciliationExceptions(snap.docs.map((d) => d.data() as ReconciliationExceptionRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'reconciliation_exceptions')
+          (err) => handleSnapshotError(err, 'reconciliation_exceptions')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collector_targets'), where('organizationId', '==', orgId)),
           (snap) => setCollectorTargets(snap.docs.map((d) => d.data() as CollectorTargetRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collector_targets')
+          (err) => handleSnapshotError(err, 'collector_targets')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collection_campaigns'), where('organizationId', '==', orgId)),
           (snap) => setCollectionCampaigns(snap.docs.map((d) => d.data() as CollectionCampaignRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_campaigns')
+          (err) => handleSnapshotError(err, 'collection_campaigns')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'message_templates'), where('organizationId', '==', orgId)),
           (snap) => setMessageTemplates(snap.docs.map((d) => d.data() as MessageTemplateRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'message_templates')
+          (err) => handleSnapshotError(err, 'message_templates')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'message_events'), where('organizationId', '==', orgId)),
           (snap) => setMessageEvents(snap.docs.map((d) => d.data() as MessageEventRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'message_events')
+          (err) => handleSnapshotError(err, 'message_events')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'risk_alerts'), where('organizationId', '==', orgId)),
           (snap) => setRiskAlerts(snap.docs.map((d) => d.data() as RiskAlertRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'risk_alerts')
+          (err) => handleSnapshotError(err, 'risk_alerts')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'customer_disputes'), where('organizationId', '==', orgId)),
           (snap) => setCustomerDisputes(snap.docs.map((d) => d.data() as CustomerDisputeRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'customer_disputes')
+          (err) => handleSnapshotError(err, 'customer_disputes')
         )
       );
       unsubs.push(
@@ -2112,105 +2194,105 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
               setCollectionPolicies(snap.docs.map((d) => d.data() as CollectionPolicyVersionRecord));
             }
           },
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_policy_versions')
+          (err) => handleSnapshotError(err, 'collection_policy_versions')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'collection_daily_snapshots'), where('organizationId', '==', orgId)),
           (snap) => setCollectionDailySnapshots(snap.docs.map((d) => d.data() as CollectionDailySnapshotRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'collection_daily_snapshots')
+          (err) => handleSnapshotError(err, 'collection_daily_snapshots')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'operating_expenses'), where('organizationId', '==', orgId)),
           (snap) => setOperatingExpenses(snap.docs.map((d) => d.data() as OperatingExpenseRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'operating_expenses')
+          (err) => handleSnapshotError(err, 'operating_expenses')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'investors'), where('organizationId', '==', orgId)),
           (snap) => setInvestors(snap.docs.map((d) => d.data() as InvestorRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'investors')
+          (err) => handleSnapshotError(err, 'investors')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'investor_transactions'), where('organizationId', '==', orgId)),
           (snap) => setInvestorTransactions(snap.docs.map((d) => d.data() as InvestorTransactionRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'investor_transactions')
+          (err) => handleSnapshotError(err, 'investor_transactions')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'accounting_accounts'), where('organizationId', '==', orgId)),
           (snap) => setAccountingAccounts(snap.docs.map((d) => d.data() as AccountingAccountRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'accounting_accounts')
+          (err) => handleSnapshotError(err, 'accounting_accounts')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'accounting_journal_entries'), where('organizationId', '==', orgId)),
           (snap) => setJournalEntries(snap.docs.map((d) => d.data() as JournalEntryRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'accounting_journal_entries')
+          (err) => handleSnapshotError(err, 'accounting_journal_entries')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'dgii_fiscal_configs'), where('organizationId', '==', orgId)),
           (snap) => setDgiiFiscalConfigs(snap.docs.map((d) => d.data() as DgiiFiscalConfigRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'dgii_fiscal_configs')
+          (err) => handleSnapshotError(err, 'dgii_fiscal_configs')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'dgii_certificates'), where('organizationId', '==', orgId)),
           (snap) => setDgiiCertificates(snap.docs.map((d) => d.data() as DgiiCertificateRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'dgii_certificates')
+          (err) => handleSnapshotError(err, 'dgii_certificates')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'dgii_encf_sequences'), where('organizationId', '==', orgId)),
           (snap) => setDgiiSequences(snap.docs.map((d) => d.data() as DgiiEncfSequenceRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'dgii_encf_sequences')
+          (err) => handleSnapshotError(err, 'dgii_encf_sequences')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'dgii_receivers'), where('organizationId', '==', orgId)),
           (snap) => setDgiiReceivers(snap.docs.map((d) => d.data() as DgiiReceiverRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'dgii_receivers')
+          (err) => handleSnapshotError(err, 'dgii_receivers')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'dgii_products'), where('organizationId', '==', orgId)),
           (snap) => setDgiiProducts(snap.docs.map((d) => d.data() as DgiiProductRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'dgii_products')
+          (err) => handleSnapshotError(err, 'dgii_products')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'dgii_ecf_documents'), where('organizationId', '==', orgId)),
           (snap) => setDgiiEcfDocuments(snap.docs.map((d) => d.data() as DgiiEcfDocumentRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'dgii_ecf_documents')
+          (err) => handleSnapshotError(err, 'dgii_ecf_documents')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'dgii_audit_logs'), where('organizationId', '==', orgId)),
           (snap) => setDgiiAuditLogs(snap.docs.map((d) => d.data() as DgiiAuditLogRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'dgii_audit_logs')
+          (err) => handleSnapshotError(err, 'dgii_audit_logs')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'altera_scenarios'), where('organizationId', '==', orgId)),
           (snap) => setAlteraScenarios(snap.docs.map((d) => d.data() as AlteraSavedScenarioRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'altera_scenarios')
+          (err) => handleSnapshotError(err, 'altera_scenarios')
         )
       );
       unsubs.push(
@@ -2218,28 +2300,28 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           query(collection(db, 'altera_recommendations'), where('organizationId', '==', orgId)),
           (snap) =>
             setAlteraRecommendations(snap.docs.map((d) => d.data() as AlteraRecommendationRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'altera_recommendations')
+          (err) => handleSnapshotError(err, 'altera_recommendations')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'altera_outcomes'), where('organizationId', '==', orgId)),
           (snap) => setAlteraOutcomes(snap.docs.map((d) => d.data() as AlteraOutcomeRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'altera_outcomes')
+          (err) => handleSnapshotError(err, 'altera_outcomes')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'altera_analyses'), where('organizationId', '==', orgId)),
           (snap) => setAlteraAnalyses(snap.docs.map((d) => d.data() as AlteraAnalysisLogRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'altera_analyses')
+          (err) => handleSnapshotError(err, 'altera_analyses')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'altera_configs'), where('organizationId', '==', orgId)),
           (snap) => setAlteraConfigs(snap.docs.map((d) => d.data() as AlteraConfigRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'altera_configs')
+          (err) => handleSnapshotError(err, 'altera_configs')
         )
       );
       unsubs.push(
@@ -2247,14 +2329,14 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           query(collection(db, 'impulsa_opportunities'), where('organizationId', '==', orgId)),
           (snap) =>
             setImpulsaOpportunities(snap.docs.map((d) => d.data() as ImpulsaOpportunityRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'impulsa_opportunities')
+          (err) => handleSnapshotError(err, 'impulsa_opportunities')
         )
       );
       unsubs.push(
         onSnapshot(
           query(collection(db, 'impulsa_configs'), where('organizationId', '==', orgId)),
           (snap) => setImpulsaConfigs(snap.docs.map((d) => d.data() as ImpulsaEngineConfig)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'impulsa_configs')
+          (err) => handleSnapshotError(err, 'impulsa_configs')
         )
       );
     }
@@ -2284,7 +2366,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         onSnapshot(
           fcmQuery,
           (snap) => setFcmDeviceTokens(snap.docs.map((d) => d.data() as FcmDeviceTokenRecord)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'fcm_tokens')
+          (err) => handleSnapshotError(err, 'fcm_tokens')
         )
       );
     } else {
@@ -2331,7 +2413,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         onSnapshot(
           query(collection(db, 'users'), where('organizationId', '==', orgId)),
           (snap) => setUsersList(snap.docs.map((d) => d.data() as UserProfile)),
-          (err) => handleFirestoreError(err, OperationType.LIST, 'users')
+          (err) => handleSnapshotError(err, 'users')
         )
       );
       unsubs.push(
@@ -3327,6 +3409,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 2. Check server-side Multi-Tenant directory before login
+      let serverErrorMsg: string | undefined;
       try {
         const resp = await fetch('/api/auth/resolve-corporate-code', {
           method: 'POST',
@@ -3338,28 +3421,60 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
           organization?: ResolvedCorporateOrgInfo;
           error?: string;
         };
-        if (!resp.ok || !data.found || !data.organization) {
-          return {
-            ok: false,
-            error:
-              data.error ||
-              `Código corporativo "${clean.toUpperCase()}" no encontrado. Verifica con tu administrador.`,
-          };
+        if (resp.ok && data.found && data.organization) {
+          setSelectedCorporateCode(data.organization.accessCode);
+          setResolvedCorporateOrg(data.organization);
+          resolvedCorporateOrgRef.current = data.organization;
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem('axycore_corporate_code', data.organization.accessCode);
+            window.sessionStorage.setItem('axycore_resolved_corp_org', JSON.stringify(data.organization));
+          }
+          return { ok: true, organization: data.organization };
         }
-        setSelectedCorporateCode(data.organization.accessCode);
-        setResolvedCorporateOrg(data.organization);
-        resolvedCorporateOrgRef.current = data.organization;
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem('axycore_corporate_code', data.organization.accessCode);
-          window.sessionStorage.setItem('axycore_resolved_corp_org', JSON.stringify(data.organization));
-        }
-        return { ok: true, organization: data.organization };
+        serverErrorMsg = data.error;
       } catch {
-        return {
-          ok: false,
-          error: 'No fue posible validar el código corporativo en este momento. Verifica tu conexión.',
-        };
+        // Fall through to persistent Firestore public_portals lookup
       }
+
+      // 3. Persistent fallback via Firestore public_portals/{code} (survives backend restarts)
+      try {
+        const publicPortal = await fetchPublicInstitutionPortal(clean);
+        if (publicPortal) {
+          const upperStatus = (publicPortal.status || 'ACTIVA').toUpperCase();
+          if (['SUSPENDIDA', 'DESACTIVADA', 'INACTIVA'].includes(upperStatus)) {
+            return {
+              ok: false,
+              error: `La empresa "${publicPortal.tradeName || publicPortal.name}" se encuentra ${publicPortal.status}.`,
+            };
+          }
+          const info: ResolvedCorporateOrgInfo = {
+            id: publicPortal.organizationId,
+            tenantId: publicPortal.organizationId,
+            accessCode: (publicPortal.portalCode || clean).toUpperCase(),
+            name: publicPortal.name,
+            tradeName: publicPortal.tradeName || publicPortal.name,
+            status: publicPortal.status || 'ACTIVA',
+            planCode: 'EMPRESARIAL',
+          };
+          setSelectedCorporateCode(info.accessCode);
+          setResolvedCorporateOrg(info);
+          resolvedCorporateOrgRef.current = info;
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem('axycore_corporate_code', info.accessCode);
+            window.sessionStorage.setItem('axycore_resolved_corp_org', JSON.stringify(info));
+          }
+          return { ok: true, organization: info };
+        }
+      } catch {
+        // ignore and return error below
+      }
+
+      return {
+        ok: false,
+        error:
+          serverErrorMsg ||
+          `Código corporativo "${clean.toUpperCase()}" no encontrado. Verifica con tu administrador.`,
+      };
     },
     [allOrganizations]
   );
@@ -3470,6 +3585,10 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     if (cred.user) {
       markBiometricSessionUnlocked(cred.user.uid);
       setBiometricLocked(false);
+      setFirebaseUser(cred.user);
+      if (cred.user.emailVerified && finalizeSessionRef.current) {
+        await finalizeSessionRef.current(cred.user);
+      }
     }
   };
 
@@ -3479,8 +3598,36 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     if (cred.user) {
       markBiometricSessionUnlocked(cred.user.uid);
       setBiometricLocked(false);
+      setFirebaseUser(cred.user);
+      if (cred.user.emailVerified && finalizeSessionRef.current) {
+        await finalizeSessionRef.current(cred.user);
+      }
     }
   };
+
+  const retrySessionBootstrap = useCallback(async () => {
+    const current = auth.currentUser;
+    if (!current) {
+      setPortalAccessError(null);
+      return;
+    }
+    setPortalAccessError(null);
+    if (current.emailVerified && finalizeSessionRef.current) {
+      await finalizeSessionRef.current(current);
+    }
+  }, []);
+
+  const switchAuthenticatedPortal = useCallback(
+    async (nextMode: PortalAccessMode) => {
+      setPortalMode(nextMode);
+      setExternalPortalMode(nextMode === 'client');
+      const current = auth.currentUser;
+      if (current && current.emailVerified && finalizeSessionRef.current) {
+        await finalizeSessionRef.current(current);
+      }
+    },
+    [setPortalMode]
+  );
 
   const registerWithEmail = async (params: {
     email: string;
@@ -3721,54 +3868,308 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     [auditLogs, rbac]
   );
 
-  const buildCurrentAiScope = useCallback(() => {
-    if (!userProfile) return {};
-    return buildScopedAiContext({
+  const directorStorageKey = useMemo(() => {
+    if (!userProfile?.uid || !organization?.id) return null;
+    return `axycore_director_history_${organization.id}_${userProfile.uid}`;
+  }, [organization?.id, userProfile?.uid]);
+
+  const normalizeDirectorAnalysis = useCallback(
+    (raw: unknown, fallbackIdx = 0): DirectorAnalysisResponse | null => {
+      if (!raw || typeof raw !== 'object') return null;
+      const obj = raw as Partial<DirectorAnalysisResponse>;
+      const generatedAtIso =
+        typeof obj.generatedAtIso === 'string' && obj.generatedAtIso.trim()
+          ? obj.generatedAtIso
+          : new Date().toISOString();
+      const analysisId =
+        typeof obj.analysisId === 'string' && obj.analysisId.trim()
+          ? obj.analysisId.trim()
+          : `dir_${generatedAtIso}_${fallbackIdx}`;
+
+      return {
+        ...obj,
+        analysisId,
+        generatedAtIso,
+        modelUsed: typeof obj.modelUsed === 'string' ? obj.modelUsed : 'axycore-director',
+        executiveHeadline:
+          typeof obj.executiveHeadline === 'string' ? obj.executiveHeadline : undefined,
+        executiveSummary:
+          typeof obj.executiveSummary === 'string' ? obj.executiveSummary : '',
+        keyMetricsCited: Array.isArray(obj.keyMetricsCited)
+          ? obj.keyMetricsCited.filter((m) => Boolean(m && typeof m === 'object'))
+          : [],
+        verifiedObservations: Array.isArray(obj.verifiedObservations)
+          ? obj.verifiedObservations.filter((x): x is string => typeof x === 'string')
+          : [],
+        inferences: Array.isArray(obj.inferences)
+          ? obj.inferences.filter((x): x is string => typeof x === 'string')
+          : [],
+        priorityRisks: Array.isArray(obj.priorityRisks)
+          ? obj.priorityRisks.filter((r) => Boolean(r && typeof r === 'object'))
+          : [],
+        strategicOpportunities: Array.isArray(obj.strategicOpportunities)
+          ? obj.strategicOpportunities.filter((o) => Boolean(o && typeof o === 'object'))
+          : [],
+        recommendedActions: Array.isArray(obj.recommendedActions)
+          ? obj.recommendedActions.filter((a) => Boolean(a && typeof a === 'object'))
+          : [],
+        dataLimitations: Array.isArray(obj.dataLimitations)
+          ? obj.dataLimitations.filter((x): x is string => typeof x === 'string')
+          : [],
+        followUpQuestions: Array.isArray(obj.followUpQuestions)
+          ? obj.followUpQuestions.filter((x): x is string => typeof x === 'string')
+          : [],
+      };
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!directorStorageKey || typeof window === 'undefined') {
+      setDirectorHistory([]);
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(directorStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const seenIds = new Set<string>();
+          const normalized: DirectorAnalysisResponse[] = [];
+          parsed.slice(0, 10).forEach((entry, idx) => {
+            const item = normalizeDirectorAnalysis(entry, idx);
+            if (!item) return;
+            const uniqueId = seenIds.has(item.analysisId!)
+              ? `${item.analysisId}_${idx}`
+              : item.analysisId!;
+            seenIds.add(uniqueId);
+            normalized.push({ ...item, analysisId: uniqueId });
+          });
+          if (normalized.length > 0) {
+            setDirectorHistory(normalized);
+            setDirectorAnalysis((prev) => prev ?? normalized[0]);
+            return;
+          }
+        }
+      }
+      setDirectorHistory([]);
+    } catch {
+      setDirectorHistory([]);
+    }
+  }, [directorStorageKey, normalizeDirectorAnalysis]);
+
+  const selectDirectorHistoryItem = useCallback(
+    (analysisId: string) => {
+      const found = directorHistory.find((item) => item.analysisId === analysisId);
+      if (found) {
+        setDirectorAnalysis(found);
+        setDirectorError(null);
+      }
+    },
+    [directorHistory]
+  );
+
+  const clearDirectorHistory = useCallback(() => {
+    setDirectorHistory([]);
+    setDirectorAnalysis(null);
+    setDirectorError(null);
+    if (directorStorageKey && typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(directorStorageKey);
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [directorStorageKey]);
+
+  const buildCurrentAiScope = useCallback(
+    (overrides?: {
+      periodOverride?: ExecutivePeriodPreset;
+      currencyOverride?: ExecutiveCurrencyMode;
+    }) => {
+      if (!userProfile) return {};
+      const effectivePeriod = overrides?.periodOverride ?? executivePeriod;
+      const effectiveCurrency = overrides?.currencyOverride ?? executiveCurrency;
+
+      const effectiveBounds =
+        overrides?.periodOverride && overrides.periodOverride !== executivePeriod
+          ? resolvePeriodBounds(
+              effectivePeriod,
+              effectivePeriod === 'CUSTOM' ? customRangeStart : undefined,
+              effectivePeriod === 'CUSTOM' ? customRangeEnd : undefined,
+              clockInfo.todayIso
+            )
+          : periodBounds;
+
+      const effectiveDopMetrics =
+        overrides?.periodOverride && overrides.periodOverride !== executivePeriod
+          ? computeExecutiveCurrencyMetrics({
+              currency: 'DOP',
+              bounds: effectiveBounds,
+              todayIso: clockInfo.todayIso,
+              applications,
+              loans,
+              loanInstallments,
+              collectionAccounts,
+              payments,
+              paymentPromises,
+              usersList,
+            })
+          : dopMetrics;
+
+      const effectiveUsdMetrics =
+        overrides?.periodOverride && overrides.periodOverride !== executivePeriod
+          ? computeExecutiveCurrencyMetrics({
+              currency: 'USD',
+              bounds: effectiveBounds,
+              todayIso: clockInfo.todayIso,
+              applications,
+              loans,
+              loanInstallments,
+              collectionAccounts,
+              payments,
+              paymentPromises,
+              usersList,
+            })
+          : usdMetrics;
+
+      return buildScopedAiContext({
+        userProfile,
+        roleLabel: rbac.roleLabel,
+        organizationName: organization.name,
+        periodLabel: `${effectiveBounds.label} (${effectiveBounds.startIso} → ${effectiveBounds.endIso})`,
+        currencyFilter: effectiveCurrency,
+        dopMetrics: effectiveDopMetrics,
+        usdMetrics: effectiveUsdMetrics,
+        usdToDopRate: activeOrTestPolicy.exchangeRateConfig?.dopPerUsd || 60.0,
+        operationalItems: operationalDayItems,
+        recentActivity: recentActivityItems,
+        applications,
+        loans,
+        collectionActions,
+        riskAlerts,
+        collectionAccounts,
+        payments,
+        paymentPromises,
+        reconciliationExceptionsCount: reconciliationExceptions.filter((e) => e.status === 'ABIERTA').length,
+        customersCount: customers.length,
+        hasPermission: rbac.hasPermission,
+      });
+    },
+    [
       userProfile,
-      roleLabel: rbac.roleLabel,
-      organizationName: organization.name,
-      periodLabel: periodBounds.label,
-      currencyFilter: executiveCurrency,
+      executivePeriod,
+      executiveCurrency,
+      customRangeStart,
+      customRangeEnd,
+      clockInfo.todayIso,
+      periodBounds,
       dopMetrics,
       usdMetrics,
-      usdToDopRate: activeOrTestPolicy.exchangeRateConfig?.dopPerUsd || 60.0,
-      operationalItems: operationalDayItems,
-      recentActivity: recentActivityItems,
+      rbac,
+      organization.name,
+      activeOrTestPolicy.exchangeRateConfig?.dopPerUsd,
+      operationalDayItems,
+      recentActivityItems,
       applications,
       loans,
+      loanInstallments,
+      collectionAccounts,
+      payments,
+      paymentPromises,
+      usersList,
       collectionActions,
       riskAlerts,
-      hasPermission: rbac.hasPermission,
-    });
-  }, [
-    userProfile,
-    rbac,
-    organization.name,
-    periodBounds.label,
-    executiveCurrency,
-    dopMetrics,
-    usdMetrics,
-    activeOrTestPolicy.exchangeRateConfig?.dopPerUsd,
-    operationalDayItems,
-    recentActivityItems,
-    applications,
-    loans,
-    collectionActions,
-    riskAlerts,
-  ]);
+      reconciliationExceptions,
+      customers.length,
+    ]
+  );
 
   const runDirectorAnalysis = useCallback(
-    async (question?: string) => {
+    async (
+      question?: string,
+      options?: {
+        focusMode?: DirectorFocusMode;
+        periodOverride?: ExecutivePeriodPreset;
+        currencyOverride?: ExecutiveCurrencyMode;
+        followUp?: boolean;
+      }
+    ) => {
       if (!userProfile) return;
+      if (options?.periodOverride && options.periodOverride !== executivePeriod) {
+        setExecutivePeriod(options.periodOverride);
+      }
+      if (options?.currencyOverride && options.currencyOverride !== executiveCurrency) {
+        setExecutiveCurrency(options.currencyOverride);
+      }
+
+      const effectivePeriod = options?.periodOverride ?? executivePeriod;
+      const effectiveCurrency = options?.currencyOverride ?? executiveCurrency;
+      const effectiveBounds =
+        options?.periodOverride && options.periodOverride !== executivePeriod
+          ? resolvePeriodBounds(
+              effectivePeriod,
+              effectivePeriod === 'CUSTOM' ? customRangeStart : undefined,
+              effectivePeriod === 'CUSTOM' ? customRangeEnd : undefined,
+              clockInfo.todayIso
+            )
+          : periodBounds;
+      const currencyScopeLabel =
+        effectiveCurrency === 'SEPARATED'
+          ? 'DOP + USD consolidado en RD$ (BCRD)'
+          : effectiveCurrency;
+
       setDirectorLoading(true);
       setDirectorError(null);
       try {
-        const result = (await fetchDirectorAnalysisFromApi({
+        const scopedContext = buildCurrentAiScope({
+          periodOverride: options?.periodOverride,
+          currencyOverride: options?.currencyOverride,
+        });
+        const rawResult = await fetchDirectorAnalysisFromApi({
           question,
-          scopedContext: buildCurrentAiScope(),
+          focusMode: options?.focusMode || 'INTEGRAL',
+          periodLabel: `${effectiveBounds.label} (${effectiveBounds.startIso} → ${effectiveBounds.endIso})`,
+          currencyScope: currencyScopeLabel,
+          previousBriefingSummary:
+            options?.followUp && directorAnalysis
+              ? `${directorAnalysis.executiveHeadline || ''} — ${directorAnalysis.executiveSummary}`
+              : undefined,
+          scopedContext,
           actorId: userProfile.uid,
-        })) as DirectorAnalysisResponse;
+          organization: {
+            id: organization.id,
+            name: organization.name,
+            status: organization.status,
+            licenseStatus: organization.licenseStatus,
+            enabledModules: organization.enabledModules,
+          },
+        });
+        const result =
+          normalizeDirectorAnalysis(rawResult, Date.now()) ||
+          ({
+            analysisId: `dir_${Date.now()}`,
+            modelUsed: 'axycore-director',
+            generatedAtIso: new Date().toISOString(),
+            executiveSummary: 'Análisis ejecutivo generado.',
+            verifiedObservations: [],
+            inferences: [],
+            recommendedActions: [],
+            dataLimitations: [],
+          } as DirectorAnalysisResponse);
+
         setDirectorAnalysis(result);
+        setDirectorHistory((prev) => {
+          const next = [result, ...prev.filter((item) => item.analysisId !== result.analysisId)].slice(0, 10);
+          if (directorStorageKey && typeof window !== 'undefined') {
+            try {
+              window.localStorage.setItem(directorStorageKey, JSON.stringify(next));
+            } catch {
+              // Ignore quota errors
+            }
+          }
+          return next;
+        });
         setLastSyncedAtIso(new Date().toISOString());
       } catch (err) {
         setDirectorError(
@@ -3780,7 +4181,23 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         setDirectorLoading(false);
       }
     },
-    [userProfile, buildCurrentAiScope]
+    [
+      userProfile,
+      executivePeriod,
+      executiveCurrency,
+      customRangeStart,
+      customRangeEnd,
+      clockInfo.todayIso,
+      periodBounds,
+      buildCurrentAiScope,
+      directorAnalysis,
+      organization.id,
+      organization.name,
+      organization.status,
+      organization.licenseStatus,
+      organization.enabledModules,
+      directorStorageKey,
+    ]
   );
 
   const sendBelaMessage = useCallback(
@@ -3806,6 +4223,13 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
             .map((m) => ({ role: m.role, content: m.content })),
           scopedContext: buildCurrentAiScope(),
           actorId: userProfile.uid,
+          organization: {
+            id: organization.id,
+            name: organization.name,
+            status: organization.status,
+            licenseStatus: organization.licenseStatus,
+            enabledModules: organization.enabledModules,
+          },
         });
         const assistantMsg: BelaChatMessage = {
           id: `bela_a_${Date.now()}`,
@@ -3835,7 +4259,16 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
         setBelaLoading(false);
       }
     },
-    [userProfile, belaMessages, buildCurrentAiScope]
+    [
+      userProfile,
+      belaMessages,
+      buildCurrentAiScope,
+      organization.id,
+      organization.name,
+      organization.status,
+      organization.licenseStatus,
+      organization.enabledModules,
+    ]
   );
 
   const clearBelaHistory = useCallback(() => {
@@ -4034,6 +4467,8 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     clearCorporateAccessSelection,
     portalAccessError,
     clearPortalAccessError,
+    retrySessionBootstrap,
+    switchAuthenticatedPortal,
     parsedExternalPortalLink,
     externalInstitutionPortal,
     externalPortalLoading,
@@ -4042,6 +4477,7 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     setExternalPortalIntent,
     exitExternalInstitutionLink,
     clientServiceRequests,
+    clientPortalMessages,
     publicCreditApplications,
     verifyAndLinkClientProfile,
     biometricSupported,
@@ -4073,9 +4509,12 @@ export function AxyCoreProvider({ children }: { children: React.ReactNode }) {
     recentActivityItems,
     aiConfigured,
     directorAnalysis,
+    directorHistory,
     directorLoading,
     directorError,
     runDirectorAnalysis,
+    selectDirectorHistoryItem,
+    clearDirectorHistory,
     belaOpen,
     setBelaOpen,
     belaMessages,

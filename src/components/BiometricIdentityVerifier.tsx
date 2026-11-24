@@ -44,6 +44,7 @@ interface BiometricIdentityVerifierProps {
     result: BiometricVerificationResult;
   }) => void;
   onBiometricResultChange?: (result: BiometricVerificationResult | null) => void;
+  maxCaptureBytes?: number;
 }
 
 function estimateBase64ByteSize(dataUrl: string): number {
@@ -61,6 +62,7 @@ export function BiometricIdentityVerifier({
   onAttachIdentityFile,
   onSaveBiometricCapture,
   onBiometricResultChange,
+  maxCaptureBytes = 380 * 1024,
 }: BiometricIdentityVerifierProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -186,12 +188,12 @@ export function BiometricIdentityVerifier({
 
     ctx.drawImage(video, 0, 0, outW, outH);
 
-    // Comprimir progresivamente si excede ~380 KB para cumplir límite seguro de Firestore (450 KB)
+    // Comprimir progresivamente para cumplir límite seguro configurado
     let quality = 0.85;
     let dataUrl = canvas.toDataURL('image/jpeg', quality);
     let estBytes = estimateBase64ByteSize(dataUrl);
 
-    while (estBytes > 380 * 1024 && quality > 0.45) {
+    while (estBytes > maxCaptureBytes && quality > 0.35) {
       quality -= 0.1;
       dataUrl = canvas.toDataURL('image/jpeg', quality);
       estBytes = estimateBase64ByteSize(dataUrl);

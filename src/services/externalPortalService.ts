@@ -31,6 +31,9 @@ import {
 } from './axycoreStore';
 import type {
   ApplicationRecord,
+  ClientPortalMessageCategory,
+  ClientPortalMessageRecord,
+  ClientPortalMessageSenderRole,
   ClientServiceRequestRecord,
   ClientServiceRequestStatus,
   ClientServiceRequestType,
@@ -544,8 +547,16 @@ export async function submitPublicCreditApplication(params: {
   input: PublicCreditApplicationInput;
 }): Promise<PublicCreditApplicationRecord> {
   const { portal, input } = params;
-  if (!portal.portalEnabled || portal.status !== 'ACTIVA') {
+  const isPortalAccepting =
+    Boolean(portal.portalEnabled) &&
+    (portal.status === 'ACTIVA' || portal.status === 'PRUEBA');
+  if (!isPortalAccepting) {
     throw new Error('El portal público de esta institución no está habilitado para recibir solicitudes.');
+  }
+
+  const normalizedPortalCode = normalizePortalCode(portal.portalCode);
+  if (!normalizedPortalCode || !portal.organizationId) {
+    throw new Error('El enlace institucional no contiene un código de portal válido. Solicita el enlace oficial a tu institución.');
   }
 
   const validation = validatePublicCreditApplicationPayload(input);
@@ -569,7 +580,7 @@ export async function submitPublicCreditApplication(params: {
     id,
     trackingNumber,
     organizationId: portal.organizationId,
-    portalCode: portal.portalCode,
+    portalCode: normalizedPortalCode,
     institutionName: (portal.tradeName || portal.name || 'Institución').trim().slice(0, 160),
     applicantType: clean.applicantType || 'INDIVIDUAL',
     applicantFullName: clean.applicantFullName,
@@ -895,4 +906,93 @@ export async function discardPublicCreditApplication(params: {
     handleFirestoreError(err, OperationType.UPDATE, `public_credit_applications/${params.publicAppId}`);
   }
 }
+
+/**
+ * Sends a tenant- & owner-isolated direct message between an authenticated external client
+ * and the administrators of their corresponding institution.
+ */
+export async function sendClientPortalMessage(params: {
+  organizationId: string;
+  clientUid: string;
+  clientEmail: string;
+  clientName: string;
+  customerId?: string | null;
+  loanId?: string | null;
+  loanNumber?: string | null;
+  senderProfile: UserProfile;
+  senderRole: ClientPortalMessageSenderRole;
+  category: ClientPortalMessageCategory;
+  subject?: string | null;
+  body: string;
+}): Promise<ClientPortalMessageRecord> {
+  const actorUid = auth.currentUser?.uid || params.senderProfile.uid;
+  const trimmedBody = params.body.trim();
+  if (!trimmedBody) {
+    throw new Error('Escribe un mensaje antes de enviarlo.');
+  }
+
+  const id = generateId('cmsg');
+  const trimmedSubject = params.subject?.trim().slice(0, 160) || undefined;
+  const isFromClient = params.senderRole === 'CLIENT';
+
+  const record: ClientPortalMessageRecord = stripUndefined({
+    id,
+    organizationId: params.organizationId,
+    clientUid: isFromClient ? actorUid : params.clientUid,
+    clientEmail: params.clientEmail.trim().slice(0, 254),
+    clientName: params.clientName.trim().slice(0, 160) || 'Cliente',
+    customerId: params.customerId || undefined,
+    loanId: params.loanId || undefined,
+    loanNumber: params.loanNumber ? params.loanNumber.trim().slice(0, 64) : undefined,
+    senderUid: actorUid,
+    senderName: (params.senderProfile.displayName || params.senderProfile.email || 'Usuario')
+      .trim()
+      .slice(0, 160),
+    senderRole: params.senderRole,
+    category: params.category,
+    subject: trimmedSubject,
+    body: trimmedBody.slice(0, 2000),
+    readByClient: isFromClient,
+    readByStaff: !isFromClient,
+  });
+
+  try {
+    await setDoc(doc(db, 'client_portal_messages', id), {
+      ...record,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `client_portal_messages/${id}`);
+  }
+
+  return record;
+}
+
+/**
+ * Marks a list of unread client portal messages as read by either the client or internal staff.
+ */
+export async function markClientPortalMessagesRead(params: {
+  messageIds: string[];
+  readerRole: ClientPortalMessageSenderRole;
+}): Promise<void> {
+  const uniqueIds = Array.from(new Set(params.messageIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return;
+
+  const field = params.readerRole === 'CLIENT' ? 'readByClient' : 'readByStaff';
+
+  await Promise.all(
+    uniqueIds.map(async (id) => {
+      try {
+        await updateDoc(doc(db, 'client_portal_messages', id), {
+          [field]: true,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.warn(`No se pudo marcar mensaje ${id} como leído:`, err);
+      }
+    })
+  );
+}
+
 

@@ -1,4 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -80,20 +87,55 @@ import type {
   NavSectionId,
 } from '../types/axycore';
 import { formatMoney, formatTimestamp } from '../utils/formatters';
-import { DashboardWidgetConfiguratorDrawer } from './home/DashboardWidgetConfiguratorModal';
 import {
-  AxyCoreIntelligencePanel,
+  prefetchDashboardAnalytics,
+  prefetchDashboardConfigurator,
+  prefetchDashboardIntelligence,
+  prefetchDashboardOperations,
+  prefetchDirectorView,
+  scheduleIdleWork,
+} from '../utils/lazyPrefetch';
+import { DashboardSectionSkeleton } from '../components/director/DirectorSkeletons';
+import {
   HomeAlertsCenterPanel,
   HomeRecentActivityPanel,
 } from './home/HomeIntelligenceAndAlerts';
 import {
-  CollectionsSummaryPanel,
-  InstitutionalPerformanceSection,
   SmartShortcutsSection,
-  TeamProductivityPanel,
   type HomeShortcutItem,
 } from './home/HomeOperationsPanels';
-import { PerformanceOverviewWidget } from '../components/PerformanceOverviewWidget';
+
+// Lazy-loaded heavy dashboard modules (only fetched when their tab/modal is opened)
+const LazyPerformanceOverviewWidget = React.lazy(() =>
+  import('../components/PerformanceOverviewWidget').then((m) => ({
+    default: m.PerformanceOverviewWidget,
+  }))
+);
+const LazyDashboardWidgetConfiguratorDrawer = React.lazy(() =>
+  import('./home/DashboardWidgetConfiguratorModal').then((m) => ({
+    default: m.DashboardWidgetConfiguratorDrawer,
+  }))
+);
+const LazyAxyCoreIntelligencePanel = React.lazy(() =>
+  import('./home/HomeIntelligenceAndAlerts').then((m) => ({
+    default: m.AxyCoreIntelligencePanel,
+  }))
+);
+const LazyInstitutionalPerformanceSection = React.lazy(() =>
+  import('./home/HomeOperationsPanels').then((m) => ({
+    default: m.InstitutionalPerformanceSection,
+  }))
+);
+const LazyCollectionsSummaryPanel = React.lazy(() =>
+  import('./home/HomeOperationsPanels').then((m) => ({
+    default: m.CollectionsSummaryPanel,
+  }))
+);
+const LazyTeamProductivityPanel = React.lazy(() =>
+  import('./home/HomeOperationsPanels').then((m) => ({
+    default: m.TeamProductivityPanel,
+  }))
+);
 
 const GRANULARITY_OPTIONS: Array<{
   value: PanoramaGranularity;
@@ -1312,6 +1354,7 @@ export function ExecutiveDashboardView() {
     aiConfigured,
     directorAnalysis,
     directorLoading,
+    directorError,
     runDirectorAnalysis,
     setActiveSection,
     setSelectedApplicationId,
@@ -1365,6 +1408,28 @@ export function ExecutiveDashboardView() {
   const [focusTab, setFocusTab] = useState<
     'OVERVIEW' | 'ANALYTICS' | 'OPERATIONS' | 'INTELLIGENCE' | 'ALL'
   >('OVERVIEW');
+  const [isDashboardPending, startDashboardTransition] = useTransition();
+
+  // Warm up AxyCore Director chunk in background idle time for authorized staff
+  useEffect(() => {
+    if (!rbac.canAccessSection('director')) return;
+    return scheduleIdleWork(() => {
+      prefetchDirectorView();
+    }, 1800);
+  }, [rbac]);
+
+  // Defer heavy financial collections so live Firestore snapshots never block UI interactions
+  const deferredApplications = useDeferredValue(applications);
+  const deferredDocuments = useDeferredValue(documents);
+  const deferredLoans = useDeferredValue(loans);
+  const deferredLoanInstallments = useDeferredValue(loanInstallments);
+  const deferredCollectionAccounts = useDeferredValue(collectionAccounts);
+  const deferredCollectionActions = useDeferredValue(collectionActions);
+  const deferredCollectionTasks = useDeferredValue(collectionTasks);
+  const deferredPaymentPromises = useDeferredValue(paymentPromises);
+  const deferredPaymentAgreements = useDeferredValue(paymentAgreements);
+  const deferredPayments = useDeferredValue(payments);
+  const deferredAuditLogs = useDeferredValue(auditLogs);
 
   const widgetState = useDashboardWidgetConfig({
     organizationId: organization.id,
@@ -1395,6 +1460,14 @@ export function ExecutiveDashboardView() {
     return matched.length > 0 ? matched : widgetState.visibleSections;
   }, [effectiveTab, widgetState.visibleSections]);
 
+  // Demand-driven section visibility flags to skip off-tab heavy financial aggregations
+  const activeSectionSet = useMemo(() => new Set(displayedSections), [displayedSections]);
+  const needAlertsAndActivity = activeSectionSet.has('alertsAndActivity');
+  const needPerformance = activeSectionSet.has('performance');
+  const needCollections = activeSectionSet.has('collections');
+  const needTeamProductivity = activeSectionSet.has('teamProductivity');
+  const needIntelligence = activeSectionSet.has('intelligence');
+
   const availableFocusTabs = useMemo(() => {
     const defs: Array<{
       id: 'OVERVIEW' | 'ANALYTICS' | 'OPERATIONS' | 'INTELLIGENCE' | 'ALL';
@@ -1413,12 +1486,29 @@ export function ExecutiveDashboardView() {
     });
   }, [widgetState.visibleSections]);
 
-  const handleGranularityChange = (g: PanoramaGranularity) => {
-    setGranularity(g);
-    const match = GRANULARITY_OPTIONS.find((o) => o.value === g);
-    if (match && match.preset !== executivePeriod) {
-      setExecutivePeriod(match.preset);
+  const prefetchTabChunks = (
+    tabId: 'OVERVIEW' | 'ANALYTICS' | 'OPERATIONS' | 'INTELLIGENCE' | 'ALL'
+  ) => {
+    if (tabId === 'ANALYTICS' || tabId === 'ALL') {
+      prefetchDashboardAnalytics();
+      prefetchDashboardOperations();
     }
+    if (tabId === 'OPERATIONS' || tabId === 'ALL') {
+      prefetchDashboardOperations();
+    }
+    if (tabId === 'INTELLIGENCE' || tabId === 'ALL') {
+      prefetchDashboardIntelligence();
+    }
+  };
+
+  const handleGranularityChange = (g: PanoramaGranularity) => {
+    startDashboardTransition(() => {
+      setGranularity(g);
+      const match = GRANULARITY_OPTIONS.find((o) => o.value === g);
+      if (match && match.preset !== executivePeriod) {
+        setExecutivePeriod(match.preset);
+      }
+    });
   };
 
   const activeCurrencyBlocks: ExecutiveCurrencyMetrics[] = useMemo(() => {
@@ -1430,193 +1520,194 @@ export function ExecutiveDashboardView() {
   const primaryMetrics = activeCurrencyBlocks[0] ?? dopMetrics;
   const primaryCurrency = primaryMetrics.currency;
 
-  const primaryEnhancements = useMemo(
-    () =>
-      buildPanoramaSeriesAndKpis({
-        currency: primaryCurrency,
-        consolidateUsdToDopRate: consolidateRate,
-        granularity,
-        todayIso: clockInfo.todayIso,
-        bounds: periodBounds,
-        metrics: primaryMetrics,
-        loans,
-        payments,
-        loanInstallments,
-        collectorTargets,
-        snapshots: collectionDailySnapshots,
-      }).enhancements,
-    [
-      primaryCurrency,
-      consolidateRate,
+  const primaryEnhancements = useMemo(() => {
+    if (!needIntelligence) return null;
+    return buildPanoramaSeriesAndKpis({
+      currency: primaryCurrency,
+      consolidateUsdToDopRate: consolidateRate,
       granularity,
-      clockInfo.todayIso,
-      periodBounds,
-      primaryMetrics,
-      loans,
-      payments,
-      loanInstallments,
+      todayIso: clockInfo.todayIso,
+      bounds: periodBounds,
+      metrics: primaryMetrics,
+      loans: deferredLoans,
+      payments: deferredPayments,
+      loanInstallments: deferredLoanInstallments,
       collectorTargets,
-      collectionDailySnapshots,
-    ]
-  );
+      snapshots: collectionDailySnapshots,
+    }).enhancements;
+  }, [
+    needIntelligence,
+    primaryCurrency,
+    consolidateRate,
+    granularity,
+    clockInfo.todayIso,
+    periodBounds,
+    primaryMetrics,
+    deferredLoans,
+    deferredPayments,
+    deferredLoanInstallments,
+    collectorTargets,
+    collectionDailySnapshots,
+  ]);
 
-  // BLOQUE 4: Centro de Alertas Inteligentes
-  const smartAlerts = useMemo(
-    () =>
-      buildHomeSmartAlerts({
-        todayIso: clockInfo.todayIso,
-        applications,
-        loans,
-        loanInstallments,
-        collectionAccounts,
-        paymentPromises,
-        paymentAgreements,
-        documents,
-        riskAlerts,
-        reconciliationExceptions,
-        customerDisputes,
-        operatingExpenses,
-        canAccessSection: rbac.canAccessSection,
-        hasPermission: rbac.hasPermission,
-      }),
-    [
-      clockInfo.todayIso,
-      applications,
-      loans,
-      loanInstallments,
-      collectionAccounts,
-      paymentPromises,
-      paymentAgreements,
-      documents,
+  // BLOQUE 4: Centro de Alertas Inteligentes (only computed when alerts or intelligence are visible)
+  const smartAlerts = useMemo(() => {
+    if (!needAlertsAndActivity && !needIntelligence) return [];
+    return buildHomeSmartAlerts({
+      todayIso: clockInfo.todayIso,
+      applications: deferredApplications,
+      loans: deferredLoans,
+      loanInstallments: deferredLoanInstallments,
+      collectionAccounts: deferredCollectionAccounts,
+      paymentPromises: deferredPaymentPromises,
+      paymentAgreements: deferredPaymentAgreements,
+      documents: deferredDocuments,
       riskAlerts,
       reconciliationExceptions,
       customerDisputes,
       operatingExpenses,
-      rbac,
-    ]
-  );
+      canAccessSection: rbac.canAccessSection,
+      hasPermission: rbac.hasPermission,
+    });
+  }, [
+    needAlertsAndActivity,
+    needIntelligence,
+    clockInfo.todayIso,
+    deferredApplications,
+    deferredLoans,
+    deferredLoanInstallments,
+    deferredCollectionAccounts,
+    deferredPaymentPromises,
+    deferredPaymentAgreements,
+    deferredDocuments,
+    riskAlerts,
+    reconciliationExceptions,
+    customerDisputes,
+    operatingExpenses,
+    rbac,
+  ]);
 
   // BLOQUE 5: Actividad Reciente enriquecida
-  const recentEntries = useMemo(
-    () =>
-      buildEnrichedRecentActivity({
-        auditLogs,
-        usersList,
-        hasPermission: rbac.hasPermission,
-        canAccessSection: rbac.canAccessSection,
-        limit: 12,
-      }),
-    [auditLogs, usersList, rbac]
-  );
-
-  // BLOQUE 6: Rendimiento de la Institución
-  const institutionalPerf = useMemo(
-    () =>
-      buildInstitutionalPerformance({
-        applications,
-        documents,
-        collectionTasks,
-        collectionActions,
-        customerDisputes,
-        payments,
-        metrics: primaryMetrics,
-      }),
-    [
-      applications,
-      documents,
-      collectionTasks,
-      collectionActions,
-      customerDisputes,
-      payments,
-      primaryMetrics,
-    ]
-  );
-
-  // BLOQUE 7: Resumen de Cobros
-  const collectionsSummary = useMemo(
-    () =>
-      buildCollectionsOverviewSummary({
-        currency: primaryCurrency,
-        consolidateUsdToDopRate: consolidateRate,
-        todayIso: clockInfo.todayIso,
-        bounds: periodBounds,
-        metrics: primaryMetrics,
-        collectionAccounts,
-        collectionActions,
-        paymentPromises,
-        payments,
-        collectorTargets,
-      }),
-    [
-      primaryCurrency,
-      consolidateRate,
-      clockInfo.todayIso,
-      periodBounds,
-      primaryMetrics,
-      collectionAccounts,
-      collectionActions,
-      paymentPromises,
-      payments,
-      collectorTargets,
-    ]
-  );
-
-  // BLOQUE 8: Productividad del Equipo
-  const teamProductivity = useMemo(
-    () =>
-      buildTeamProductivitySummary({
-        role: rbac.role,
-        userId: userProfile?.uid || '',
-        bounds: periodBounds,
-        usersList,
-        applications,
-        loans,
-        payments,
-        collectionActions,
-        collectionTasks,
-        documents,
-        canAccessSection: rbac.canAccessSection,
-      }),
-    [
-      rbac,
-      userProfile?.uid,
-      periodBounds,
+  const recentEntries = useMemo(() => {
+    if (!needAlertsAndActivity) return [];
+    return buildEnrichedRecentActivity({
+      auditLogs: deferredAuditLogs,
       usersList,
-      applications,
-      loans,
-      payments,
-      collectionActions,
-      collectionTasks,
-      documents,
-    ]
-  );
+      hasPermission: rbac.hasPermission,
+      canAccessSection: rbac.canAccessSection,
+      limit: 12,
+    });
+  }, [needAlertsAndActivity, deferredAuditLogs, usersList, rbac]);
 
-  // ELEMENTO DIFERENCIADOR: AXYCORE INTELLIGENCE
-  const intelligenceInsights = useMemo(
-    () =>
-      buildAxyCoreIntelligenceInsights({
-        currency: primaryCurrency,
-        consolidateUsdToDopRate: consolidateRate,
-        metrics: primaryMetrics,
-        enhancements: primaryEnhancements,
-        alerts: smartAlerts,
-        teamProductivity,
-        documents,
-        payments,
-        canAccessSection: rbac.canAccessSection,
-      }),
-    [
-      primaryCurrency,
-      consolidateRate,
-      primaryMetrics,
-      primaryEnhancements,
-      smartAlerts,
+  // BLOQUE 6: Rendimiento de la Institución (only computed on Analítica / Vista completa)
+  const institutionalPerf = useMemo(() => {
+    if (!needPerformance) return [];
+    return buildInstitutionalPerformance({
+      applications: deferredApplications,
+      documents: deferredDocuments,
+      collectionTasks: deferredCollectionTasks,
+      collectionActions: deferredCollectionActions,
+      customerDisputes,
+      payments: deferredPayments,
+      metrics: primaryMetrics,
+    });
+  }, [
+    needPerformance,
+    deferredApplications,
+    deferredDocuments,
+    deferredCollectionTasks,
+    deferredCollectionActions,
+    customerDisputes,
+    deferredPayments,
+    primaryMetrics,
+  ]);
+
+  // BLOQUE 7: Resumen de Cobros (only computed on Operación / Vista completa)
+  const collectionsSummary = useMemo(() => {
+    if (!needCollections) return null;
+    return buildCollectionsOverviewSummary({
+      currency: primaryCurrency,
+      consolidateUsdToDopRate: consolidateRate,
+      todayIso: clockInfo.todayIso,
+      bounds: periodBounds,
+      metrics: primaryMetrics,
+      collectionAccounts: deferredCollectionAccounts,
+      collectionActions: deferredCollectionActions,
+      paymentPromises: deferredPaymentPromises,
+      payments: deferredPayments,
+      collectorTargets,
+    });
+  }, [
+    needCollections,
+    primaryCurrency,
+    consolidateRate,
+    clockInfo.todayIso,
+    periodBounds,
+    primaryMetrics,
+    deferredCollectionAccounts,
+    deferredCollectionActions,
+    deferredPaymentPromises,
+    deferredPayments,
+    collectorTargets,
+  ]);
+
+  // BLOQUE 8: Productividad del Equipo (only computed on Operación / Inteligencia / Vista completa)
+  const teamProductivity = useMemo(() => {
+    if (!needTeamProductivity && !needIntelligence) return null;
+    return buildTeamProductivitySummary({
+      role: rbac.role,
+      userId: userProfile?.uid || '',
+      bounds: periodBounds,
+      usersList,
+      applications: deferredApplications,
+      loans: deferredLoans,
+      payments: deferredPayments,
+      collectionActions: deferredCollectionActions,
+      collectionTasks: deferredCollectionTasks,
+      documents: deferredDocuments,
+      canAccessSection: rbac.canAccessSection,
+    });
+  }, [
+    needTeamProductivity,
+    needIntelligence,
+    rbac,
+    userProfile?.uid,
+    periodBounds,
+    usersList,
+    deferredApplications,
+    deferredLoans,
+    deferredPayments,
+    deferredCollectionActions,
+    deferredCollectionTasks,
+    deferredDocuments,
+  ]);
+
+  // ELEMENTO DIFERENCIADOR: AXYCORE INTELLIGENCE (only computed on Inteligencia / Vista completa)
+  const intelligenceInsights = useMemo(() => {
+    if (!needIntelligence || !primaryEnhancements || !teamProductivity) return [];
+    return buildAxyCoreIntelligenceInsights({
+      currency: primaryCurrency,
+      consolidateUsdToDopRate: consolidateRate,
+      metrics: primaryMetrics,
+      enhancements: primaryEnhancements,
+      alerts: smartAlerts,
       teamProductivity,
-      documents,
-      payments,
-      rbac,
-    ]
-  );
+      documents: deferredDocuments,
+      payments: deferredPayments,
+      canAccessSection: rbac.canAccessSection,
+    });
+  }, [
+    needIntelligence,
+    primaryCurrency,
+    consolidateRate,
+    primaryMetrics,
+    primaryEnhancements,
+    smartAlerts,
+    teamProductivity,
+    deferredDocuments,
+    deferredPayments,
+    rbac,
+  ]);
 
   // BLOQUE 9: Accesos Inteligentes (dinámicos por permisos, sin duplicar el menú)
   const smartShortcuts = useMemo<HomeShortcutItem[]>(() => {
@@ -1816,11 +1907,16 @@ export function ExecutiveDashboardView() {
                 <button
                   key={tab.id}
                   type="button"
+                  onMouseEnter={() => prefetchTabChunks(tab.id)}
+                  onFocus={() => prefetchTabChunks(tab.id)}
                   onClick={() => {
-                    if (widgetState.editMode && tab.id !== 'ALL') {
-                      widgetState.setEditMode(false);
-                    }
-                    setFocusTab(tab.id);
+                    prefetchTabChunks(tab.id);
+                    startDashboardTransition(() => {
+                      if (widgetState.editMode && tab.id !== 'ALL') {
+                        widgetState.setEditMode(false);
+                      }
+                      setFocusTab(tab.id);
+                    });
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     active
@@ -1841,7 +1937,7 @@ export function ExecutiveDashboardView() {
                 <button
                   key={c.value}
                   type="button"
-                  onClick={() => setExecutiveCurrency(c.value)}
+                  onClick={() => startDashboardTransition(() => setExecutiveCurrency(c.value))}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     executiveCurrency === c.value
                       ? 'bg-white dark:bg-[#0E1D40] text-slate-950 dark:text-white shadow-2xs'
@@ -1878,7 +1974,9 @@ export function ExecutiveDashboardView() {
               <>
                 <button
                   type="button"
-                  onClick={() => widgetState.setEditMode((v) => !v)}
+                  onClick={() =>
+                    startDashboardTransition(() => widgetState.setEditMode((v) => !v))
+                  }
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                     widgetState.editMode
                       ? 'bg-[#0066FF] text-white border-[#0066FF]'
@@ -1891,7 +1989,12 @@ export function ExecutiveDashboardView() {
 
                 <button
                   type="button"
-                  onClick={() => setCustomizeOpen(true)}
+                  onMouseEnter={() => prefetchDashboardConfigurator()}
+                  onFocus={() => prefetchDashboardConfigurator()}
+                  onClick={() => {
+                    prefetchDashboardConfigurator();
+                    setCustomizeOpen(true);
+                  }}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-white/12 bg-white dark:bg-[#040C1E] hover:bg-slate-50 dark:hover:bg-white/6 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer whitespace-nowrap"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-[#0066FF] dark:text-[#00D1FF]" />
@@ -1903,196 +2006,234 @@ export function ExecutiveDashboardView() {
         </div>
       </section>
 
-      {/* RENDERIZADO ORDENADO Y CONFIGURABLE DE BLOQUES SEGÚN VISTA ACTIVA Y ROL OPERATIVO */}
-      {displayedSections.map((sectionId: DashboardSectionId) => {
-        switch (sectionId) {
-          case 'executiveSummary':
-            return (
-              <div key="executiveSummary" className="space-y-6">
-                {activeCurrencyBlocks.map((block, idx) => (
-                  <CurrencyExecutiveBlock
-                    key={`exec_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
-                    metrics={block}
-                    consolidatedInfo={consolidatedInfo}
-                    granularity={granularity}
-                    onChangeGranularity={handleGranularityChange}
-                    darkMode={darkMode}
-                    showExecutiveSummary
-                    showPanorama={false}
-                    isPrimaryCurrency={idx === 0}
-                    roleLabel={rbac.roleLabel}
-                    canConfigure={widgetState.policy.canConfigure}
-                    editMode={widgetState.editMode}
-                    visibleKpis={widgetState.visibleKpis}
-                    hiddenKpis={widgetState.hiddenKpiWidgets}
-                    lockedKpis={widgetState.policy.lockedVisibleKpis}
-                    allowedKpiCount={widgetState.policy.allowedKpis.length}
-                    onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
-                    onReorderKpi={widgetState.reorderKpi}
-                    onMoveKpi={widgetState.moveKpi}
-                    onToggleKpi={widgetState.toggleKpiVisibility}
-                    onShowAllKpis={widgetState.showAllKpis}
-                    onOpenConfigurator={() => setCustomizeOpen(true)}
-                    onInspectIndicator={(key, currency) => setDetailModal({ key, currency })}
-                  />
-                ))}
-              </div>
-            );
+      {/* RENDERIZADO ORDENADO, DIFERIDO Y CONFIGURABLE DE BLOQUES SEGÚN VISTA ACTIVA Y ROL OPERATIVO */}
+      <div
+        className={`space-y-5 transition-opacity duration-200 ${
+          isDashboardPending ? 'opacity-75' : 'opacity-100'
+        }`}
+      >
+        {displayedSections.map((sectionId: DashboardSectionId) => {
+          switch (sectionId) {
+            case 'executiveSummary':
+              return (
+                <div key="executiveSummary" className="space-y-6">
+                  {activeCurrencyBlocks.map((block, idx) => (
+                    <CurrencyExecutiveBlock
+                      key={`exec_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
+                      metrics={block}
+                      consolidatedInfo={consolidatedInfo}
+                      granularity={granularity}
+                      onChangeGranularity={handleGranularityChange}
+                      darkMode={darkMode}
+                      showExecutiveSummary
+                      showPanorama={false}
+                      isPrimaryCurrency={idx === 0}
+                      roleLabel={rbac.roleLabel}
+                      canConfigure={widgetState.policy.canConfigure}
+                      editMode={widgetState.editMode}
+                      visibleKpis={widgetState.visibleKpis}
+                      hiddenKpis={widgetState.hiddenKpiWidgets}
+                      lockedKpis={widgetState.policy.lockedVisibleKpis}
+                      allowedKpiCount={widgetState.policy.allowedKpis.length}
+                      onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
+                      onReorderKpi={widgetState.reorderKpi}
+                      onMoveKpi={widgetState.moveKpi}
+                      onToggleKpi={widgetState.toggleKpiVisibility}
+                      onShowAllKpis={widgetState.showAllKpis}
+                      onOpenConfigurator={() => {
+                        prefetchDashboardConfigurator();
+                        setCustomizeOpen(true);
+                      }}
+                      onInspectIndicator={(key, currency) => setDetailModal({ key, currency })}
+                    />
+                  ))}
+                </div>
+              );
 
-          case 'performanceOverview':
-            return (
-              <div key="performanceOverview" className="space-y-6">
-                {activeCurrencyBlocks.map((block) => (
-                  <PerformanceOverviewWidget
-                    key={`perf_overview_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
-                    currency={block.currency}
-                    consolidateUsdToDopRate={consolidateRate}
-                    consolidatedRateLabel={
-                      isConsolidated
-                        ? `DOP + USD consolidado en RD$ (tasa BCRD RD$${bcrd.rate.toFixed(4)}${bcrd.fecha ? ` · ${bcrd.fecha}` : ''})`
-                        : undefined
-                    }
-                    todayIso={clockInfo.todayIso}
-                    darkMode={darkMode}
-                    metrics={block}
-                    applications={applications}
-                    loans={loans}
-                    collectionAccounts={collectionAccounts}
-                    collectionDailySnapshots={collectionDailySnapshots}
-                    canAccessSection={rbac.canAccessSection}
+            case 'performanceOverview':
+              return (
+                <div key="performanceOverview" className="space-y-6">
+                  <Suspense fallback={<DashboardSectionSkeleton heightClass="h-72" columns={2} />}>
+                    {activeCurrencyBlocks.map((block) => (
+                      <LazyPerformanceOverviewWidget
+                        key={`perf_overview_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
+                        currency={block.currency}
+                        consolidateUsdToDopRate={consolidateRate}
+                        consolidatedRateLabel={
+                          isConsolidated
+                            ? `DOP + USD consolidado en RD$ (tasa BCRD RD$${bcrd.rate.toFixed(4)}${bcrd.fecha ? ` · ${bcrd.fecha}` : ''})`
+                            : undefined
+                        }
+                        todayIso={clockInfo.todayIso}
+                        darkMode={darkMode}
+                        metrics={block}
+                        applications={deferredApplications}
+                        loans={deferredLoans}
+                        collectionAccounts={deferredCollectionAccounts}
+                        collectionDailySnapshots={collectionDailySnapshots}
+                        canAccessSection={rbac.canAccessSection}
+                        onNavigate={setActiveSection}
+                      />
+                    ))}
+                  </Suspense>
+                </div>
+              );
+
+            case 'panorama':
+              return (
+                <div key="panorama" className="space-y-6">
+                  {activeCurrencyBlocks.map((block, idx) => (
+                    <CurrencyExecutiveBlock
+                      key={`pano_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
+                      metrics={block}
+                      consolidatedInfo={consolidatedInfo}
+                      granularity={granularity}
+                      onChangeGranularity={handleGranularityChange}
+                      darkMode={darkMode}
+                      showExecutiveSummary={false}
+                      showPanorama
+                      isPrimaryCurrency={idx === 0}
+                      roleLabel={rbac.roleLabel}
+                      canConfigure={widgetState.policy.canConfigure}
+                      editMode={widgetState.editMode}
+                      visibleKpis={widgetState.visibleKpis}
+                      hiddenKpis={widgetState.hiddenKpiWidgets}
+                      lockedKpis={widgetState.policy.lockedVisibleKpis}
+                      allowedKpiCount={widgetState.policy.allowedKpis.length}
+                      onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
+                      onReorderKpi={widgetState.reorderKpi}
+                      onMoveKpi={widgetState.moveKpi}
+                      onToggleKpi={widgetState.toggleKpiVisibility}
+                      onShowAllKpis={widgetState.showAllKpis}
+                      onOpenConfigurator={() => {
+                        prefetchDashboardConfigurator();
+                        setCustomizeOpen(true);
+                      }}
+                      onInspectIndicator={(key, currency) => setDetailModal({ key, currency })}
+                    />
+                  ))}
+                </div>
+              );
+
+            case 'intelligence':
+              return (
+                <Suspense
+                  key="intelligence"
+                  fallback={<DashboardSectionSkeleton heightClass="h-52" columns={3} />}
+                >
+                  <LazyAxyCoreIntelligencePanel
+                    insights={intelligenceInsights}
+                    aiConfigured={aiConfigured}
+                    canRunAi={rbac.canAccessSection('director')}
+                    directorAnalysis={directorAnalysis}
+                    directorLoading={directorLoading}
+                    directorError={directorError}
+                    onRunDeepDiagnosis={() => {
+                      const currencyNote = isConsolidated
+                        ? `DOP consolidado (incluyendo USD convertido a RD$${bcrd.rate.toFixed(4)} según BCRD)`
+                        : primaryCurrency;
+                      void runDirectorAnalysis(
+                        `Diagnóstico ejecutivo integral para ${organization.name} (${periodBounds.label}) en ${currencyNote}: Cartera activa ${formatMoney(primaryMetrics.activePortfolioCapital, primaryCurrency)}, PAR 30 ${primaryMetrics.par30Pct ?? 0}%, Desembolsos ${formatMoney(primaryMetrics.disbursedPeriodTotal, primaryCurrency)}, Recuperación ${formatMoney(primaryMetrics.recoveryPeriodTotal, primaryCurrency)}.`,
+                        { focusMode: 'INTEGRAL' }
+                      );
+                    }}
                     onNavigate={setActiveSection}
                   />
-                ))}
-              </div>
-            );
+                </Suspense>
+              );
 
-          case 'panorama':
-            return (
-              <div key="panorama" className="space-y-6">
-                {activeCurrencyBlocks.map((block, idx) => (
-                  <CurrencyExecutiveBlock
-                    key={`pano_${isConsolidated ? 'CONSOLIDATED_DOP' : block.currency}`}
-                    metrics={block}
-                    consolidatedInfo={consolidatedInfo}
-                    granularity={granularity}
-                    onChangeGranularity={handleGranularityChange}
-                    darkMode={darkMode}
-                    showExecutiveSummary={false}
-                    showPanorama
-                    isPrimaryCurrency={idx === 0}
-                    roleLabel={rbac.roleLabel}
-                    canConfigure={widgetState.policy.canConfigure}
-                    editMode={widgetState.editMode}
-                    visibleKpis={widgetState.visibleKpis}
-                    hiddenKpis={widgetState.hiddenKpiWidgets}
-                    lockedKpis={widgetState.policy.lockedVisibleKpis}
-                    allowedKpiCount={widgetState.policy.allowedKpis.length}
-                    onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
-                    onReorderKpi={widgetState.reorderKpi}
-                    onMoveKpi={widgetState.moveKpi}
-                    onToggleKpi={widgetState.toggleKpiVisibility}
-                    onShowAllKpis={widgetState.showAllKpis}
-                    onOpenConfigurator={() => setCustomizeOpen(true)}
-                    onInspectIndicator={(key, currency) => setDetailModal({ key, currency })}
-                  />
-                ))}
-              </div>
-            );
-
-          case 'intelligence':
-            return (
-              <AxyCoreIntelligencePanel
-                key="intelligence"
-                insights={intelligenceInsights}
-                aiConfigured={aiConfigured}
-                canRunAi={rbac.canAccessSection('director')}
-                directorAnalysis={directorAnalysis}
-                directorLoading={directorLoading}
-                onRunDeepDiagnosis={() => {
-                  const currencyNote = isConsolidated
-                    ? `DOP consolidado (incluyendo USD convertido a RD$${bcrd.rate.toFixed(4)} según BCRD)`
-                    : primaryCurrency;
-                  void runDirectorAnalysis(
-                    `Diagnóstico ejecutivo integral para ${organization.name} (${periodBounds.label}) en ${currencyNote}: Cartera activa ${formatMoney(primaryMetrics.activePortfolioCapital, primaryCurrency)}, PAR 30 ${primaryMetrics.par30Pct ?? 0}%, Desembolsos ${formatMoney(primaryMetrics.disbursedPeriodTotal, primaryCurrency)}, Recuperación ${formatMoney(primaryMetrics.recoveryPeriodTotal, primaryCurrency)}.`
-                  );
-                }}
-                onNavigate={setActiveSection}
-              />
-            );
-
-          case 'alertsAndActivity':
-            return (
-              <div key="alertsAndActivity" className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-6">
-                  <HomeAlertsCenterPanel
-                    alerts={smartAlerts}
-                    onSelectAlert={handleSelectAlert}
-                    visibleAlertWidgets={widgetState.visibleAlerts}
-                    hiddenAlertWidgets={widgetState.hiddenAlertWidgets}
-                    lockedAlertWidgets={widgetState.policy.lockedVisibleAlerts}
-                    alertsViewMode={widgetState.config.alertsViewMode}
-                    roleLabel={rbac.roleLabel}
-                    canConfigure={widgetState.policy.canConfigure}
-                    editMode={widgetState.editMode}
-                    onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
-                    onChangeViewMode={widgetState.setAlertsViewMode}
-                    onReorderAlertWidget={widgetState.reorderAlert}
-                    onMoveAlertWidget={widgetState.moveAlert}
-                    onToggleAlertWidgetVisibility={widgetState.toggleAlertVisibility}
-                    onShowAllAlertWidgets={widgetState.showAllAlerts}
-                    onOpenConfigurator={() => setCustomizeOpen(true)}
-                  />
+            case 'alertsAndActivity':
+              return (
+                <div key="alertsAndActivity" className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  <div className="lg:col-span-6">
+                    <HomeAlertsCenterPanel
+                      alerts={smartAlerts}
+                      onSelectAlert={handleSelectAlert}
+                      visibleAlertWidgets={widgetState.visibleAlerts}
+                      hiddenAlertWidgets={widgetState.hiddenAlertWidgets}
+                      lockedAlertWidgets={widgetState.policy.lockedVisibleAlerts}
+                      alertsViewMode={widgetState.config.alertsViewMode}
+                      roleLabel={rbac.roleLabel}
+                      canConfigure={widgetState.policy.canConfigure}
+                      editMode={widgetState.editMode}
+                      onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
+                      onChangeViewMode={widgetState.setAlertsViewMode}
+                      onReorderAlertWidget={widgetState.reorderAlert}
+                      onMoveAlertWidget={widgetState.moveAlert}
+                      onToggleAlertWidgetVisibility={widgetState.toggleAlertVisibility}
+                      onShowAllAlertWidgets={widgetState.showAllAlerts}
+                      onOpenConfigurator={() => {
+                        prefetchDashboardConfigurator();
+                        setCustomizeOpen(true);
+                      }}
+                    />
+                  </div>
+                  <div className="lg:col-span-6">
+                    <HomeRecentActivityPanel
+                      entries={recentEntries}
+                      canViewAudit={rbac.canAccessSection('audit')}
+                      onOpenAudit={() => setActiveSection('audit')}
+                      onSelectEntry={(entry) => {
+                        if (entry.applicationId) {
+                          setSelectedApplicationId(entry.applicationId);
+                        } else if (entry.loanId) {
+                          setSelectedCollectionLoanId(entry.loanId);
+                        } else if (rbac.canAccessSection(entry.targetSection)) {
+                          setActiveSection(entry.targetSection);
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="lg:col-span-6">
-                  <HomeRecentActivityPanel
-                    entries={recentEntries}
-                    canViewAudit={rbac.canAccessSection('audit')}
-                    onOpenAudit={() => setActiveSection('audit')}
-                    onSelectEntry={(entry) => {
-                      if (entry.applicationId) {
-                        setSelectedApplicationId(entry.applicationId);
-                      } else if (entry.loanId) {
-                        setSelectedCollectionLoanId(entry.loanId);
-                      } else if (rbac.canAccessSection(entry.targetSection)) {
-                        setActiveSection(entry.targetSection);
-                      }
-                    }}
+              );
+
+            case 'performance':
+              return (
+                <Suspense
+                  key="performance"
+                  fallback={<DashboardSectionSkeleton heightClass="h-44" columns={3} />}
+                >
+                  <LazyInstitutionalPerformanceSection items={institutionalPerf} />
+                </Suspense>
+              );
+
+            case 'collections':
+              return collectionsSummary ? (
+                <Suspense
+                  key="collections"
+                  fallback={<DashboardSectionSkeleton heightClass="h-56" columns={2} />}
+                >
+                  <LazyCollectionsSummaryPanel
+                    summary={collectionsSummary}
+                    currency={primaryCurrency}
+                    currencyLabel={isConsolidated ? 'DOP + USD en RD$' : undefined}
+                    canViewCollections={
+                      rbac.hasPermission('VIEW_COLLECTIONS_PORTFOLIO') ||
+                      rbac.canAccessSection('cobranza_daily')
+                    }
+                    onNavigate={setActiveSection}
                   />
-                </div>
-              </div>
-            );
+                </Suspense>
+              ) : null;
 
-          case 'performance':
-            return <InstitutionalPerformanceSection key="performance" items={institutionalPerf} />;
+            case 'teamProductivity':
+              return teamProductivity ? (
+                <Suspense
+                  key="teamProductivity"
+                  fallback={<DashboardSectionSkeleton heightClass="h-52" columns={2} />}
+                >
+                  <LazyTeamProductivityPanel
+                    team={teamProductivity}
+                    onNavigate={setActiveSection}
+                  />
+                </Suspense>
+              ) : null;
 
-          case 'collections':
-            return (
-              <CollectionsSummaryPanel
-                key="collections"
-                summary={collectionsSummary}
-                currency={primaryCurrency}
-                currencyLabel={isConsolidated ? 'DOP + USD en RD$' : undefined}
-                canViewCollections={
-                  rbac.hasPermission('VIEW_COLLECTIONS_PORTFOLIO') ||
-                  rbac.canAccessSection('cobranza_daily')
-                }
-                onNavigate={setActiveSection}
-              />
-            );
-
-          case 'teamProductivity':
-            return (
-              <TeamProductivityPanel
-                key="teamProductivity"
-                team={teamProductivity}
-                onNavigate={setActiveSection}
-              />
-            );
-
-          case 'shortcuts':
-            return <SmartShortcutsSection key="shortcuts" shortcuts={smartShortcuts} />;
-        }
-      })}
+            case 'shortcuts':
+              return <SmartShortcutsSection key="shortcuts" shortcuts={smartShortcuts} />;
+          }
+        })}
+      </div>
 
       {widgetState.policy.canConfigure && widgetState.visibleSections.length === 0 && (
         <div className="rounded-2xl bg-white dark:bg-[#08132B] border border-dashed border-slate-300 dark:border-[#20C4E8]/25 p-8 text-center space-y-3">
@@ -2113,32 +2254,34 @@ export function ExecutiveDashboardView() {
         </div>
       )}
 
-      {/* CONFIGURADOR AVANZADO DE WIDGETS POR ROL */}
+      {/* CONFIGURADOR AVANZADO DE WIDGETS POR ROL (CARGA DIFERIDA) */}
       {customizeOpen && widgetState.policy.canConfigure && (
-        <DashboardWidgetConfiguratorDrawer
-          roleLabel={rbac.roleLabel}
-          policy={widgetState.policy}
-          config={widgetState.config}
-          syncStatus={widgetState.syncStatus}
-          restrictedKpis={widgetState.restrictedKpis}
-          restrictedAlerts={widgetState.restrictedAlerts}
-          editMode={widgetState.editMode}
-          onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
-          onReorderKpi={widgetState.reorderKpi}
-          onMoveKpi={widgetState.moveKpi}
-          onToggleKpi={widgetState.toggleKpiVisibility}
-          onShowAllKpis={widgetState.showAllKpis}
-          onReorderAlert={widgetState.reorderAlert}
-          onMoveAlert={widgetState.moveAlert}
-          onToggleAlert={widgetState.toggleAlertVisibility}
-          onShowAllAlerts={widgetState.showAllAlerts}
-          onChangeAlertsViewMode={widgetState.setAlertsViewMode}
-          onReorderSection={widgetState.reorderSection}
-          onMoveSection={widgetState.moveSection}
-          onToggleSection={widgetState.toggleSectionVisibility}
-          onResetDefaults={widgetState.resetToRoleDefaults}
-          onClose={() => setCustomizeOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <LazyDashboardWidgetConfiguratorDrawer
+            roleLabel={rbac.roleLabel}
+            policy={widgetState.policy}
+            config={widgetState.config}
+            syncStatus={widgetState.syncStatus}
+            restrictedKpis={widgetState.restrictedKpis}
+            restrictedAlerts={widgetState.restrictedAlerts}
+            editMode={widgetState.editMode}
+            onToggleEditMode={() => widgetState.setEditMode((v) => !v)}
+            onReorderKpi={widgetState.reorderKpi}
+            onMoveKpi={widgetState.moveKpi}
+            onToggleKpi={widgetState.toggleKpiVisibility}
+            onShowAllKpis={widgetState.showAllKpis}
+            onReorderAlert={widgetState.reorderAlert}
+            onMoveAlert={widgetState.moveAlert}
+            onToggleAlert={widgetState.toggleAlertVisibility}
+            onShowAllAlerts={widgetState.showAllAlerts}
+            onChangeAlertsViewMode={widgetState.setAlertsViewMode}
+            onReorderSection={widgetState.reorderSection}
+            onMoveSection={widgetState.moveSection}
+            onToggleSection={widgetState.toggleSectionVisibility}
+            onResetDefaults={widgetState.resetToRoleDefaults}
+            onClose={() => setCustomizeOpen(false)}
+          />
+        </Suspense>
       )}
 
       {/* DRAWER INTERACTIVO DE DETALLE AL SELECCIONAR INDICADORES */}
@@ -2183,7 +2326,7 @@ function IndicatorDetailDrawer({
   onOpenLoan: (loanId: string) => void;
   onNavigate: (sec: NavSectionId) => void;
 }) {
-  const { loans, collectionAccounts, payments, dopMetrics, usdMetrics, rbac, isPlatformAdminPortal } = useAxyCore();
+  const { loans, collectionAccounts, payments, dopMetrics, usdMetrics, rbac } = useAxyCore();
   const [drawerSearch, setDrawerSearch] = useState('');
 
   const isConsolidated =
@@ -2412,15 +2555,6 @@ function IndicatorDetailDrawer({
                   </div>
                 )}
 
-                {isPlatformAdminPortal && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('platform_control')}
-                    className="w-full py-2 px-3 rounded-lg bg-[#0066FF]/10 hover:bg-[#0066FF]/20 border border-[#0066FF]/30 text-[#0052CC] dark:text-[#00D1FF] text-xs font-semibold cursor-pointer"
-                  >
-                    Reconectar AppSheet / Auditar Inventario Completo →
-                  </button>
-                )}
               </div>
 
               <div>

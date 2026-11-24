@@ -21,8 +21,10 @@ import { canExecuteDisbursement, canUserApproveCommittee } from './src/engine/wo
 import { runGeminiDocumentOcrVerification } from './server/geminiOcr';
 import { runGeminiBiometricVerification } from './server/geminiBiometric';
 import {
+  normalizeGeminiError,
   runAxyCoreDirectorAnalysis,
   runBelaAssistantTurn,
+  sanitizeFocusMode,
 } from './server/geminiAssistant';
 import {
   runRegulaAiAssistant,
@@ -1036,7 +1038,16 @@ async function startServer() {
   // Server-side AxyCore Director Executive Intelligence Endpoint
   app.post('/api/ai/director', async (req, res) => {
     try {
-      const { question, scopedContext, actorId, organization } = req.body ?? {};
+      const {
+        question,
+        focusMode,
+        periodLabel,
+        currencyScope,
+        previousBriefingSummary,
+        scopedContext,
+        actorId,
+        organization,
+      } = req.body ?? {};
       if (!scopedContext || typeof scopedContext !== 'object') {
         res.status(400).json({ error: 'Se requiere scopedContext autorizado para AxyCore Director.' });
         return;
@@ -1053,22 +1064,19 @@ async function startServer() {
       }
       const result = await runAxyCoreDirectorAnalysis({
         question: typeof question === 'string' ? question : undefined,
+        focusMode: sanitizeFocusMode(focusMode),
+        periodLabel: typeof periodLabel === 'string' ? periodLabel : undefined,
+        currencyScope: typeof currencyScope === 'string' ? currencyScope : undefined,
+        previousBriefingSummary:
+          typeof previousBriefingSummary === 'string' ? previousBriefingSummary : undefined,
         scopedContext,
         actorId: typeof actorId === 'string' ? actorId : undefined,
       });
       res.json(result);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Error ejecutando análisis ejecutivo de AxyCore Director.';
-      const status = msg.includes('GEMINI_API_KEY no está configurada')
-        ? 503
-        : msg.includes('Límite temporal')
-        ? 429
-        : msg.includes('tiempo máximo')
-        ? 504
-        : 502;
+      const normalized = normalizeGeminiError(err);
       console.error('AxyCore Director Error:', err);
-      res.status(status).json({ error: msg });
+      res.status(normalized.status).json({ error: normalized.message });
     }
   });
 
@@ -1102,17 +1110,9 @@ async function startServer() {
       });
       res.json(result);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Error consultando a la asistente virtual Bela.';
-      const status = msg.includes('GEMINI_API_KEY no está configurada')
-        ? 503
-        : msg.includes('Límite temporal')
-        ? 429
-        : msg.includes('tiempo máximo')
-        ? 504
-        : 502;
+      const normalized = normalizeGeminiError(err);
       console.error('Bela Assistant Error:', err);
-      res.status(status).json({ error: msg });
+      res.status(normalized.status).json({ error: normalized.message });
     }
   });
 

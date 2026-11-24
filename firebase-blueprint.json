@@ -1647,7 +1647,7 @@
         "customerId": { "type": "string", "maxLength": 128 },
         "loanId": { "type": "string", "maxLength": 128 },
         "loanNumber": { "type": "string", "maxLength": 64 },
-        "requestType": { "type": "string", "enum": ["CARTA_SALDO", "ESTADO_CUENTA", "ACUERDO_PRORROGA", "ACTUALIZACION_DATOS", "ABONO_EXTRAORDINARIO", "VINCULACION_EXPEDIENTE", "CONSULTA_RECLAMO"] },
+        "requestType": { "type": "string", "enum": ["CARTA_SALDO", "ESTADO_CUENTA", "ACUERDO_PRORROGA", "AYUDA_ATRASO", "ACTUALIZACION_DATOS", "ABONO_EXTRAORDINARIO", "VINCULACION_EXPEDIENTE", "CONSULTA_RECLAMO"] },
         "subject": { "type": "string", "maxLength": 160 },
         "details": { "type": "string", "maxLength": 2000 },
         "requestedAmount": { "type": "number" },
@@ -1663,6 +1663,32 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "ticketNumber", "organizationId", "clientUid", "clientEmail", "clientName", "requestType", "subject", "details", "status", "createdAt", "updatedAt"]
+    },
+    "ClientPortalMessage": {
+      "title": "ClientPortalMessage",
+      "description": "Tenant-isolated direct messaging between authenticated external clients and their institution administrators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientEmail": { "type": "string", "maxLength": 254 },
+        "clientName": { "type": "string", "maxLength": 160 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "loanId": { "type": "string", "maxLength": 128 },
+        "loanNumber": { "type": "string", "maxLength": 64 },
+        "senderUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderName": { "type": "string", "maxLength": 160 },
+        "senderRole": { "type": "string", "enum": ["CLIENT", "ADMIN_STAFF"] },
+        "category": { "type": "string", "enum": ["CONSULTA_GENERAL", "PAGOS_Y_CUOTAS", "RENOVACION", "AYUDA_ATRASO", "DOCUMENTOS"] },
+        "subject": { "type": "string", "maxLength": 160 },
+        "body": { "type": "string", "maxLength": 2000 },
+        "readByClient": { "type": "boolean" },
+        "readByStaff": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "organizationId", "clientUid", "clientEmail", "clientName", "senderUid", "senderName", "senderRole", "category", "body", "readByClient", "readByStaff", "createdAt", "updatedAt"]
     },
     "PublicCreditApplication": {
       "title": "PublicCreditApplication",
@@ -1919,6 +1945,7 @@
     "/regula_tenants/{orgId}/regula_ai_consultas/{docId}": { "schema": { "$ref": "#/entities/RegulaRecord" }, "description": "Audited REGULA AI queries, cited sources, and human validation status" },
     "/public_portals/{portalCode}": { "schema": { "$ref": "#/entities/PublicInstitutionPortal" }, "description": "PII-free public branding directory for each institution's external client portal link" },
     "/client_service_requests/{requestId}": { "schema": { "$ref": "#/entities/ClientServiceRequest" }, "description": "Tenant-isolated self-service requests submitted by external clients" },
+    "/client_portal_messages/{messageId}": { "schema": { "$ref": "#/entities/ClientPortalMessage" }, "description": "Tenant-isolated direct messaging channel between authenticated external clients and their institution administrators" },
     "/public_credit_applications/{pubAppId}": { "schema": { "$ref": "#/entities/PublicCreditApplication" }, "description": "Write-only public credit applications strictly bound to active institution portals, readable only by internal institution staff" },
     "/impulsa_opportunities/{oppId}": { "schema": { "$ref": "#/entities/ImpulsaOpportunity" }, "description": "Intelligent commercial credit growth opportunities detected and managed by Impulsa" },
     "/impulsa_configs/{orgId}": { "schema": { "$ref": "#/entities/ImpulsaConfig" }, "description": "Per-tenant Impulsa thresholds, automation schedule, assignment strategy, and execution logs" },

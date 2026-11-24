@@ -146,9 +146,10 @@ describe('External Institution Portal Engine', () => {
     expect(candidates).toContain('1-809-555-0199');
   });
 
-  it('exposes a complete catalog of 7 client self-service request types', () => {
-    expect(CLIENT_SERVICE_REQUEST_CATALOG.length).toBe(7);
+  it('exposes a complete catalog of 8 client self-service request types including AYUDA_ATRASO', () => {
+    expect(CLIENT_SERVICE_REQUEST_CATALOG.length).toBe(8);
     expect(getServiceRequestCatalogItem('CARTA_SALDO').requiresLoan).toBe(true);
+    expect(getServiceRequestCatalogItem('AYUDA_ATRASO').requiresLoan).toBe(true);
     expect(getServiceRequestCatalogItem('VINCULACION_EXPEDIENTE').requiresLoan).toBe(false);
   });
 
@@ -554,4 +555,251 @@ describe('External Institution Portal Engine', () => {
     expect(audit.action.length).toBeLessThanOrEqual(200);
     expect(audit.transactionId.length).toBeGreaterThanOrEqual(4);
   });
+
+  it('guarantees 100% firestore.rules schema parity for public_credit_applications create payloads (INDIVIDUAL & BUSINESS)', () => {
+    const allowedPublicAppKeys = new Set([
+      'id',
+      'trackingNumber',
+      'organizationId',
+      'portalCode',
+      'institutionName',
+      'applicantType',
+      'applicantFullName',
+      'documentType',
+      'documentNumber',
+      'phone',
+      'email',
+      'address',
+      'province',
+      'productCode',
+      'currency',
+      'requestedAmount',
+      'requestedTermMonths',
+      'paymentFrequency',
+      'amortizationMethod',
+      'loanPurpose',
+      'loanPurposeDescription',
+      'proposedCollateral',
+      'monthlyIncome',
+      'monthlyExpenses',
+      'employerOrActivity',
+      'customerDetails',
+      'businessDetails',
+      'financialData',
+      'businessFinancialData',
+      'references',
+      'declaredDocumentsSummary',
+      'attachedDocuments',
+      'biometricSummary',
+      'indicativeInstallment',
+      'indicativeRateMonthly',
+      'consentVersion',
+      'consentAccepted',
+      'consentAcceptedAt',
+      'status',
+      'convertedApplicationId',
+      'convertedBy',
+      'convertedByName',
+      'convertedAt',
+      'reviewNotes',
+      'createdAt',
+      'updatedAt',
+    ]);
+
+    const assertMatchesFirestoreRule = (record: Record<string, unknown>) => {
+      for (const key of Object.keys(record)) {
+        expect(allowedPublicAppKeys.has(key)).toBe(true);
+      }
+      expect(String(record.id)).toMatch(/^[a-zA-Z0-9_-]{1,128}$/);
+      expect(String(record.organizationId)).toMatch(/^[a-zA-Z0-9_-]{1,128}$/);
+      expect(String(record.portalCode)).toMatch(/^[a-zA-Z0-9_-]{1,128}$/);
+      expect(String(record.trackingNumber).length).toBeGreaterThanOrEqual(6);
+      expect(String(record.trackingNumber).length).toBeLessThanOrEqual(40);
+      expect(String(record.institutionName).length).toBeGreaterThanOrEqual(2);
+      expect(String(record.institutionName).length).toBeLessThanOrEqual(160);
+      expect(['INDIVIDUAL', 'BUSINESS']).toContain(record.applicantType);
+      expect(String(record.applicantFullName).length).toBeGreaterThanOrEqual(3);
+      expect(String(record.applicantFullName).length).toBeLessThanOrEqual(200);
+      expect(['CEDULA', 'PASAPORTE']).toContain(record.documentType);
+      expect(String(record.documentNumber).length).toBeGreaterThanOrEqual(5);
+      expect(String(record.documentNumber).length).toBeLessThanOrEqual(40);
+      expect(String(record.phone).length).toBeGreaterThanOrEqual(7);
+      expect(String(record.phone).length).toBeLessThanOrEqual(40);
+      expect(['PERSONAL_DOP', 'EMPRESARIAL_DOP', 'PERSONAL_USD', 'EMPRESARIAL_USD']).toContain(
+        record.productCode
+      );
+      expect(['DOP', 'USD']).toContain(record.currency);
+      expect(Number(record.requestedAmount)).toBeGreaterThan(0);
+      expect(Number(record.requestedAmount)).toBeLessThanOrEqual(100_000_000);
+      expect(Number(record.requestedTermMonths)).toBeGreaterThanOrEqual(1);
+      expect(Number(record.requestedTermMonths)).toBeLessThanOrEqual(360);
+      expect(['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL']).toContain(record.paymentFrequency);
+      expect(['SALDO_INSOLUTO', 'INTERES_FIJO']).toContain(record.amortizationMethod);
+      expect(String(record.loanPurpose).length).toBeGreaterThanOrEqual(3);
+      expect(String(record.loanPurpose).length).toBeLessThanOrEqual(120);
+      expect(Number(record.monthlyIncome)).toBeGreaterThanOrEqual(0);
+      expect(Number(record.monthlyIncome)).toBeLessThanOrEqual(100_000_000);
+      expect(Number(record.monthlyExpenses)).toBeGreaterThanOrEqual(0);
+      expect(Number(record.monthlyExpenses)).toBeLessThanOrEqual(100_000_000);
+      expect(Number(record.indicativeInstallment)).toBeGreaterThanOrEqual(0);
+      expect(Number(record.indicativeInstallment)).toBeLessThanOrEqual(100_000_000);
+      expect(Number(record.indicativeRateMonthly)).toBeGreaterThanOrEqual(0);
+      expect(Number(record.indicativeRateMonthly)).toBeLessThanOrEqual(1);
+      expect(record.consentAccepted).toBe(true);
+      expect(String(record.consentAcceptedAt).length).toBeGreaterThanOrEqual(10);
+      expect(String(record.consentAcceptedAt).length).toBeLessThanOrEqual(40);
+      expect(record.status).toBe('RECIBIDA_PUBLICA');
+      if (Array.isArray(record.references)) {
+        expect(record.references.length).toBeLessThanOrEqual(4);
+      }
+      if (Array.isArray(record.attachedDocuments)) {
+        expect(record.attachedDocuments.length).toBeLessThanOrEqual(3);
+      }
+    };
+
+    // Case 1: Exact individual prospect case (Personal DOP, RD$160,000, 3 meses, MENSUAL)
+    const indCheck = validatePublicCreditApplicationPayload({
+      applicantType: 'INDIVIDUAL',
+      applicantFullName: 'Luis Ángel Rodríguez Rodríguez',
+      documentType: 'CEDULA',
+      documentNumber: '001-1234567-8',
+      phone: '829-641-7360',
+      productCode: 'PERSONAL_DOP',
+      currency: 'DOP',
+      requestedAmount: 160000,
+      requestedTermMonths: 3,
+      paymentFrequency: 'MENSUAL',
+      amortizationMethod: 'SALDO_INSOLUTO',
+      loanPurpose: 'Capital / Consumo personal',
+      monthlyIncome: 75000,
+      monthlyExpenses: 28000,
+      customerDetails: {
+        firstName: 'Luis Ángel',
+        lastName: 'Rodríguez Rodríguez',
+        residenceMonths: 24,
+        housingType: 'ALQUILADA',
+        housingPayment: 0,
+        socialMediaDeclared: 'NO_MEDIA',
+      },
+      financialData: {
+        activityType: 'Empleado privado',
+        employerOrBusinessName: 'Empresa Test',
+        occupationOrRole: 'Técnico',
+        employmentMonths: 24,
+        incomeSourceType: 'FIJA_RECURRENTE',
+        primaryNetIncome: 75000,
+        additionalIncomeStatus: 'EXPLICIT_NONE',
+        additionalNetIncome: 0,
+        declaredTotalMonthlyIncome: null,
+        incomeCurrency: 'DOP',
+        essentialExpenses: 28000,
+        housingPayment: 0,
+        housingIncludedInExpenses: false,
+        debtDeclarationStatus: 'NO_DEBTS_EXPLICIT',
+        debtCount: 0,
+        totalDebtBalance: 0,
+        currentDebtPayments: 0,
+      },
+      references: [],
+      declaredDocumentsSummary: { hasIdentityDoc: true, hasIncomeEvidence: true },
+      attachedDocuments: [],
+      biometricSummary: null,
+      consentVersion: 'v1.0-Ley172-13',
+      consentAccepted: true,
+    });
+    expect(indCheck.valid).toBe(true);
+    const indClean = indCheck.sanitized!;
+    const indIndicative = computeIndicativePublicInstallment({
+      amount: indClean.requestedAmount,
+      termMonths: indClean.requestedTermMonths,
+      frequency: indClean.paymentFrequency,
+    });
+    assertMatchesFirestoreRule({
+      id: 'pubapp_1795448060053_tvy0ab',
+      trackingNumber: 'PUB-2026-060053',
+      organizationId: 'org_axycore_main',
+      portalCode: normalizePortalCode(' sgma-001 '),
+      institutionName: 'SU GLORIA MANO AMIGA',
+      ...indClean,
+      indicativeInstallment: indIndicative.installmentAmount,
+      indicativeRateMonthly: indIndicative.monthlyRateUsed,
+      consentAcceptedAt: '2026-11-24T11:34:20.053Z',
+      status: 'RECIBIDA_PUBLICA',
+    });
+
+    // Case 2: BUSINESS prospect with references, attached documents, and biometric summary
+    const bizCheck = validatePublicCreditApplicationPayload({
+      applicantType: 'BUSINESS',
+      applicantFullName: 'Comercial Caribe (María Santos)',
+      documentType: 'CEDULA',
+      documentNumber: '001-7654321-0',
+      phone: '809-555-8899',
+      email: 'maria@caribe.do',
+      productCode: 'EMPRESARIAL_DOP',
+      currency: 'DOP',
+      requestedAmount: 350000,
+      requestedTermMonths: 12,
+      paymentFrequency: 'QUINCENAL',
+      amortizationMethod: 'INTERES_FIJO',
+      loanPurpose: 'Capital de trabajo',
+      monthlyIncome: 140000,
+      monthlyExpenses: 30000,
+      businessDetails: {
+        rnc: '1-31-99887-2',
+        legalName: 'Comercial Caribe, S.R.L.',
+        tradeName: 'Comercial Caribe',
+        authorizedRepName: 'María Santos',
+      },
+      businessFinancialData: {
+        grossSales: 450000,
+        operatingCosts: 310000,
+        netMonthlyFlow: 140000,
+        repaymentSource: 'Ventas comerciales',
+        incomeCurrency: 'DOP',
+        debtDeclarationStatus: 'NO_DEBTS_EXPLICIT',
+      },
+      references: [
+        { name: 'Carlos Díaz', relationship: 'Proveedor', phone: '809-555-1010' },
+        { name: 'Elena Ruiz', relationship: 'Socia', phone: '809-555-2020' },
+      ],
+      declaredDocumentsSummary: { hasIdentityDoc: true, hasIncomeEvidence: true },
+      attachedDocuments: [
+        {
+          category: 'Identidad',
+          fileName: 'cedula.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: 120000,
+          fileDataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+        },
+      ],
+      biometricSummary: {
+        verdict: 'COINCIDE',
+        similarityScore: 94,
+        livenessAssessment: 'ALTA',
+        summary: 'Rostro coincide con el documento de identidad.',
+      },
+      consentVersion: 'v1.0-Ley172-13',
+      consentAccepted: true,
+    });
+    expect(bizCheck.valid).toBe(true);
+    const bizClean = bizCheck.sanitized!;
+    const bizIndicative = computeIndicativePublicInstallment({
+      amount: bizClean.requestedAmount,
+      termMonths: bizClean.requestedTermMonths,
+      frequency: bizClean.paymentFrequency,
+    });
+    assertMatchesFirestoreRule({
+      id: 'pubapp_1795448099999_biz001',
+      trackingNumber: 'PUB-2026-099999',
+      organizationId: 'org_axycore_main',
+      portalCode: 'SGMA-001',
+      institutionName: 'SU GLORIA MANO AMIGA',
+      ...bizClean,
+      indicativeInstallment: bizIndicative.installmentAmount,
+      indicativeRateMonthly: bizIndicative.monthlyRateUsed,
+      consentAcceptedAt: '2026-11-24T11:35:00.000Z',
+      status: 'RECIBIDA_PUBLICA',
+    });
+  });
 });
+
